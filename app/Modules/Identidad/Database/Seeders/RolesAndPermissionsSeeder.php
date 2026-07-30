@@ -32,7 +32,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'academico.ver', 'academico.gestionar',
             'matricula.crear', 'matricula.ver', 'matricula.editar', 'matricula.anular',
             'aula_virtual.ver',
-            'evaluaciones.ver',
+            'evaluaciones.ver', 'evaluaciones.publicar',
             'asistencia.ver',
             'pagos.ver', 'pagos.gestionar',
             'certificados.ver', 'certificados.emitir', 'certificados.duplicar',

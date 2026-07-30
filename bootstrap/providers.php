@@ -4,6 +4,7 @@ use App\Modules\Academico\Providers\AcademicoServiceProvider;
 use App\Modules\Asistencia\Providers\AsistenciaServiceProvider;
 use App\Modules\AulaVirtual\Providers\AulaVirtualServiceProvider;
 use App\Modules\Dashboard\Providers\DashboardServiceProvider;
+use App\Modules\Evaluaciones\Providers\EvaluacionesServiceProvider;
 use App\Modules\Identidad\Providers\IdentidadServiceProvider;
 use App\Modules\Matricula\Providers\MatriculaServiceProvider;
 use App\Providers\AppServiceProvider;
@@ -20,4 +21,5 @@ return [
     MatriculaServiceProvider::class,
     AulaVirtualServiceProvider::class,
     AsistenciaServiceProvider::class,
+    EvaluacionesServiceProvider::class,
 ];

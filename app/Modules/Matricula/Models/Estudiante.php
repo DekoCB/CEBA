@@ -21,6 +21,7 @@ use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
 /**
+ * @property int $id
  * @property string $dni
  * @property string $nombres
  * @property string $apellidos

@@ -65,6 +65,21 @@
         </a>
     @endcanany
 
+    @canany(['evaluaciones.ver', 'evaluaciones.registrar', 'evaluaciones.ver_propio'])
+        <a
+            href="{{ route('evaluaciones.index') }}"
+            wire:navigate
+            @class([
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                'bg-accent-soft text-accent' => request()->routeIs('evaluaciones.*'),
+                'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('evaluaciones.*'),
+            ])
+        >
+            <x-heroicon-o-pencil-square class="h-5 w-5 shrink-0" />
+            Evaluaciones
+        </a>
+    @endcanany
+
     @can('academico.ver')
         <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
             Académico

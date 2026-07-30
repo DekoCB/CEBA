@@ -1,0 +1,80 @@
+<?php
+
+use App\Modules\Academico\Models\Ciclo;
+use App\Modules\Evaluaciones\Models\Libreta;
+use App\Modules\Evaluaciones\Services\LibretaService;
+use App\Modules\Matricula\Models\Estudiante;
+use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Layout;
+use Livewire\Volt\Component;
+
+new #[Layout('layouts.app')] class extends Component
+{
+    public Estudiante $estudiante;
+
+    public Ciclo $ciclo;
+
+    public function mount(Estudiante $estudiante, Ciclo $ciclo): void
+    {
+        $user = Auth::user();
+
+        $esElMismoEstudiante = $user->estudiante && $user->estudiante->id === $estudiante->id;
+
+        abort_unless($esElMismoEstudiante || $user->hasPermissionTo('evaluaciones.ver'), 403);
+
+        $this->estudiante = $estudiante;
+        $this->ciclo = $ciclo;
+    }
+
+    public function generar(LibretaService $service): void
+    {
+        $user = Auth::user();
+        $esElMismoEstudiante = $user->estudiante && $user->estudiante->id === $this->estudiante->id;
+
+        abort_unless($esElMismoEstudiante || $user->hasPermissionTo('evaluaciones.ver'), 403);
+
+        $service->generar($this->estudiante, $this->ciclo);
+    }
+
+    public function with(): array
+    {
+        $libreta = Libreta::query()
+            ->where('estudiante_id', $this->estudiante->id)
+            ->where('ciclo_id', $this->ciclo->id)
+            ->first();
+
+        return [
+            'libreta' => $libreta,
+            'urlPdf' => $libreta?->getFirstMediaUrl('pdf'),
+        ];
+    }
+}; ?>
+
+<div>
+    <x-slot name="header">
+        <h1 class="font-display text-2xl text-ink">Libreta de notas</h1>
+        <p class="mt-1 text-sm text-ink-dim">{{ $estudiante->nombreCompleto() }} · {{ $ciclo->nombre }}</p>
+    </x-slot>
+
+    <div class="rounded-lg border border-border bg-surface p-6">
+        @if ($libreta && $libreta->generado_en)
+            <p class="text-sm text-ink-dim">
+                Última libreta generada el {{ $libreta->generado_en->format('d/m/Y H:i') }}.
+            </p>
+
+            @if ($urlPdf)
+                <a href="{{ $urlPdf }}" target="_blank" class="mt-3 inline-block text-sm font-medium text-accent hover:underline">
+                    Descargar PDF →
+                </a>
+            @endif
+        @else
+            <p class="text-sm text-ink-faint">Todavía no se ha generado una libreta para este ciclo.</p>
+        @endif
+
+        <div class="mt-4">
+            <x-primary-button type="button" wire:click="generar" wire:loading.attr="disabled">
+                {{ $libreta ? 'Actualizar libreta' : 'Generar libreta' }}
+            </x-primary-button>
+        </div>
+    </div>
+</div>
