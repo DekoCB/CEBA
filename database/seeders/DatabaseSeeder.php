@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Modules\Academico\Database\Seeders\AcademicoDemoSeeder;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Shared\Enums\EstadoUsuarioEnum;
 use App\Shared\Enums\RolEnum;
@@ -40,5 +41,7 @@ class DatabaseSeeder extends Seeder
             'estado' => EstadoUsuarioEnum::ACTIVO,
         ]);
         $estudiante->assignRole(RolEnum::ESTUDIANTE->value);
+
+        $this->call(AcademicoDemoSeeder::class);
     }
 }

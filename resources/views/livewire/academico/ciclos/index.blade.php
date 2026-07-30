@@ -1,0 +1,183 @@
+<?php
+
+use App\Modules\Academico\Enums\TipoCicloEnum;
+use App\Modules\Academico\Services\CicloService;
+use Illuminate\Support\Facades\Gate;
+use Livewire\Attributes\Layout;
+use Livewire\Volt\Component;
+
+new #[Layout('layouts.app')] class extends Component
+{
+    public bool $mostrarModal = false;
+
+    public string $nombre = '';
+
+    public string $tipo = '';
+
+    public string $anio = '';
+
+    public string $fechaInicio = '';
+
+    public string $fechaFin = '';
+
+    public function mount(): void
+    {
+        Gate::authorize('academico.ver');
+        $this->anio = (string) now()->year;
+    }
+
+    public function abrirModal(): void
+    {
+        Gate::authorize('academico.gestionar');
+
+        $this->resetValidation();
+        $this->reset(['nombre', 'tipo', 'fechaInicio', 'fechaFin']);
+        $this->anio = (string) now()->year;
+        $this->mostrarModal = true;
+    }
+
+    public function guardar(CicloService $service): void
+    {
+        Gate::authorize('academico.gestionar');
+
+        $this->validate([
+            'nombre' => 'required|string|max:100',
+            'tipo' => 'required|string|in:'.implode(',', array_column(TipoCicloEnum::cases(), 'value')),
+            'anio' => 'required|integer|min:2020|max:2100',
+            'fechaInicio' => 'required|date',
+            'fechaFin' => 'required|date',
+        ]);
+
+        $service->crear([
+            'nombre' => $this->nombre,
+            'tipo' => TipoCicloEnum::from($this->tipo),
+            'anio' => (int) $this->anio,
+            'fecha_inicio' => $this->fechaInicio,
+            'fecha_fin' => $this->fechaFin,
+        ]);
+
+        $this->mostrarModal = false;
+        session()->flash('status', 'Ciclo creado correctamente.');
+    }
+
+    public function with(CicloService $service): array
+    {
+        return [
+            'ciclos' => $service->listar(),
+            'tipos' => TipoCicloEnum::cases(),
+        ];
+    }
+}; ?>
+
+<div>
+    <x-slot name="header">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="font-display text-2xl text-ink">Ciclos</h1>
+                <p class="mt-1 text-sm text-ink-dim">Mayores: enero-junio y julio-diciembre. Menores: 6 u 8 meses.</p>
+            </div>
+            @can('academico.gestionar')
+                <button wire:click="abrirModal" class="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+                    <x-heroicon-o-plus class="h-4 w-4" />
+                    Nuevo ciclo
+                </button>
+            @endcan
+        </div>
+    </x-slot>
+
+    @if (session('status'))
+        <div class="mb-4 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">{{ session('status') }}</div>
+    @endif
+
+    <div class="overflow-hidden rounded-lg border border-border bg-surface">
+        <table class="min-w-full divide-y divide-border text-sm">
+            <thead class="bg-surface-2">
+                <tr>
+                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Nombre</th>
+                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Tipo</th>
+                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Fechas</th>
+                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Estado</th>
+                    <th class="px-4 py-3"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-border">
+                @forelse ($ciclos as $ciclo)
+                    <tr wire:key="ciclo-{{ $ciclo->id }}">
+                        <td class="px-4 py-3 font-medium text-ink">{{ $ciclo->nombre }}</td>
+                        <td class="px-4 py-3 text-ink-dim">{{ $ciclo->tipo->label() }}</td>
+                        <td class="px-4 py-3 text-ink-dim">{{ $ciclo->fecha_inicio->format('d/m/Y') }} – {{ $ciclo->fecha_fin->format('d/m/Y') }}</td>
+                        <td class="px-4 py-3">
+                            <span @class([
+                                'rounded-full px-2 py-0.5 text-xs font-medium',
+                                'bg-ok/10 text-ok' => $ciclo->estado->value === 'activo',
+                                'bg-info/10 text-info' => $ciclo->estado->value === 'planificado',
+                                'bg-ink-faint/10 text-ink-faint' => $ciclo->estado->value === 'cerrado',
+                            ])>
+                                {{ $ciclo->estado->label() }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            <a href="{{ route('academico.ciclos.show', $ciclo) }}" wire:navigate class="text-sm font-medium text-accent hover:underline">Ver</a>
+                        </td>
+                    </tr>
+                @empty
+                    <tr><td colspan="5" class="px-4 py-8 text-center text-sm text-ink-faint">No hay ciclos registrados.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+
+    <div class="mt-4">{{ $ciclos->links() }}</div>
+
+    @if ($mostrarModal)
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" wire:click.self="$set('mostrarModal', false)">
+            <div class="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-lg">
+                <h2 class="font-display text-lg text-ink">Nuevo ciclo</h2>
+
+                <form wire:submit="guardar" class="mt-4 space-y-4">
+                    <div>
+                        <x-input-label for="nombre" value="Nombre" />
+                        <x-text-input wire:model="nombre" id="nombre" class="mt-1 block w-full" placeholder="Ej. Enero - Junio 2027" />
+                        <x-input-error :messages="$errors->get('nombre')" class="mt-1" />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <x-input-label for="tipo" value="Tipo" />
+                            <select wire:model="tipo" id="tipo" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
+                                <option value="">Selecciona…</option>
+                                @foreach ($tipos as $tipoOpcion)
+                                    <option value="{{ $tipoOpcion->value }}">{{ $tipoOpcion->label() }} ({{ $tipoOpcion->publico()->label() }})</option>
+                                @endforeach
+                            </select>
+                            <x-input-error :messages="$errors->get('tipo')" class="mt-1" />
+                        </div>
+                        <div>
+                            <x-input-label for="anio" value="Año" />
+                            <x-text-input wire:model="anio" id="anio" type="number" class="mt-1 block w-full" />
+                            <x-input-error :messages="$errors->get('anio')" class="mt-1" />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <x-input-label for="fechaInicio" value="Fecha inicio" />
+                            <x-text-input wire:model="fechaInicio" id="fechaInicio" type="date" class="mt-1 block w-full" />
+                            <x-input-error :messages="$errors->get('fechaInicio')" class="mt-1" />
+                        </div>
+                        <div>
+                            <x-input-label for="fechaFin" value="Fecha fin" />
+                            <x-text-input wire:model="fechaFin" id="fechaFin" type="date" class="mt-1 block w-full" />
+                            <x-input-error :messages="$errors->get('fechaFin')" class="mt-1" />
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-3 pt-2">
+                        <x-secondary-button type="button" wire:click="$set('mostrarModal', false)">Cancelar</x-secondary-button>
+                        <x-primary-button type="submit">Crear ciclo</x-primary-button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
+</div>
