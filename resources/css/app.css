@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Tokens de marca CEBA — ver sección 01 del documento de arquitectura.
+ * Cada color se define como triple RGB (sin "rgb()") para que Tailwind
+ * pueda componer la opacidad vía rgb(var(--x) / <alpha-value>).
+ */
+:root {
+    --color-bg: 245 246 248;
+    --color-surface: 255 255 255;
+    --color-surface-2: 238 240 243;
+    --color-border: 219 223 230;
+    --color-text: 27 31 39;
+    --color-text-dim: 91 100 114;
+    --color-text-faint: 136 145 160;
+    --color-accent: 19 122 108;
+    --color-accent-soft: 225 241 238;
+    --color-gold: 156 107 20;
+    --color-ok: 46 158 98;
+    --color-warn: 184 121 26;
+    --color-danger: 192 67 58;
+    --color-info: 52 104 192;
+}
+
+.dark {
+    --color-bg: 13 16 21;
+    --color-surface: 20 25 34;
+    --color-surface-2: 27 33 44;
+    --color-border: 38 46 58;
+    --color-text: 231 234 240;
+    --color-text-dim: 154 163 178;
+    --color-text-faint: 98 107 122;
+    --color-accent: 53 205 184;
+    --color-accent-soft: 20 56 51;
+    --color-gold: 227 162 61;
+    --color-ok: 63 193 126;
+    --color-warn: 227 162 61;
+    --color-danger: 229 103 95;
+    --color-info: 91 155 224;
+}
+
+@layer base {
+    body {
+        @apply bg-bg text-ink;
+    }
+}
