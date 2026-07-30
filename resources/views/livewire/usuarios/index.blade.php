@@ -73,7 +73,7 @@ new #[Layout('layouts.app')] class extends Component
             'dni' => 'required|string|min:8|max:12',
             'phone' => 'nullable|string',
             'password' => 'required|string|min:8',
-            'rol' => 'required|string|in:'.implode(',', array_column(RolEnum::cases(), 'value')),
+            'rol' => 'required|string|in:'.implode(',', array_column($this->rolesCreables(), 'value')),
         ]);
 
         if (! $service->emailDisponible($this->email)) {
@@ -101,11 +101,19 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('status', 'Usuario creado correctamente.');
     }
 
+    /**
+     * @return list<RolEnum>
+     */
+    private function rolesCreables(): array
+    {
+        return array_values(array_filter(RolEnum::cases(), fn (RolEnum $rol) => $rol !== RolEnum::ESTUDIANTE));
+    }
+
     public function with(UserManagementService $service): array
     {
         return [
             'usuarios' => $service->listar($this->termino ?: null, $this->filtroRol ?: null),
-            'rolesDisponibles' => RolEnum::cases(),
+            'rolesDisponibles' => $this->rolesCreables(),
         ];
     }
 }; ?>

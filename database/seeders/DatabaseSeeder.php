@@ -55,5 +55,6 @@ class DatabaseSeeder extends Seeder
         $this->call(AcademicoDemoSeeder::class);
         $this->call(MatriculaDemoSeeder::class);
         $this->call(AulaVirtualDemoSeeder::class);
+        $this->call(DemoRobustoSeeder::class);
     }
 }

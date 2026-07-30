@@ -82,4 +82,49 @@ class UsuariosTest extends TestCase
             ->call('crear')
             ->assertHasErrors('email');
     }
+
+    public function test_los_estudiantes_no_aparecen_en_el_listado_de_usuarios(): void
+    {
+        $direccion = User::factory()->create();
+        $direccion->assignRole(RolEnum::DIRECCION->value);
+
+        $estudiante = User::factory()->create(['name' => 'Estudiante Oculto']);
+        $estudiante->assignRole(RolEnum::ESTUDIANTE->value);
+
+        $this->actingAs($direccion)
+            ->get('/usuarios')
+            ->assertOk()
+            ->assertDontSee('Estudiante Oculto');
+    }
+
+    public function test_el_selector_de_rol_no_ofrece_estudiante(): void
+    {
+        $direccion = User::factory()->create();
+        $direccion->assignRole(RolEnum::DIRECCION->value);
+
+        $this->actingAs($direccion);
+
+        $componente = Volt::test('usuarios.index');
+
+        $roles = collect($componente->get('rolesDisponibles'))->pluck('value');
+
+        $this->assertFalse($roles->contains(RolEnum::ESTUDIANTE->value));
+    }
+
+    public function test_no_permite_crear_un_usuario_con_rol_estudiante_desde_este_formulario(): void
+    {
+        $direccion = User::factory()->create();
+        $direccion->assignRole(RolEnum::DIRECCION->value);
+
+        $this->actingAs($direccion);
+
+        Volt::test('usuarios.index')
+            ->set('name', 'Intento Estudiante')
+            ->set('email', 'intento.estudiante@ceba.test')
+            ->set('dni', '99887766')
+            ->set('password', 'password123')
+            ->set('rol', RolEnum::ESTUDIANTE->value)
+            ->call('crear')
+            ->assertHasErrors('rol');
+    }
 }

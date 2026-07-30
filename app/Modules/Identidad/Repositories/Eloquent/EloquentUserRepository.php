@@ -6,6 +6,7 @@ namespace App\Modules\Identidad\Repositories\Eloquent;
 
 use App\Models\User;
 use App\Modules\Identidad\Repositories\Contracts\UserRepositoryInterface;
+use App\Shared\Enums\RolEnum;
 use App\Shared\Repositories\BaseRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -24,6 +25,7 @@ class EloquentUserRepository extends BaseRepository implements UserRepositoryInt
     {
         return User::query()
             ->with('roles:id,name')
+            ->whereDoesntHave('roles', fn ($query) => $query->where('name', RolEnum::ESTUDIANTE->value))
             ->when($termino, fn ($query) => $query->where(function ($query) use ($termino) {
                 $query->where('name', 'like', "%{$termino}%")
                     ->orWhere('email', 'like', "%{$termino}%")
