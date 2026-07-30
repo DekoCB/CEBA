@@ -10,9 +10,6 @@ enum RolEnum: string
     case COORDINADOR = 'coordinador';
     case ADMINISTRATIVO = 'administrativo';
     case TESORERIA = 'tesoreria';
-    case COBRANZA = 'cobranza';
-    case MATRICULA = 'matricula';
-    case CERTIFICACIONES = 'certificaciones';
     case DOCENTE = 'docente';
     case ESTUDIANTE = 'estudiante';
 
@@ -23,9 +20,6 @@ enum RolEnum: string
             self::COORDINADOR => 'Coordinador',
             self::ADMINISTRATIVO => 'Administrativo',
             self::TESORERIA => 'Tesorería',
-            self::COBRANZA => 'Cobranza',
-            self::MATRICULA => 'Matrícula',
-            self::CERTIFICACIONES => 'Certificaciones',
             self::DOCENTE => 'Docente',
             self::ESTUDIANTE => 'Estudiante',
         };

@@ -44,13 +44,13 @@ class DatabaseSeeder extends Seeder
         ]);
         $estudiante->assignRole(RolEnum::ESTUDIANTE->value);
 
-        $matricula = User::factory()->create([
-            'name' => 'Matrícula Demo',
-            'email' => 'matricula@ceba.test',
+        $coordinador = User::factory()->create([
+            'name' => 'Coordinador Demo',
+            'email' => 'coordinador@ceba.test',
             'dni' => '00000004',
             'estado' => EstadoUsuarioEnum::ACTIVO,
         ]);
-        $matricula->assignRole(RolEnum::MATRICULA->value);
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
 
         $this->call(AcademicoDemoSeeder::class);
         $this->call(MatriculaDemoSeeder::class);

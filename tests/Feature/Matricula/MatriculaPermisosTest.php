@@ -26,10 +26,10 @@ class MatriculaPermisosTest extends TestCase
         $this->seed(RolesAndPermissionsSeeder::class);
     }
 
-    public function test_rol_matricula_puede_ver_el_listado(): void
+    public function test_rol_coordinador_puede_ver_el_listado(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole(RolEnum::MATRICULA->value);
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
 
         $this->actingAs($usuario)
             ->get('/matricula')
@@ -51,7 +51,7 @@ class MatriculaPermisosTest extends TestCase
         Storage::fake('public');
 
         $usuario = User::factory()->create();
-        $usuario->assignRole(RolEnum::MATRICULA->value);
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
 
         $ciclo = Ciclo::factory()->activo()->create([
             'fecha_inicio' => now()->subDays(20),

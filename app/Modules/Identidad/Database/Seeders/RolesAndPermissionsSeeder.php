@@ -11,9 +11,14 @@ use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * Siembra los 9 roles institucionales y la matriz de permisos base descrita
+ * Siembra los 6 roles institucionales y la matriz de permisos base descrita
  * en el documento de arquitectura (sección 05). Los permisos siguen la
  * convención modulo.accion y son editables luego desde la UI de Roles.
+ *
+ * Coordinador concentra la operación de matrícula, cobranza y
+ * certificaciones además de la supervisión académica: en un CEBA la misma
+ * persona suele cubrir estos tres frentes, por lo que no se modelan como
+ * roles institucionales separados.
  */
 class RolesAndPermissionsSeeder extends Seeder
 {
@@ -25,12 +30,13 @@ class RolesAndPermissionsSeeder extends Seeder
 
         RolEnum::COORDINADOR->value => [
             'academico.ver', 'academico.gestionar',
-            'matricula.ver',
+            'matricula.crear', 'matricula.ver', 'matricula.editar', 'matricula.anular',
             'aula_virtual.ver',
             'evaluaciones.ver',
             'asistencia.ver',
-            'certificados.ver',
-            'reportes.academicos',
+            'pagos.ver', 'pagos.gestionar',
+            'certificados.ver', 'certificados.emitir', 'certificados.duplicar',
+            'reportes.academicos', 'reportes.matricula', 'reportes.financieros', 'reportes.certificados',
             'whatsapp.enviar',
         ],
 
@@ -49,26 +55,6 @@ class RolesAndPermissionsSeeder extends Seeder
             'pagos.ver', 'pagos.aprobar', 'pagos.rechazar',
             'tesoreria.gestionar',
             'reportes.financieros',
-        ],
-
-        RolEnum::COBRANZA->value => [
-            'pagos.ver', 'pagos.gestionar',
-            'reportes.financieros',
-            'whatsapp.enviar',
-        ],
-
-        RolEnum::MATRICULA->value => [
-            'matricula.crear', 'matricula.ver', 'matricula.editar', 'matricula.anular',
-            'certificados.ver',
-            'reportes.matricula',
-            'whatsapp.enviar',
-        ],
-
-        RolEnum::CERTIFICACIONES->value => [
-            'certificados.emitir', 'certificados.duplicar', 'certificados.ver',
-            'matricula.ver',
-            'reportes.certificados',
-            'whatsapp.enviar',
         ],
 
         RolEnum::DOCENTE->value => [

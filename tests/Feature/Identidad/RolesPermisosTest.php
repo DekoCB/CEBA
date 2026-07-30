@@ -40,10 +40,10 @@ class RolesPermisosTest extends TestCase
 
     public function test_un_rol_sin_permiso_no_puede_acceder_a_la_matriz(): void
     {
-        $cobranza = User::factory()->create();
-        $cobranza->assignRole(RolEnum::COBRANZA->value);
+        $tesoreria = User::factory()->create();
+        $tesoreria->assignRole(RolEnum::TESORERIA->value);
 
-        $this->actingAs($cobranza)
+        $this->actingAs($tesoreria)
             ->get('/roles')
             ->assertForbidden();
     }
