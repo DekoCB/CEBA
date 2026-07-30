@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth'])->group(function () {
     Volt::route('usuarios', 'usuarios.index')
         ->middleware('can:usuarios.ver')
         ->name('usuarios.index');

@@ -8,9 +8,9 @@ use App\Modules\Identidad\Repositories\Contracts\AuditLogRepositoryInterface;
 use App\Modules\Identidad\Repositories\Contracts\UserRepositoryInterface;
 use App\Modules\Identidad\Repositories\Eloquent\EloquentAuditLogRepository;
 use App\Modules\Identidad\Repositories\Eloquent\EloquentUserRepository;
-use Illuminate\Support\ServiceProvider;
+use App\Shared\Providers\ModuleServiceProvider;
 
-class IdentidadServiceProvider extends ServiceProvider
+class IdentidadServiceProvider extends ModuleServiceProvider
 {
     public function register(): void
     {
@@ -21,6 +21,6 @@ class IdentidadServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
-        $this->loadRoutesFrom(__DIR__.'/../Routes/web.php');
+        $this->loadWebRoutesFrom(__DIR__.'/../Routes/web.php');
     }
 }

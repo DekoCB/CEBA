@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Modules\Dashboard\Providers;
 
-use Illuminate\Support\ServiceProvider;
+use App\Shared\Providers\ModuleServiceProvider;
 
-class DashboardServiceProvider extends ServiceProvider
+class DashboardServiceProvider extends ModuleServiceProvider
 {
     public function boot(): void
     {
-        $this->loadRoutesFrom(__DIR__.'/../Routes/web.php');
+        $this->loadWebRoutesFrom(__DIR__.'/../Routes/web.php');
     }
 }
