@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Academico\Providers\AcademicoServiceProvider;
+use App\Modules\Asistencia\Providers\AsistenciaServiceProvider;
 use App\Modules\AulaVirtual\Providers\AulaVirtualServiceProvider;
 use App\Modules\Dashboard\Providers\DashboardServiceProvider;
 use App\Modules\Identidad\Providers\IdentidadServiceProvider;
@@ -18,4 +19,5 @@ return [
     AcademicoServiceProvider::class,
     MatriculaServiceProvider::class,
     AulaVirtualServiceProvider::class,
+    AsistenciaServiceProvider::class,
 ];

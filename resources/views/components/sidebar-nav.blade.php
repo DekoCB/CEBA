@@ -50,6 +50,21 @@
         </a>
     @endcanany
 
+    @canany(['asistencia.ver', 'asistencia.registrar', 'asistencia.ver_propio'])
+        <a
+            href="{{ route('asistencia.index') }}"
+            wire:navigate
+            @class([
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                'bg-accent-soft text-accent' => request()->routeIs('asistencia.*'),
+                'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('asistencia.*'),
+            ])
+        >
+            <x-heroicon-o-clipboard-document-check class="h-5 w-5 shrink-0" />
+            Asistencia
+        </a>
+    @endcanany
+
     @can('academico.ver')
         <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
             Académico

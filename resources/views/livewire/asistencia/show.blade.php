@@ -1,0 +1,192 @@
+<?php
+
+use App\Modules\Academico\Models\Horario;
+use App\Modules\Asistencia\Enums\EstadoAsistenciaEnum;
+use App\Modules\Asistencia\Services\AsistenciaService;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
+use Livewire\Attributes\Layout;
+use Livewire\Volt\Component;
+
+new #[Layout('layouts.app')] class extends Component
+{
+    public Horario $horario;
+
+    public string $fecha = '';
+
+    /** @var array<int, string> */
+    public array $estados = [];
+
+    public bool $guardado = false;
+
+    public function mount(Horario $horario, AsistenciaService $service): void
+    {
+        Gate::authorize('asistencia.ver-horario', $horario);
+
+        $this->horario = $horario;
+        $this->fecha = now()->format('Y-m-d');
+
+        if (Gate::allows('asistencia.registrar-horario', $horario)) {
+            $this->cargarRegistros($service);
+        }
+    }
+
+    public function updatedFecha(AsistenciaService $service): void
+    {
+        $this->guardado = false;
+
+        if (Gate::allows('asistencia.registrar-horario', $this->horario)) {
+            $this->cargarRegistros($service);
+        }
+    }
+
+    private function cargarRegistros(AsistenciaService $service): void
+    {
+        $estudiantes = $service->estudiantesDelHorario($this->horario);
+        $existentes = $service->deSesion($this->horario, $this->fecha);
+
+        $this->estados = [];
+
+        foreach ($estudiantes as $estudiante) {
+            $this->estados[$estudiante->id] = $existentes->get($estudiante->id)?->estado->value
+                ?? EstadoAsistenciaEnum::PRESENTE->value;
+        }
+    }
+
+    public function guardar(AsistenciaService $service): void
+    {
+        Gate::authorize('asistencia.registrar-horario', $this->horario);
+
+        $valores = implode(',', array_column(EstadoAsistenciaEnum::cases(), 'value'));
+        $rules = [];
+
+        foreach (array_keys($this->estados) as $estudianteId) {
+            $rules["estados.{$estudianteId}"] = "required|string|in:{$valores}";
+        }
+
+        $this->validate($rules);
+
+        $service->registrar($this->horario, $this->fecha, $this->estados);
+
+        $this->guardado = true;
+    }
+
+    public function with(AsistenciaService $service): array
+    {
+        $user = Auth::user();
+        $puedeRegistrar = Gate::allows('asistencia.registrar-horario', $this->horario);
+        $puedeSupervisar = ! $puedeRegistrar && $user->hasPermissionTo('asistencia.ver');
+
+        $miResumen = null;
+
+        if (! $puedeRegistrar && ! $puedeSupervisar && $user->estudiante) {
+            $miResumen = $service->resumenEstudiante($user->estudiante, $this->horario);
+        }
+
+        return [
+            'puedeRegistrar' => $puedeRegistrar,
+            'puedeSupervisar' => $puedeSupervisar,
+            'estudiantes' => ($puedeRegistrar || $puedeSupervisar) ? $service->estudiantesDelHorario($this->horario) : collect(),
+            'fechasRegistradas' => $service->fechasRegistradas($this->horario),
+            'estadosDisponibles' => EstadoAsistenciaEnum::cases(),
+            'miResumen' => $miResumen,
+        ];
+    }
+}; ?>
+
+<div>
+    <x-slot name="header">
+        <a href="{{ route('asistencia.index') }}" wire:navigate class="text-sm text-ink-faint hover:text-ink">← Asistencia</a>
+        <h1 class="mt-1 font-display text-2xl text-ink">{{ $horario->curso->nombre }}</h1>
+        <p class="mt-1 text-sm text-ink-dim">
+            {{ $horario->grado->nombre }} · {{ $horario->ciclo->nombre }} · {{ $horario->docente->name }} ·
+            {{ $horario->dia_semana->label() }} {{ substr($horario->hora_inicio, 0, 5) }}–{{ substr($horario->hora_fin, 0, 5) }}
+        </p>
+    </x-slot>
+
+    @if ($puedeRegistrar || $puedeSupervisar)
+        <div class="mb-4 flex flex-wrap items-center gap-3">
+            <div>
+                <x-input-label for="fecha" value="Fecha de la sesión" />
+                <x-text-input wire:model.live="fecha" id="fecha" type="date" class="mt-1" />
+            </div>
+
+            @if ($fechasRegistradas->isNotEmpty())
+                <div class="flex flex-wrap gap-1 pt-5">
+                    @foreach ($fechasRegistradas->take(8) as $fechaRegistrada)
+                        <button
+                            type="button"
+                            wire:click="$set('fecha', '{{ $fechaRegistrada }}')"
+                            @class([
+                                'rounded-full px-2.5 py-1 text-xs font-medium transition',
+                                'bg-accent-soft text-accent' => $fecha === $fechaRegistrada,
+                                'bg-surface-2 text-ink-faint hover:text-ink' => $fecha !== $fechaRegistrada,
+                            ])
+                        >
+                            {{ \Illuminate\Support\Carbon::parse($fechaRegistrada)->format('d/m') }}
+                        </button>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+
+        @if ($guardado)
+            <p class="mb-4 rounded-md bg-accent-soft px-3 py-2 text-sm text-accent">Asistencia guardada.</p>
+        @endif
+
+        <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+            @forelse ($estudiantes as $estudiante)
+                <div class="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                    <p class="text-ink">{{ $estudiante->nombreCompleto() }}</p>
+
+                    <div class="flex gap-1">
+                        @foreach ($estadosDisponibles as $estado)
+                            <label
+                                @class([
+                                    'cursor-pointer rounded-full px-2.5 py-1 text-xs font-medium transition',
+                                    'bg-accent-soft text-accent' => ($estados[$estudiante->id] ?? null) === $estado->value,
+                                    'bg-surface-2 text-ink-faint hover:text-ink' => ($estados[$estudiante->id] ?? null) !== $estado->value,
+                                    'pointer-events-none opacity-60' => ! $puedeRegistrar,
+                                ])
+                            >
+                                <input
+                                    type="radio"
+                                    class="sr-only"
+                                    wire:model="estados.{{ $estudiante->id }}"
+                                    value="{{ $estado->value }}"
+                                    @disabled(! $puedeRegistrar)
+                                >
+                                {{ $estado->label() }}
+                            </label>
+                        @endforeach
+                    </div>
+                </div>
+            @empty
+                <p class="px-4 py-8 text-center text-sm text-ink-faint">No hay estudiantes matriculados en este horario.</p>
+            @endforelse
+        </div>
+
+        @if ($puedeRegistrar && $estudiantes->isNotEmpty())
+            <div class="mt-4 flex justify-end">
+                <x-primary-button type="button" wire:click="guardar">Guardar asistencia</x-primary-button>
+            </div>
+        @endif
+    @elseif ($miResumen)
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div class="rounded-lg border border-border bg-surface p-4">
+                <p class="text-xs uppercase tracking-wide text-ink-faint">Asistencia</p>
+                <p class="mt-1 font-display text-3xl text-accent">{{ $miResumen['porcentaje'] }}%</p>
+            </div>
+            @foreach ($estadosDisponibles as $estado)
+                <div class="rounded-lg border border-border bg-surface p-4">
+                    <p class="text-xs uppercase tracking-wide text-ink-faint">{{ $estado->label() }}</p>
+                    <p class="mt-1 font-display text-2xl text-ink">{{ $miResumen['por_estado'][$estado->value] }}</p>
+                </div>
+            @endforeach
+        </div>
+
+        <p class="mt-6 text-xs text-ink-faint">
+            {{ $miResumen['total'] }} sesiones registradas de un total de {{ $fechasRegistradas->count() }}.
+        </p>
+    @endif
+</div>

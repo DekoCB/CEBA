@@ -38,6 +38,8 @@ class ModuleRoutesHaveWebMiddlewareTest extends TestCase
             'aula-virtual.index' => ['aula-virtual.index'],
             'aula-virtual.show' => ['aula-virtual.show'],
             'aula-virtual.tarea' => ['aula-virtual.tarea'],
+            'asistencia.index' => ['asistencia.index'],
+            'asistencia.show' => ['asistencia.show'],
         ];
     }
 
