@@ -11,6 +11,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property string $nombre
+ * @property TipoPublicoEnum $tipo_publico
+ * @property int $orden
+ */
 class Grado extends Model
 {
     /** @use HasFactory<GradoFactory> */

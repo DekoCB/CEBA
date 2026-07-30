@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\User;
 use App\Modules\Academico\Database\Seeders\AcademicoDemoSeeder;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
+use App\Modules\Matricula\Database\Seeders\MatriculaDemoSeeder;
 use App\Shared\Enums\EstadoUsuarioEnum;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Database\Seeder;
@@ -42,6 +43,15 @@ class DatabaseSeeder extends Seeder
         ]);
         $estudiante->assignRole(RolEnum::ESTUDIANTE->value);
 
+        $matricula = User::factory()->create([
+            'name' => 'Matrícula Demo',
+            'email' => 'matricula@ceba.test',
+            'dni' => '00000004',
+            'estado' => EstadoUsuarioEnum::ACTIVO,
+        ]);
+        $matricula->assignRole(RolEnum::MATRICULA->value);
+
         $this->call(AcademicoDemoSeeder::class);
+        $this->call(MatriculaDemoSeeder::class);
     }
 }

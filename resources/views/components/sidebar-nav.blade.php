@@ -12,6 +12,25 @@
         Dashboard
     </a>
 
+    @can('matricula.ver')
+        <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+            Matrícula
+        </p>
+
+        <a
+            href="{{ route('matricula.index') }}"
+            wire:navigate
+            @class([
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                'bg-accent-soft text-accent' => request()->routeIs('matricula.*'),
+                'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('matricula.*'),
+            ])
+        >
+            <x-heroicon-o-identification class="h-5 w-5 shrink-0" />
+            Estudiantes
+        </a>
+    @endcan
+
     @can('academico.ver')
         <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
             Académico

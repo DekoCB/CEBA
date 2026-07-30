@@ -1,0 +1,129 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Modules\Matricula\Models;
+
+use App\Models\User;
+use App\Modules\Academico\Models\Grado;
+use App\Modules\Identidad\Support\Auditable;
+use App\Modules\Matricula\Database\Factories\EstudianteFactory;
+use App\Modules\Matricula\Enums\EstadoCivilEnum;
+use App\Modules\Matricula\Enums\EstadoEstudianteEnum;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
+
+/**
+ * @property string $dni
+ * @property string $nombres
+ * @property string $apellidos
+ * @property Carbon $fecha_nacimiento
+ * @property bool $es_menor_edad
+ * @property EstadoEstudianteEnum $estado
+ * @property-read Apoderado|null $apoderado
+ * @property-read InstitucionProcedencia|null $institucionProcedencia
+ */
+class Estudiante extends Model implements HasMedia
+{
+    /** @use HasFactory<EstudianteFactory> */
+    use Auditable, HasFactory, InteractsWithMedia, SoftDeletes;
+
+    protected $fillable = [
+        'user_id',
+        'dni',
+        'nombres',
+        'apellidos',
+        'fecha_nacimiento',
+        'es_menor_edad',
+        'estado_civil',
+        'direccion',
+        'celular',
+        'email',
+        'estado',
+        'grado_actual_id',
+        'ciclos_completados',
+        'observaciones',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'fecha_nacimiento' => 'date',
+            'es_menor_edad' => 'boolean',
+            'estado_civil' => EstadoCivilEnum::class,
+            'estado' => EstadoEstudianteEnum::class,
+        ];
+    }
+
+    protected static function newFactory(): EstudianteFactory
+    {
+        return EstudianteFactory::new();
+    }
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection('foto')->singleFile();
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function gradoActual(): BelongsTo
+    {
+        return $this->belongsTo(Grado::class, 'grado_actual_id');
+    }
+
+    /**
+     * @return HasOne<Apoderado, $this>
+     */
+    public function apoderado(): HasOne
+    {
+        return $this->hasOne(Apoderado::class);
+    }
+
+    /**
+     * @return HasOne<InstitucionProcedencia, $this>
+     */
+    public function institucionProcedencia(): HasOne
+    {
+        return $this->hasOne(InstitucionProcedencia::class);
+    }
+
+    /**
+     * @return HasMany<Matricula, $this>
+     */
+    public function matriculas(): HasMany
+    {
+        return $this->hasMany(Matricula::class);
+    }
+
+    /**
+     * @return HasMany<DocumentoEstudiante, $this>
+     */
+    public function documentos(): HasMany
+    {
+        return $this->hasMany(DocumentoEstudiante::class);
+    }
+
+    /**
+     * @return HasMany<ExamenUbicacion, $this>
+     */
+    public function examenesUbicacion(): HasMany
+    {
+        return $this->hasMany(ExamenUbicacion::class);
+    }
+
+    public function nombreCompleto(): string
+    {
+        return "{$this->nombres} {$this->apellidos}";
+    }
+}
