@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\Identidad\Services;
 
+use App\Modules\Identidad\Models\AuditLog;
 use App\Modules\Identidad\Repositories\Contracts\AuditLogRepositoryInterface;
+use App\Modules\Identidad\Support\Auditable;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
@@ -18,7 +21,7 @@ class AuditService
 
     /**
      * Registra un evento de auditoría sobre un modelo. Se llama desde el
-     * trait {@see \App\Modules\Identidad\Support\Auditable} en los eventos
+     * trait {@see Auditable} en los eventos
      * created/updated/deleted de cualquier modelo que lo use.
      *
      * @param  array<string, mixed>  $valoresAnteriores
@@ -39,10 +42,23 @@ class AuditService
     }
 
     /**
-     * @return Collection<int, \App\Modules\Identidad\Models\AuditLog>
+     * @return Collection<int, AuditLog>
      */
     public function historialDe(Model $modelo): Collection
     {
         return $this->auditLogs->paraModelo($modelo);
+    }
+
+    public function listar(?string $evento, ?string $tipoModelo, int $perPage = 20): LengthAwarePaginator
+    {
+        return $this->auditLogs->buscar($evento, $tipoModelo, $perPage);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function tiposDeModeloAuditados(): array
+    {
+        return $this->auditLogs->tiposDeModeloAuditados();
     }
 }

@@ -21,8 +21,8 @@
             <x-theme-toggle class="absolute top-4 right-4" />
 
             <div>
-                <a href="/" wire:navigate>
-                    <x-application-logo class="w-20 h-20 fill-current text-accent" />
+                <a href="{{ route('dashboard') }}" wire:navigate>
+                    <x-application-logo class="text-2xl" />
                 </a>
             </div>
 

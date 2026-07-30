@@ -40,6 +40,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'asistencia.ver',
             'reportes.operativos',
             'whatsapp.enviar',
+            'usuarios.ver',
+            'usuarios.gestionar_sesiones',
+            'auditoria.ver',
         ],
 
         RolEnum::TESORERIA->value => [
@@ -101,6 +104,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'reportes.matricula', 'reportes.certificados', 'reportes.propios', 'reportes.exportar',
         'whatsapp.enviar', 'whatsapp.ver',
         'roles.gestionar', 'auditoria.ver',
+        'usuarios.ver', 'usuarios.crear', 'usuarios.editar', 'usuarios.gestionar_sesiones',
     ];
 
     public function run(): void
