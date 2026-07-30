@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use App\Modules\Academico\Database\Seeders\AcademicoDemoSeeder;
+use App\Modules\AulaVirtual\Database\Seeders\AulaVirtualDemoSeeder;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Database\Seeders\MatriculaDemoSeeder;
 use App\Shared\Enums\EstadoUsuarioEnum;
@@ -53,5 +54,6 @@ class DatabaseSeeder extends Seeder
 
         $this->call(AcademicoDemoSeeder::class);
         $this->call(MatriculaDemoSeeder::class);
+        $this->call(AulaVirtualDemoSeeder::class);
     }
 }

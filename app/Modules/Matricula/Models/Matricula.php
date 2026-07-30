@@ -19,6 +19,9 @@ use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
 /**
+ * @property int $estudiante_id
+ * @property int $ciclo_id
+ * @property int $grado_id
  * @property Carbon $fecha_matricula
  * @property EstadoMatriculaEnum $estado
  * @property-read Estudiante $estudiante

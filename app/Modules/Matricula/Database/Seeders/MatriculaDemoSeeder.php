@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Matricula\Database\Seeders;
 
+use App\Models\User;
 use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
@@ -50,6 +51,15 @@ class MatriculaDemoSeeder extends Seeder
                 observaciones: null,
                 registradoPor: null,
             ));
+
+            // Vincula la cuenta de portal "estudiante@ceba.test" a esta
+            // ficha real, para poder probar la vista de estudiante en Aula
+            // Virtual con datos coherentes (matriculada en el mismo grado y
+            // ciclo que el curso virtual del docente demo).
+            $usuarioEstudiante = User::query()->where('email', 'estudiante@ceba.test')->first();
+            if ($usuarioEstudiante) {
+                $estudianteMayor->update(['user_id' => $usuarioEstudiante->id]);
+            }
         }
 
         if ($gradoMenor) {

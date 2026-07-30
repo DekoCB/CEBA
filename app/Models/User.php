@@ -4,9 +4,11 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Modules\Identidad\Support\Auditable;
+use App\Modules\Matricula\Models\Estudiante;
 use App\Shared\Enums\EstadoUsuarioEnum;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
@@ -65,5 +67,16 @@ class User extends Authenticatable
     public function estaActivo(): bool
     {
         return $this->estado === EstadoUsuarioEnum::ACTIVO;
+    }
+
+    /**
+     * Ficha de estudiante vinculada a esta cuenta, si el usuario tiene rol
+     * "estudiante" y ya se le habilitó acceso al portal.
+     *
+     * @return HasOne<Estudiante, $this>
+     */
+    public function estudiante(): HasOne
+    {
+        return $this->hasOne(Estudiante::class);
     }
 }

@@ -13,6 +13,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
+ * @property int $docente_id
+ * @property int $ciclo_id
+ * @property int $grado_id
  * @property string $hora_inicio
  * @property string $hora_fin
  * @property DiaSemanaEnum $dia_semana

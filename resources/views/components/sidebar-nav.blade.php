@@ -31,6 +31,25 @@
         </a>
     @endcan
 
+    @canany(['aula_virtual.ver', 'aula_virtual.gestionar_propio', 'aula_virtual.ver_propio'])
+        <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+            Aula Virtual
+        </p>
+
+        <a
+            href="{{ route('aula-virtual.index') }}"
+            wire:navigate
+            @class([
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                'bg-accent-soft text-accent' => request()->routeIs('aula-virtual.*'),
+                'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('aula-virtual.*'),
+            ])
+        >
+            <x-heroicon-o-computer-desktop class="h-5 w-5 shrink-0" />
+            Cursos virtuales
+        </a>
+    @endcanany
+
     @can('academico.ver')
         <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
             Académico

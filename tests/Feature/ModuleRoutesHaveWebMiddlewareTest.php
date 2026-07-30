@@ -35,6 +35,9 @@ class ModuleRoutesHaveWebMiddlewareTest extends TestCase
             'matricula.index' => ['matricula.index'],
             'matricula.wizard' => ['matricula.wizard'],
             'matricula.show' => ['matricula.show'],
+            'aula-virtual.index' => ['aula-virtual.index'],
+            'aula-virtual.show' => ['aula-virtual.show'],
+            'aula-virtual.tarea' => ['aula-virtual.tarea'],
         ];
     }
 
