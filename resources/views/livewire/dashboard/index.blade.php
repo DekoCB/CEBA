@@ -437,6 +437,19 @@ new #[Layout('layouts.app')] class extends Component
 
         @if ($esDocente && (count($asistenciaPorCurso) > 0 || array_sum(collect($distribucionNotas)->pluck('valor')->all()) > 0))
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                @if (array_sum(collect($distribucionNotas)->pluck('valor')->all()) > 0)
+                    <div class="rounded-lg border border-border bg-surface p-4">
+                        <h2 class="mb-3 text-sm font-semibold text-ink">Distribución de notas de mis evaluaciones</h2>
+                        <x-chart-canvas
+                            type="line"
+                            :labels="collect($distribucionNotas)->pluck('label')->all()"
+                            :data="collect($distribucionNotas)->pluck('valor')->all()"
+                            label="Estudiantes"
+                            color="#E3A23D"
+                        />
+                    </div>
+                @endif
+
                 @if (count($asistenciaPorCurso) > 0)
                     <div class="rounded-lg border border-border bg-surface p-4">
                         <h2 class="mb-3 text-sm font-semibold text-ink">Asistencia de mis cursos (% presente/justificado)</h2>
@@ -446,19 +459,6 @@ new #[Layout('layouts.app')] class extends Component
                             :data="collect($asistenciaPorCurso)->pluck('valor')->all()"
                             label="% Asistencia"
                             color="#5B8DEF"
-                        />
-                    </div>
-                @endif
-
-                @if (array_sum(collect($distribucionNotas)->pluck('valor')->all()) > 0)
-                    <div class="rounded-lg border border-border bg-surface p-4">
-                        <h2 class="mb-3 text-sm font-semibold text-ink">Distribución de notas de mis evaluaciones</h2>
-                        <x-chart-canvas
-                            type="bar"
-                            :labels="collect($distribucionNotas)->pluck('label')->all()"
-                            :data="collect($distribucionNotas)->pluck('valor')->all()"
-                            label="Estudiantes"
-                            color="#E3A23D"
                         />
                     </div>
                 @endif
