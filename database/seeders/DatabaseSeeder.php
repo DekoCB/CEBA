@@ -21,7 +21,7 @@ class DatabaseSeeder extends Seeder
         $this->call(RolesAndPermissionsSeeder::class);
 
         $direccion = User::factory()->create([
-            'name' => 'Administración CEBA',
+            'name' => 'Dirección CEBA',
             'email' => 'direccion@ceba.test',
             'dni' => '00000001',
             'estado' => EstadoUsuarioEnum::ACTIVO,
