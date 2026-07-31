@@ -6,6 +6,8 @@ use App\Modules\Academico\Models\Horario;
 use App\Modules\Asistencia\Models\Asistencia;
 use App\Modules\AulaVirtual\Models\Tarea;
 use App\Modules\AulaVirtual\Services\CursoVirtualService;
+use App\Modules\Evaluaciones\Enums\NotaLetraEnum;
+use App\Modules\Evaluaciones\Models\Calificacion;
 use App\Modules\Evaluaciones\Models\Evaluacion;
 use App\Modules\Identidad\Models\AuditLog;
 use App\Modules\Matricula\Models\Estudiante;
@@ -47,6 +49,12 @@ new #[Layout('layouts.app')] class extends Component
     public int $misHorarios = 0;
 
     public int $tareasPorCalificar = 0;
+
+    /** @var array<int, array{label: string, valor: float}> */
+    public array $asistenciaPorCurso = [];
+
+    /** @var array<int, array{label: string, valor: float}> */
+    public array $distribucionNotas = [];
 
     public bool $esEstudianteConFicha = false;
 
@@ -123,6 +131,8 @@ new #[Layout('layouts.app')] class extends Component
                 ->withCount(['entregas' => fn ($query) => $query->whereIn('estado', ['entregado', 'tarde'])])
                 ->get()
                 ->sum('entregas_count');
+            $this->asistenciaPorCurso = $this->calcularAsistenciaPorCursoDelDocente($user->id);
+            $this->distribucionNotas = $this->calcularDistribucionNotasDelDocente($user->id);
         }
 
         if (Gate::allows('aula_virtual.ver_propio') && $user->estudiante) {
@@ -219,6 +229,53 @@ new #[Layout('layouts.app')] class extends Component
                 return ['label' => $grado->nombre, 'valor' => round($positivos / $total * 100, 1)];
             })
             ->filter()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{label: string, valor: float}>
+     */
+    private function calcularAsistenciaPorCursoDelDocente(int $docenteId): array
+    {
+        return Horario::query()
+            ->where('docente_id', $docenteId)
+            ->with('curso')
+            ->get()
+            ->groupBy('curso_id')
+            ->map(function ($horariosDelCurso) {
+                $registros = Asistencia::query()->whereIn('horario_id', $horariosDelCurso->pluck('id'));
+                $total = $registros->count();
+
+                if ($total === 0) {
+                    return null;
+                }
+
+                $positivos = (clone $registros)->whereIn('estado', ['presente', 'justificado'])->count();
+
+                return ['label' => $horariosDelCurso->first()->curso->nombre, 'valor' => round($positivos / $total * 100, 1)];
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{label: string, valor: float}>
+     */
+    private function calcularDistribucionNotasDelDocente(int $docenteId): array
+    {
+        $conteos = ['AD' => 0, 'A' => 0, 'B' => 0, 'C' => 0];
+
+        Calificacion::query()
+            ->whereHas('evaluacion.horario', fn ($query) => $query->where('docente_id', $docenteId))
+            ->pluck('nota_numerica')
+            ->each(function ($notaNumerica) use (&$conteos) {
+                $conteos[NotaLetraEnum::desde((float) $notaNumerica)->value]++;
+            });
+
+        return collect($conteos)
+            ->map(fn ($valor, $label) => ['label' => $label, 'valor' => $valor])
             ->values()
             ->all();
     }
@@ -375,6 +432,36 @@ new #[Layout('layouts.app')] class extends Component
                     <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Asistencia</p>
                     <p class="mt-1 font-display text-sm text-accent">Tomar asistencia →</p>
                 </a>
+            </div>
+        @endif
+
+        @if ($esDocente && (count($asistenciaPorCurso) > 0 || array_sum(collect($distribucionNotas)->pluck('valor')->all()) > 0))
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                @if (count($asistenciaPorCurso) > 0)
+                    <div class="rounded-lg border border-border bg-surface p-4">
+                        <h2 class="mb-3 text-sm font-semibold text-ink">Asistencia de mis cursos (% presente/justificado)</h2>
+                        <x-chart-canvas
+                            type="bar"
+                            :labels="collect($asistenciaPorCurso)->pluck('label')->all()"
+                            :data="collect($asistenciaPorCurso)->pluck('valor')->all()"
+                            label="% Asistencia"
+                            color="#5B8DEF"
+                        />
+                    </div>
+                @endif
+
+                @if (array_sum(collect($distribucionNotas)->pluck('valor')->all()) > 0)
+                    <div class="rounded-lg border border-border bg-surface p-4">
+                        <h2 class="mb-3 text-sm font-semibold text-ink">Distribución de notas de mis evaluaciones</h2>
+                        <x-chart-canvas
+                            type="bar"
+                            :labels="collect($distribucionNotas)->pluck('label')->all()"
+                            :data="collect($distribucionNotas)->pluck('valor')->all()"
+                            label="Estudiantes"
+                            color="#E3A23D"
+                        />
+                    </div>
+                @endif
             </div>
         @endif
 

@@ -3,9 +3,12 @@
 namespace Tests\Feature\Dashboard;
 
 use App\Models\User;
+use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Asistencia\Models\Asistencia;
+use App\Modules\Evaluaciones\Models\Calificacion;
+use App\Modules\Evaluaciones\Models\Evaluacion;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
@@ -49,6 +52,48 @@ class DashboardTest extends TestCase
             ->assertOk()
             ->assertSee('Mis horarios')
             ->assertSee('2');
+    }
+
+    public function test_docente_ve_la_asistencia_de_sus_cursos(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $curso = Curso::factory()->create(['nombre' => 'Matematica']);
+        $horario = Horario::factory()->create(['docente_id' => $docente->id, 'curso_id' => $curso->id]);
+        Asistencia::factory()->create(['horario_id' => $horario->id, 'estado' => 'presente']);
+
+        $this->actingAs($docente)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Asistencia de mis cursos')
+            ->assertSee('Matematica');
+    }
+
+    public function test_docente_ve_la_distribucion_de_notas_de_sus_evaluaciones(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario = Horario::factory()->create(['docente_id' => $docente->id]);
+        $evaluacion = Evaluacion::factory()->create(['horario_id' => $horario->id]);
+        Calificacion::factory()->create(['evaluacion_id' => $evaluacion->id, 'nota_numerica' => 18]);
+
+        $this->actingAs($docente)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Distribución de notas');
+    }
+
+    public function test_docente_sin_asistencia_ni_notas_no_ve_los_graficos(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        Horario::factory()->create(['docente_id' => $docente->id]);
+
+        $this->actingAs($docente)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('Asistencia de mis cursos')
+            ->assertDontSee('Distribución de notas');
     }
 
     public function test_estudiante_al_dia_ve_su_proxima_cuota(): void
