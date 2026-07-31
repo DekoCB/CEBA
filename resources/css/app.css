@@ -45,4 +45,35 @@
     body {
         @apply bg-bg text-ink;
     }
+
+    /*
+     * Scrollbars con los tokens de marca: sin esto, todo scroll interno
+     * (sidebar, tablas, modales) usa la barra gris por defecto del SO/
+     * navegador, que no responde a claro/oscuro y desentona con el resto
+     * del diseño. Firefox usa scrollbar-color; Chrome/Edge/Safari, los
+     * pseudo-elementos ::-webkit-scrollbar-*. Ambos leen las mismas
+     * variables, así que cambian solos con el tema.
+     */
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: rgb(var(--color-text-faint)) transparent;
+    }
+
+    *::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+
+    *::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    *::-webkit-scrollbar-thumb {
+        background-color: rgb(var(--color-text-faint));
+        border-radius: 9999px;
+    }
+
+    *::-webkit-scrollbar-thumb:hover {
+        background-color: rgb(var(--color-text-dim));
+    }
 }
