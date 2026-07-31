@@ -1,4 +1,4 @@
-<nav class="flex flex-1 flex-col gap-1 px-3 py-4">
+<nav class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
     <a
         href="{{ route('dashboard') }}"
         wire:navigate
