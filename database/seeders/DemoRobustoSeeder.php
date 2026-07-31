@@ -26,7 +26,18 @@ use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
 use App\Modules\Matricula\DTOs\RegistrarMatriculaData;
 use App\Modules\Matricula\Enums\EstadoCivilEnum;
 use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Services\MatriculaService;
+use App\Modules\Pagos\Enums\MetodoPagoEnum;
+use App\Modules\Pagos\Enums\NumeroCuotasEnum;
+use App\Modules\Pagos\Enums\TipoConceptoEnum;
+use App\Modules\Pagos\Models\ConceptoPago;
+use App\Modules\Pagos\Models\Cuota;
+use App\Modules\Pagos\Services\BloqueoAccesoService;
+use App\Modules\Pagos\Services\ConceptoPagoService;
+use App\Modules\Pagos\Services\CuentaBancariaService;
+use App\Modules\Pagos\Services\PagoService;
+use App\Modules\Pagos\Services\PlanPagoService;
 use App\Shared\Enums\EstadoUsuarioEnum;
 use App\Shared\Enums\RolEnum;
 use App\Shared\ValueObjects\Dni;
@@ -98,6 +109,7 @@ class DemoRobustoSeeder extends Seeder
         $this->poblarAulaVirtual($horarios);
         $this->registrarAsistencia($horarios);
         $this->registrarEvaluacionesYLibretas($ciclo, $horarios);
+        $this->poblarPagos();
     }
 
     /**
@@ -423,6 +435,102 @@ class DemoRobustoSeeder extends Seeder
             ->limit(3)
             ->get()
             ->each(fn (Estudiante $estudiante) => $libretaService->generar($estudiante, $ciclo));
+    }
+
+    /**
+     * Conceptos, cuentas bancarias, planes de cuotas y pagos en distintos
+     * estados (al día, pendiente de aprobación, rechazado, vencido) para
+     * que la cola de Tesorería y "Mi estado de cuenta" no se vean vacíos.
+     * No adjunta QR a las cuentas bancarias: el seeder no genera imágenes,
+     * solo datos transaccionales.
+     */
+    private function poblarPagos(): void
+    {
+        $conceptoService = app(ConceptoPagoService::class);
+        $cuentaService = app(CuentaBancariaService::class);
+        $planService = app(PlanPagoService::class);
+        $pagoService = app(PagoService::class);
+        $bloqueoService = app(BloqueoAccesoService::class);
+
+        $conceptoMensualidad = $conceptoService->crear('Mensualidad', TipoConceptoEnum::MENSUALIDAD, 100.00);
+        $conceptoService->crear('Matrícula', TipoConceptoEnum::MATRICULA, 80.00);
+        $conceptoService->crear('Certificado de estudios', TipoConceptoEnum::CERTIFICADO, 60.00);
+        $conceptoService->crear('Constancia de matrícula', TipoConceptoEnum::CONSTANCIA, 20.00);
+        $conceptoService->crear('Penalidad por atraso', TipoConceptoEnum::PENALIDAD, 15.00);
+
+        $cuentaService->crear('BCP', '194-2345678-0-12', '00219400234567801277', 'CEBA E.I.R.L.', null);
+        $cuentaService->crear('Interbank', '898-3012345678-9', '00389800301234567899', 'CEBA E.I.R.L.', null);
+
+        $registradorId = User::query()->where('email', 'coordinador@ceba.test')->value('id');
+        $aprobadorId = User::query()->where('email', 'tesoreria@ceba.test')->value('id');
+
+        $matriculas = Matricula::query()->where('estado', 'aprobada')->with('estudiante')->get();
+
+        foreach ($matriculas as $indice => $matricula) {
+            $numeroCuotas = match (true) {
+                $indice % 7 === 0 => NumeroCuotasEnum::OCHO,
+                $indice % 5 === 0 => NumeroCuotasEnum::UNA,
+                default => NumeroCuotasEnum::SEIS,
+            };
+
+            try {
+                $plan = $planService->crear($matricula, $numeroCuotas, 100.0 * $numeroCuotas->value);
+            } catch (ValidationException) {
+                continue;
+            }
+
+            $cuotas = $plan->cuotas()->orderBy('numero')->get();
+
+            // Escenario de deuda por estudiante: 0 y 3 se adelantan dos
+            // cuotas al pasado (3 dispara el bloqueo si quedan sin pagar);
+            // 1, 2 y 4 solo adelantan una.
+            $escenario = $indice % 5;
+            $numVencidas = in_array($escenario, [0, 3], true) ? min(2, $cuotas->count()) : min(1, $cuotas->count());
+
+            for ($i = 0; $i < $numVencidas; $i++) {
+                $cuotas[$i]->update(['fecha_vencimiento' => now()->subMonths($numVencidas - $i)]);
+            }
+
+            $cuotasVencidas = $cuotas->take($numVencidas);
+
+            match ($escenario) {
+                0 => $cuotasVencidas->each(fn (Cuota $cuota) => $this->pagarCuota($pagoService, $matricula->estudiante, $conceptoMensualidad, $cuota, $registradorId, $aprobadorId)),
+                1 => $this->dejarPagoPendiente($pagoService, $matricula->estudiante, $conceptoMensualidad, $cuotasVencidas->first(), $registradorId),
+                4 => $this->rechazarPago($pagoService, $matricula->estudiante, $conceptoMensualidad, $cuotasVencidas->first(), $registradorId, $aprobadorId),
+                // 2 y 3 quedan vencidas sin ningún pago registrado.
+                default => null,
+            };
+
+            $bloqueoService->evaluarYDesbloquear($matricula->estudiante);
+        }
+    }
+
+    private function pagarCuota(PagoService $service, Estudiante $estudiante, ConceptoPago $concepto, Cuota $cuota, ?int $registradoPor, ?int $aprobadoPor): void
+    {
+        $pago = $service->registrar($estudiante, $concepto, (float) $cuota->monto, MetodoPagoEnum::YAPE->value, $cuota, null, $registradoPor);
+
+        if ($aprobadoPor) {
+            $service->aprobar($pago, $aprobadoPor);
+        }
+    }
+
+    private function dejarPagoPendiente(PagoService $service, Estudiante $estudiante, ConceptoPago $concepto, ?Cuota $cuota, ?int $registradoPor): void
+    {
+        if (! $cuota) {
+            return;
+        }
+
+        $service->registrar($estudiante, $concepto, (float) $cuota->monto, MetodoPagoEnum::TRANSFERENCIA->value, $cuota, null, $registradoPor);
+    }
+
+    private function rechazarPago(PagoService $service, Estudiante $estudiante, ConceptoPago $concepto, ?Cuota $cuota, ?int $registradoPor, ?int $aprobadoPor): void
+    {
+        if (! $cuota || ! $aprobadoPor) {
+            return;
+        }
+
+        $pago = $service->registrar($estudiante, $concepto, (float) $cuota->monto, MetodoPagoEnum::EFECTIVO->value, $cuota, null, $registradoPor);
+        $service->rechazar($pago, $aprobadoPor, 'El comprobante no corresponde al monto de la cuota.');
     }
 
     private function nombreAleatorio(): string
