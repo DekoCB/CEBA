@@ -366,7 +366,7 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
                 <div class="sm:col-span-2">
                     <x-input-label for="foto" value="Fotografía (opcional)" />
-                    <input wire:model="foto" id="foto" type="file" accept="image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm">
+                    <input wire:model="foto" id="foto" type="file" accept="image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-ink">
                     <x-input-error :messages="$errors->get('foto')" class="mt-1" />
                 </div>
             </div>
@@ -416,24 +416,24 @@ new #[Layout('layouts.app')] class extends Component
             <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                     <x-input-label for="dniEstudianteArchivo" value="DNI del estudiante" />
-                    <input wire:model="dniEstudianteArchivo" id="dniEstudianteArchivo" type="file" accept=".pdf,image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm">
+                    <input wire:model="dniEstudianteArchivo" id="dniEstudianteArchivo" type="file" accept=".pdf,image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-ink">
                     <x-input-error :messages="$errors->get('dniEstudianteArchivo')" class="mt-1" />
                 </div>
                 @if ($this->esMenorDeEdad)
                     <div>
                         <x-input-label for="dniApoderadoArchivo" value="DNI del apoderado" />
-                        <input wire:model="dniApoderadoArchivo" id="dniApoderadoArchivo" type="file" accept=".pdf,image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm">
+                        <input wire:model="dniApoderadoArchivo" id="dniApoderadoArchivo" type="file" accept=".pdf,image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-ink">
                         <x-input-error :messages="$errors->get('dniApoderadoArchivo')" class="mt-1" />
                     </div>
                 @endif
                 <div>
                     <x-input-label for="certificadoArchivo" value="Certificado de estudios (opcional)" />
-                    <input wire:model="certificadoArchivo" id="certificadoArchivo" type="file" accept=".pdf,image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm">
+                    <input wire:model="certificadoArchivo" id="certificadoArchivo" type="file" accept=".pdf,image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-ink">
                     <x-input-error :messages="$errors->get('certificadoArchivo')" class="mt-1" />
                 </div>
                 <div>
                     <x-input-label for="constanciaArchivo" value="Constancia (opcional)" />
-                    <input wire:model="constanciaArchivo" id="constanciaArchivo" type="file" accept=".pdf,image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm">
+                    <input wire:model="constanciaArchivo" id="constanciaArchivo" type="file" accept=".pdf,image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-ink">
                     <x-input-error :messages="$errors->get('constanciaArchivo')" class="mt-1" />
                 </div>
             </div>

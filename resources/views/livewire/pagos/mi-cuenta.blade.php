@@ -141,7 +141,7 @@ new #[Layout('layouts.app')] class extends Component
                                             <option value="{{ $metodoOpcion->value }}">{{ $metodoOpcion->label() }}</option>
                                         @endforeach
                                     </select>
-                                    <input wire:model="comprobantePorCuota.{{ $cuota->id }}" type="file" class="text-xs text-ink-dim file:mr-2 file:rounded-md file:border-0 file:bg-surface-2 file:px-2 file:py-1 file:text-xs">
+                                    <input wire:model="comprobantePorCuota.{{ $cuota->id }}" type="file" class="text-xs text-ink-dim file:mr-2 file:rounded-md file:border-0 file:bg-surface-2 file:px-2 file:py-1 file:text-xs file:text-ink">
                                     <button type="submit" class="text-xs font-medium text-accent hover:underline">Enviar comprobante</button>
                                 </form>
                                 <x-input-error :messages="$errors->get('metodoPorCuota.'.$cuota->id)" class="mt-1" />

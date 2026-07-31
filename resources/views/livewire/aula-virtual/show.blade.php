@@ -230,7 +230,7 @@ new #[Layout('layouts.app')] class extends Component
                     @if (in_array($materialTipo, ['pdf', 'archivo']))
                         <div>
                             <x-input-label for="materialArchivo" value="Archivo" />
-                            <input wire:model="materialArchivo" id="materialArchivo" type="file" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm">
+                            <input wire:model="materialArchivo" id="materialArchivo" type="file" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-ink">
                             <x-input-error :messages="$errors->get('materialArchivo')" class="mt-1" />
                         </div>
                     @elseif ($materialTipo !== '')

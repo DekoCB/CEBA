@@ -18,8 +18,9 @@ function aplicarColoresDeTema(config) {
 
     const textoTenue = colorToken('--color-text-dim');
     // En tema oscuro, --color-border ya resalta contra un fondo casi negro:
-    // se atenúa con transparencia para que la grilla no compita con los datos.
-    const grilla = colorToken('--color-border', esOscuro ? 0.35 : 1);
+    // se atenúa bastante para que la grilla quede de fondo y no compita
+    // visualmente con la línea/barras de datos.
+    const grilla = colorToken('--color-border', esOscuro ? 0.14 : 1);
 
     config.options ??= {};
     config.options.color ??= textoTenue;
