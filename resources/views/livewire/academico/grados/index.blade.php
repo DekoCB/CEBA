@@ -92,19 +92,24 @@ new #[Layout('layouts.app')] class extends Component
 
 <div>
     <x-slot name="header">
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="font-display text-2xl text-ink">Grados</h1>
-                <p class="mt-1 text-sm text-ink-dim">Niveles que cursan los estudiantes, según sean mayores o menores de edad.</p>
-            </div>
-            @can('academico.gestionar')
-                <button wire:click="abrirModal" class="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90">
-                    <x-heroicon-o-plus class="h-4 w-4" />
-                    Nuevo grado
-                </button>
-            @endcan
-        </div>
+        <h1 class="font-display text-2xl text-ink">Grados</h1>
+        <p class="mt-1 text-sm text-ink-dim">Niveles que cursan los estudiantes, según sean mayores o menores de edad.</p>
     </x-slot>
+
+    {{--
+        El botón vive en el cuerpo del componente, no en x-slot="header": el
+        layout renderiza ese slot fuera del wire:id del componente (en un
+        <header> aparte), así que cualquier wire:click ahí queda huérfano y
+        Livewire nunca recibe el clic. Ver commit que corrige este patrón.
+    --}}
+    @can('academico.gestionar')
+        <div class="mb-4 flex justify-end">
+            <button wire:click="abrirModal" class="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+                <x-heroicon-o-plus class="h-4 w-4" />
+                Nuevo grado
+            </button>
+        </div>
+    @endcan
 
     @if (session('status'))
         <div class="mb-4 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">{{ session('status') }}</div>
