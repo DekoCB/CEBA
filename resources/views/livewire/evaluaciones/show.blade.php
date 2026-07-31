@@ -3,6 +3,7 @@
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Evaluaciones\Models\Evaluacion;
 use App\Modules\Evaluaciones\Services\EvaluacionService;
+use App\Modules\Pagos\Services\BloqueoAccesoService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
@@ -132,7 +133,7 @@ new #[Layout('layouts.app')] class extends Component
         $service->publicar($evaluacion);
     }
 
-    public function with(EvaluacionService $service): array
+    public function with(EvaluacionService $service, BloqueoAccesoService $bloqueos): array
     {
         $user = Auth::user();
         $puedeRegistrar = Gate::allows('evaluaciones.registrar-horario', $this->horario);
@@ -160,10 +161,15 @@ new #[Layout('layouts.app')] class extends Component
 
         $misCalificaciones = collect();
         $promedio = null;
+        $estaBloqueado = false;
 
         if ($user->estudiante) {
-            $misCalificaciones = $service->misCalificaciones($user->estudiante, $this->horario);
-            $promedio = $service->promedioDelEstudiante($user->estudiante, $this->horario);
+            $estaBloqueado = $bloqueos->estaBloqueado($user->estudiante);
+
+            if (! $estaBloqueado) {
+                $misCalificaciones = $service->misCalificaciones($user->estudiante, $this->horario);
+                $promedio = $service->promedioDelEstudiante($user->estudiante, $this->horario);
+            }
         }
 
         return [
@@ -176,6 +182,7 @@ new #[Layout('layouts.app')] class extends Component
             'misCalificaciones' => $misCalificaciones,
             'promedio' => $promedio,
             'miEstudianteId' => $user->estudiante?->id,
+            'estaBloqueado' => $estaBloqueado,
         ];
     }
 }; ?>
@@ -304,6 +311,13 @@ new #[Layout('layouts.app')] class extends Component
                     </p>
                 @endif
             </div>
+        </div>
+    @elseif ($estaBloqueado)
+        <div class="rounded-lg border border-danger/30 bg-danger/10 px-4 py-6 text-sm text-danger">
+            <p class="font-medium">Tus notas no están disponibles.</p>
+            <p class="mt-1">Tienes cuotas vencidas sin pagar. Regulariza tu deuda en
+                <a href="{{ route('pagos.mi-cuenta') }}" wire:navigate class="underline">Mi estado de cuenta</a>
+                o comunícate con Cobranza para un compromiso de pago.</p>
         </div>
     @else
         <div class="space-y-4">

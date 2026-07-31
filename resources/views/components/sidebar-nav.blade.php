@@ -80,6 +80,72 @@
         </a>
     @endcanany
 
+    @canany(['pagos.ver', 'pagos.registrar', 'pagos.gestionar', 'pagos.aprobar', 'pagos.rechazar', 'pagos.ver_propio', 'tesoreria.gestionar'])
+        <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+            Pagos
+        </p>
+
+        @canany(['pagos.ver', 'pagos.registrar', 'pagos.gestionar', 'pagos.aprobar', 'pagos.rechazar'])
+            <a
+                href="{{ route('pagos.index') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-accent-soft text-accent' => request()->routeIs('pagos.index'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('pagos.index'),
+                ])
+            >
+                <x-heroicon-o-banknotes class="h-5 w-5 shrink-0" />
+                Cobranza
+            </a>
+        @endcanany
+
+        @can('pagos.ver_propio')
+            <a
+                href="{{ route('pagos.mi-cuenta') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-accent-soft text-accent' => request()->routeIs('pagos.mi-cuenta'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('pagos.mi-cuenta'),
+                ])
+            >
+                <x-heroicon-o-credit-card class="h-5 w-5 shrink-0" />
+                Mi estado de cuenta
+            </a>
+        @endcan
+
+        @can('pagos.gestionar')
+            <a
+                href="{{ route('pagos.conceptos') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-accent-soft text-accent' => request()->routeIs('pagos.conceptos'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('pagos.conceptos'),
+                ])
+            >
+                <x-heroicon-o-tag class="h-5 w-5 shrink-0" />
+                Conceptos de pago
+            </a>
+        @endcan
+
+        @can('tesoreria.gestionar')
+            <a
+                href="{{ route('pagos.cuentas-bancarias') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-accent-soft text-accent' => request()->routeIs('pagos.cuentas-bancarias'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('pagos.cuentas-bancarias'),
+                ])
+            >
+                <x-heroicon-o-building-library class="h-5 w-5 shrink-0" />
+                Cuentas bancarias
+            </a>
+        @endcan
+    @endcanany
+
     @can('academico.ver')
         <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
             Académico

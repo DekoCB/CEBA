@@ -43,6 +43,10 @@ class ModuleRoutesHaveWebMiddlewareTest extends TestCase
             'evaluaciones.index' => ['evaluaciones.index'],
             'evaluaciones.show' => ['evaluaciones.show'],
             'evaluaciones.libreta' => ['evaluaciones.libreta'],
+            'pagos.index' => ['pagos.index'],
+            'pagos.mi-cuenta' => ['pagos.mi-cuenta'],
+            'pagos.conceptos' => ['pagos.conceptos'],
+            'pagos.cuentas-bancarias' => ['pagos.cuentas-bancarias'],
         ];
     }
 

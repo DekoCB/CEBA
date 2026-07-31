@@ -7,6 +7,7 @@ use App\Modules\Dashboard\Providers\DashboardServiceProvider;
 use App\Modules\Evaluaciones\Providers\EvaluacionesServiceProvider;
 use App\Modules\Identidad\Providers\IdentidadServiceProvider;
 use App\Modules\Matricula\Providers\MatriculaServiceProvider;
+use App\Modules\Pagos\Providers\PagosServiceProvider;
 use App\Providers\AppServiceProvider;
 use App\Providers\AuthServiceProvider;
 use App\Providers\VoltServiceProvider;
@@ -22,4 +23,5 @@ return [
     AulaVirtualServiceProvider::class,
     AsistenciaServiceProvider::class,
     EvaluacionesServiceProvider::class,
+    PagosServiceProvider::class,
 ];

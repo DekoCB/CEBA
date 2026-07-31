@@ -19,6 +19,7 @@ use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
 /**
+ * @property int $id
  * @property int $estudiante_id
  * @property int $ciclo_id
  * @property int $grado_id
