@@ -409,7 +409,7 @@ new #[Layout('layouts.app')] class extends Component
                     :labels="collect($asistenciaPorGrado)->pluck('label')->all()"
                     :data="collect($asistenciaPorGrado)->pluck('valor')->all()"
                     label="% Asistencia"
-                    color="#35CDB8"
+                    color="#5B8DEF"
                 />
             </div>
         @endif
@@ -445,7 +445,7 @@ new #[Layout('layouts.app')] class extends Component
                             :labels="collect($distribucionNotas)->pluck('label')->all()"
                             :data="collect($distribucionNotas)->pluck('valor')->all()"
                             label="Estudiantes"
-                            color="#E3A23D"
+                            color="#35CDB8"
                         />
                     </div>
                 @endif
