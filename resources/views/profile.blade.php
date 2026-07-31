@@ -21,6 +21,10 @@
         </div>
 
         <div class="rounded-lg border border-border bg-surface p-4 sm:p-6">
+            <livewire:profile.two-factor-authentication-form />
+        </div>
+
+        <div class="rounded-lg border border-border bg-surface p-4 sm:p-6">
             <div class="max-w-xl">
                 <livewire:profile.delete-user-form />
             </div>

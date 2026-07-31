@@ -16,7 +16,11 @@ new #[Layout('layouts.guest')] class extends Component
     {
         $this->validate();
 
-        $this->form->authenticate();
+        if ($this->form->authenticate()) {
+            $this->redirect(route('two-factor.challenge'), navigate: true);
+
+            return;
+        }
 
         Session::regenerate();
 

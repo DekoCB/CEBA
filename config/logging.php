@@ -1,5 +1,6 @@
 <?php
 
+use Monolog\Formatter\JsonFormatter;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -121,6 +122,33 @@ return [
         'null' => [
             'driver' => 'monolog',
             'handler' => NullHandler::class,
+        ],
+
+        /*
+         * Salida en JSON, apta para un agregador de logs (Filebeat,
+         * CloudWatch, Loki...). No es el canal por defecto: se usa
+         * explícitamente vía Log::channel('json') donde interesa poder
+         * indexar/consultar por campo en vez de solo grep-ear texto.
+         */
+        'json' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/json.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 14),
+            'formatter' => JsonFormatter::class,
+        ],
+
+        /*
+         * Eventos de seguridad (logins fallidos, retos de 2FA fallidos,
+         * bloqueos por fuerza bruta) en JSON, separados del ruido general
+         * de la app y con retención más larga.
+         */
+        'seguridad' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/seguridad.log'),
+            'level' => 'info',
+            'days' => 90,
+            'formatter' => JsonFormatter::class,
         ],
 
         'emergency' => [

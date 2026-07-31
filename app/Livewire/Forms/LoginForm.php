@@ -24,9 +24,13 @@ class LoginForm extends Form
     /**
      * Attempt to authenticate the request's credentials.
      *
+     * @return bool True si las credenciales son correctas pero falta el
+     *              segundo factor: el login queda en sesión pendiente
+     *              (ver two-factor-challenge) en vez de completarse aquí.
+     *
      * @throws ValidationException
      */
-    public function authenticate(): void
+    public function authenticate(): bool
     {
         $this->ensureIsNotRateLimited();
 
@@ -39,6 +43,21 @@ class LoginForm extends Form
         }
 
         RateLimiter::clear($this->throttleKey());
+
+        $user = Auth::user();
+
+        if ($user->two_factor_confirmed_at !== null) {
+            Auth::logout();
+
+            session([
+                'login.id' => $user->getKey(),
+                'login.remember' => $this->remember,
+            ]);
+
+            return true;
+        }
+
+        return false;
     }
 
     /**
