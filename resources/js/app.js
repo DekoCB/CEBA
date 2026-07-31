@@ -7,13 +7,19 @@ import Chart from 'chart.js/auto';
  * Chart.js no lee CSS de Tailwind, así que se las pasamos explícitamente aquí;
  * de lo contrario usa sus grises por defecto, invisibles sobre el tema oscuro.
  */
-function colorToken(name) {
-    return `rgb(${getComputedStyle(document.documentElement).getPropertyValue(name).trim()})`;
+function colorToken(name, alpha = 1) {
+    const rgb = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+    return `rgb(${rgb} / ${alpha})`;
 }
 
 function aplicarColoresDeTema(config) {
+    const esOscuro = document.documentElement.classList.contains('dark');
+
     const textoTenue = colorToken('--color-text-dim');
-    const borde = colorToken('--color-border');
+    // En tema oscuro, --color-border ya resalta contra un fondo casi negro:
+    // se atenúa con transparencia para que la grilla no compita con los datos.
+    const grilla = colorToken('--color-border', esOscuro ? 0.35 : 1);
 
     config.options ??= {};
     config.options.color ??= textoTenue;
@@ -23,7 +29,7 @@ function aplicarColoresDeTema(config) {
         eje.ticks ??= {};
         eje.ticks.color ??= textoTenue;
         eje.grid ??= {};
-        eje.grid.color ??= borde;
+        eje.grid.color ??= grilla;
     }
 
     return config;
