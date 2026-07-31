@@ -2,17 +2,28 @@
 
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
+use App\Modules\Notificaciones\Enums\EstadoMensajeWhatsappEnum;
+use App\Modules\Notificaciones\Enums\TipoMensajeWhatsappEnum;
 use App\Modules\Notificaciones\Models\PlantillaWhatsapp;
 use App\Modules\Notificaciones\Services\CampaniaWhatsappService;
+use App\Modules\Notificaciones\Services\MensajeWhatsappService;
 use App\Modules\Notificaciones\Services\PlantillaService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new #[Layout('layouts.app')] class extends Component
 {
+    use WithPagination;
+
     public string $tab = 'nueva';
+
+    public string $filtroTipo = '';
+
+    public string $filtroEstado = '';
 
     public string $nombre = '';
 
@@ -27,6 +38,16 @@ new #[Layout('layouts.app')] class extends Component
     public function mount(): void
     {
         Gate::authorize('whatsapp.enviar');
+    }
+
+    public function updatingFiltroTipo(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFiltroEstado(): void
+    {
+        $this->resetPage();
     }
 
     /**
@@ -70,7 +91,7 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('status', 'Campaña creada. Los mensajes se están enviando.');
     }
 
-    public function with(CampaniaWhatsappService $campanias, PlantillaService $plantillas): array
+    public function with(CampaniaWhatsappService $campanias, PlantillaService $plantillas, MensajeWhatsappService $mensajes): array
     {
         return [
             'plantillasActivas' => $plantillas->activas(),
@@ -78,6 +99,12 @@ new #[Layout('layouts.app')] class extends Component
             'ciclos' => Ciclo::query()->latest('fecha_inicio')->get(),
             'destinatariosPrevistos' => $campanias->resolverDestinatarios($this->segmentoActual())->count(),
             'campanias' => $campanias->todas(),
+            'mensajes' => $mensajes->listar([
+                'tipo' => $this->filtroTipo ?: null,
+                'estado' => $this->filtroEstado ?: null,
+            ]),
+            'tipos' => TipoMensajeWhatsappEnum::cases(),
+            'estados' => EstadoMensajeWhatsappEnum::cases(),
         ];
     }
 }; ?>
@@ -98,6 +125,9 @@ new #[Layout('layouts.app')] class extends Component
         </button>
         <button wire:click="$set('tab', 'historial')" @class(['border-b-2 px-4 py-2 text-sm font-medium transition', 'border-accent text-accent' => $tab === 'historial', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'historial'])>
             Historial
+        </button>
+        <button wire:click="$set('tab', 'mensajes')" @class(['border-b-2 px-4 py-2 text-sm font-medium transition', 'border-accent text-accent' => $tab === 'mensajes', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'mensajes'])>
+            Mensajes
         </button>
         <a href="{{ route('notificaciones.plantillas') }}" wire:navigate class="ml-auto self-center text-sm font-medium text-accent hover:underline">
             Gestionar plantillas →
@@ -194,6 +224,83 @@ new #[Layout('layouts.app')] class extends Component
             @empty
                 <p class="px-4 py-8 text-center text-sm text-ink-faint">No se han enviado campañas todavía.</p>
             @endforelse
+        </div>
+    @endif
+
+    {{-- Mensajes --}}
+    @if ($tab === 'mensajes')
+        <div class="space-y-4">
+            <div class="flex flex-col gap-3 sm:flex-row">
+                <select wire:model.live="filtroTipo" class="w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent sm:max-w-xs">
+                    <option value="">Todos los tipos</option>
+                    @foreach ($tipos as $tipoOpcion)
+                        <option value="{{ $tipoOpcion->value }}">{{ $tipoOpcion->label() }}</option>
+                    @endforeach
+                </select>
+
+                <select wire:model.live="filtroEstado" class="w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent sm:max-w-xs">
+                    <option value="">Todos los estados</option>
+                    @foreach ($estados as $estadoOpcion)
+                        <option value="{{ $estadoOpcion->value }}">{{ $estadoOpcion->label() }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="overflow-hidden rounded-lg border border-border bg-surface">
+                <table class="min-w-full divide-y divide-border text-sm">
+                    <thead class="bg-surface-2">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Destinatario</th>
+                            <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Tipo</th>
+                            <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Contenido</th>
+                            <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Estado</th>
+                            <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Fecha</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-border">
+                        @forelse ($mensajes as $mensaje)
+                            <tr wire:key="mensaje-{{ $mensaje->id }}">
+                                <td class="px-4 py-3 text-ink">
+                                    {{ $mensaje->estudiante?->nombreCompleto() ?? '—' }}
+                                    <span class="block font-mono text-xs text-ink-faint">{{ $mensaje->telefono }}</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span @class([
+                                        'rounded-full px-2 py-0.5 text-xs font-medium',
+                                        'bg-info/10 text-info' => $mensaje->tipo->value === 'campania',
+                                        'bg-gold/10 text-gold' => $mensaje->tipo->value === 'recordatorio',
+                                        'bg-accent-soft text-accent' => $mensaje->tipo->value === 'entrante',
+                                    ])>{{ $mensaje->tipo->label() }}</span>
+                                </td>
+                                <td class="max-w-xs truncate px-4 py-3 text-ink-dim" title="{{ $mensaje->contenido }}">{{ Str::limit($mensaje->contenido, 60) }}</td>
+                                <td class="px-4 py-3">
+                                    <span @class([
+                                        'rounded-full px-2 py-0.5 text-xs font-medium',
+                                        'bg-warn/10 text-warn' => $mensaje->estado->value === 'pendiente',
+                                        'bg-info/10 text-info' => in_array($mensaje->estado->value, ['enviado', 'recibido']),
+                                        'bg-ok/10 text-ok' => in_array($mensaje->estado->value, ['entregado', 'leido']),
+                                        'bg-danger/10 text-danger' => $mensaje->estado->value === 'fallido',
+                                    ])>{{ $mensaje->estado->label() }}</span>
+                                    @if ($mensaje->estado->value === 'fallido' && $mensaje->error)
+                                        <span class="block text-xs text-danger" title="{{ $mensaje->error }}">{{ Str::limit($mensaje->error, 40) }}</span>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3 text-ink-faint" title="{{ $mensaje->created_at }}">
+                                    {{ ($mensaje->enviado_en ?? $mensaje->created_at)?->format('d/m/Y H:i') }}
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="5" class="px-4 py-8 text-center text-sm text-ink-faint">No hay mensajes con estos filtros.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div>
+                {{ $mensajes->links() }}
+            </div>
         </div>
     @endif
 </div>
