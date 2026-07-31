@@ -228,6 +228,21 @@
         </a>
     @endcanany
 
+    @canany(['whatsapp.ver', 'whatsapp.enviar'])
+        <a
+            href="{{ route('notificaciones.index') }}"
+            wire:navigate
+            @class([
+                'mt-4 flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                'bg-accent-soft text-accent' => request()->routeIs('notificaciones.*'),
+                'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('notificaciones.*'),
+            ])
+        >
+            <x-heroicon-o-chat-bubble-left-right class="h-5 w-5 shrink-0" />
+            Notificaciones
+        </a>
+    @endcanany
+
     @canany(['usuarios.ver', 'roles.gestionar', 'auditoria.ver'])
         <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
             Administración

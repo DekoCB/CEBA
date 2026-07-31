@@ -37,7 +37,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'pagos.ver', 'pagos.gestionar',
             'certificados.ver', 'certificados.emitir', 'certificados.duplicar',
             'reportes.academicos', 'reportes.matricula', 'reportes.financieros', 'reportes.certificados', 'reportes.exportar',
-            'whatsapp.enviar',
+            'whatsapp.ver', 'whatsapp.enviar',
         ],
 
         RolEnum::ADMINISTRATIVO->value => [
@@ -45,7 +45,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'pagos.registrar',
             'asistencia.ver',
             'reportes.operativos', 'reportes.exportar',
-            'whatsapp.enviar',
+            'whatsapp.ver', 'whatsapp.enviar',
             'usuarios.ver',
             'usuarios.gestionar_sesiones',
             'auditoria.ver',

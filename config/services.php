@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    'whatsapp' => [
+        // 'null' (por defecto) simula el envío y solo lo registra en el log —
+        // no requiere credenciales. 'meta' llama a la WhatsApp Cloud API real.
+        'driver' => env('WHATSAPP_DRIVER', 'null'),
+        'token' => env('WHATSAPP_TOKEN'),
+        'phone_id' => env('WHATSAPP_PHONE_ID'),
+        'verify_token' => env('WHATSAPP_VERIFY_TOKEN'),
+        'app_secret' => env('WHATSAPP_APP_SECRET'),
+    ],
+
 ];

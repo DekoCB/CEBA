@@ -8,6 +8,7 @@ use App\Modules\Dashboard\Providers\DashboardServiceProvider;
 use App\Modules\Evaluaciones\Providers\EvaluacionesServiceProvider;
 use App\Modules\Identidad\Providers\IdentidadServiceProvider;
 use App\Modules\Matricula\Providers\MatriculaServiceProvider;
+use App\Modules\Notificaciones\Providers\NotificacionesServiceProvider;
 use App\Modules\Pagos\Providers\PagosServiceProvider;
 use App\Modules\Reportes\Providers\ReportesServiceProvider;
 use App\Providers\AppServiceProvider;
@@ -28,4 +29,5 @@ return [
     PagosServiceProvider::class,
     CertificadosServiceProvider::class,
     ReportesServiceProvider::class,
+    NotificacionesServiceProvider::class,
 ];

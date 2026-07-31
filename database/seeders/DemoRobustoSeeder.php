@@ -29,6 +29,9 @@ use App\Modules\Matricula\Enums\EstadoCivilEnum;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Services\MatriculaService;
+use App\Modules\Notificaciones\Services\CampaniaWhatsappService;
+use App\Modules\Notificaciones\Services\PlantillaService;
+use App\Modules\Notificaciones\Services\RecordatorioCuotaService;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use App\Modules\Pagos\Enums\NumeroCuotasEnum;
 use App\Modules\Pagos\Enums\TipoConceptoEnum;
@@ -112,6 +115,7 @@ class DemoRobustoSeeder extends Seeder
         $this->registrarEvaluacionesYLibretas($ciclo, $horarios);
         $this->poblarPagos();
         $this->poblarCertificados();
+        $this->poblarNotificaciones();
     }
 
     /**
@@ -578,6 +582,42 @@ class DemoRobustoSeeder extends Seeder
                 default => null,
             };
         }
+    }
+
+    private function poblarNotificaciones(): void
+    {
+        $plantillaService = app(PlantillaService::class);
+        $campaniaService = app(CampaniaWhatsappService::class);
+
+        $coordinador = User::query()->where('email', 'coordinador@ceba.test')->first();
+
+        if (! $coordinador) {
+            return;
+        }
+
+        $bienvenida = $plantillaService->crear(
+            'Bienvenida de ciclo',
+            'Hola {{nombre}}, te damos la bienvenida al nuevo ciclo en CEBA. ¡Éxitos!',
+            $coordinador,
+        );
+        $plantillaService->crear(
+            'Recordatorio de cuota',
+            'Hola {{nombre}}, recuerda que tienes una cuota próxima a vencer. Evita el bloqueo de tu libreta regularizando a tiempo.',
+            $coordinador,
+        );
+        $plantillaService->crear(
+            'Aviso general',
+            'Hola {{nombre}}, te recordamos revisar el Aula Virtual: hay tareas y publicaciones nuevas esta semana.',
+            $coordinador,
+        );
+
+        try {
+            $campaniaService->crearYEnviar('Bienvenida del ciclo activo', $bienvenida, [], $coordinador);
+        } catch (ValidationException) {
+            // Sin destinatarios con teléfono de contacto: se omite la campaña demo.
+        }
+
+        app(RecordatorioCuotaService::class)->enviarRecordatorios();
     }
 
     private function nombreAleatorio(): string

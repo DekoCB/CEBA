@@ -27,6 +27,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property string $apellidos
  * @property Carbon $fecha_nacimiento
  * @property bool $es_menor_edad
+ * @property string|null $celular
  * @property EstadoEstudianteEnum $estado
  * @property-read Apoderado|null $apoderado
  * @property-read InstitucionProcedencia|null $institucionProcedencia
@@ -126,5 +127,19 @@ class Estudiante extends Model implements HasMedia
     public function nombreCompleto(): string
     {
         return "{$this->nombres} {$this->apellidos}";
+    }
+
+    /**
+     * Número al que deben llegar las comunicaciones sobre este estudiante:
+     * el del apoderado si es menor de edad y lo tiene registrado, si no el
+     * propio.
+     */
+    public function telefonoDeContacto(): ?string
+    {
+        if ($this->es_menor_edad && $this->apoderado?->celular) {
+            return $this->apoderado->celular;
+        }
+
+        return $this->celular;
     }
 }
