@@ -19,6 +19,7 @@ use App\Modules\AulaVirtual\Services\ForoService;
 use App\Modules\AulaVirtual\Services\MaterialService;
 use App\Modules\AulaVirtual\Services\PublicacionService;
 use App\Modules\AulaVirtual\Services\TareaService;
+use App\Modules\Certificados\Services\CertificadoService;
 use App\Modules\Evaluaciones\Services\EvaluacionService;
 use App\Modules\Evaluaciones\Services\LibretaService;
 use App\Modules\Matricula\DTOs\RegistrarApoderadoData;
@@ -110,6 +111,7 @@ class DemoRobustoSeeder extends Seeder
         $this->registrarAsistencia($horarios);
         $this->registrarEvaluacionesYLibretas($ciclo, $horarios);
         $this->poblarPagos();
+        $this->poblarCertificados();
     }
 
     /**
@@ -531,6 +533,51 @@ class DemoRobustoSeeder extends Seeder
 
         $pago = $service->registrar($estudiante, $concepto, (float) $cuota->monto, MetodoPagoEnum::EFECTIVO->value, $cuota, null, $registradoPor);
         $service->rechazar($pago, $aprobadoPor, 'El comprobante no corresponde al monto de la cuota.');
+    }
+
+    private function poblarCertificados(): void
+    {
+        $certificadoService = app(CertificadoService::class);
+
+        $coordinador = User::query()->where('email', 'coordinador@ceba.test')->first();
+
+        if (! $coordinador) {
+            return;
+        }
+
+        $matriculas = Matricula::query()
+            ->where('estado', 'aprobada')
+            ->with('estudiante')
+            ->inRandomOrder()
+            ->limit(6)
+            ->get();
+
+        foreach ($matriculas as $indice => $matricula) {
+            match ($indice % 4) {
+                // 0: certificado emitido directamente, con un duplicado posterior.
+                0 => tap(
+                    $certificadoService->emitir($matricula->estudiante, $matricula, null, null, $coordinador),
+                    fn ($certificado) => $certificadoService->duplicar($certificado, 'Extravío del documento original.', $coordinador),
+                ),
+                // 1: solicitud atendida (emitida a partir de una solicitud del estudiante).
+                1 => $certificadoService->emitir(
+                    $matricula->estudiante,
+                    $matricula,
+                    $certificadoService->solicitar($matricula->estudiante, $matricula, 'Trámite de continuación de estudios.'),
+                    null,
+                    $coordinador,
+                ),
+                // 2: solicitud pendiente, todavía sin atender.
+                2 => $certificadoService->solicitar($matricula->estudiante, $matricula, 'Trámite laboral.'),
+                // 3: solicitud rechazada.
+                3 => $certificadoService->rechazarSolicitud(
+                    $certificadoService->solicitar($matricula->estudiante, $matricula, 'Beca de estudios superiores.'),
+                    'El estudiante registra deuda pendiente con la institución.',
+                    $coordinador,
+                ),
+                default => null,
+            };
+        }
     }
 
     private function nombreAleatorio(): string

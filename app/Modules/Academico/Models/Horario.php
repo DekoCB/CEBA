@@ -23,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read Curso $curso
  * @property-read User $docente
  * @property-read Aula $aula
+ * @property-read Grado $grado
  */
 class Horario extends Model
 {

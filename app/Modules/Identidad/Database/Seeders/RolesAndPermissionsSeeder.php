@@ -36,7 +36,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'asistencia.ver',
             'pagos.ver', 'pagos.gestionar',
             'certificados.ver', 'certificados.emitir', 'certificados.duplicar',
-            'reportes.academicos', 'reportes.matricula', 'reportes.financieros', 'reportes.certificados',
+            'reportes.academicos', 'reportes.matricula', 'reportes.financieros', 'reportes.certificados', 'reportes.exportar',
             'whatsapp.enviar',
         ],
 
@@ -44,7 +44,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'matricula.ver',
             'pagos.registrar',
             'asistencia.ver',
-            'reportes.operativos',
+            'reportes.operativos', 'reportes.exportar',
             'whatsapp.enviar',
             'usuarios.ver',
             'usuarios.gestionar_sesiones',
@@ -54,14 +54,14 @@ class RolesAndPermissionsSeeder extends Seeder
         RolEnum::TESORERIA->value => [
             'pagos.ver', 'pagos.aprobar', 'pagos.rechazar',
             'tesoreria.gestionar',
-            'reportes.financieros',
+            'reportes.financieros', 'reportes.exportar',
         ],
 
         RolEnum::DOCENTE->value => [
             'aula_virtual.gestionar_propio',
             'evaluaciones.registrar',
             'asistencia.registrar',
-            'reportes.propios',
+            'reportes.propios', 'reportes.exportar',
         ],
 
         RolEnum::ESTUDIANTE->value => [

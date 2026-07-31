@@ -47,6 +47,10 @@ class ModuleRoutesHaveWebMiddlewareTest extends TestCase
             'pagos.mi-cuenta' => ['pagos.mi-cuenta'],
             'pagos.conceptos' => ['pagos.conceptos'],
             'pagos.cuentas-bancarias' => ['pagos.cuentas-bancarias'],
+            'certificados.index' => ['certificados.index'],
+            'certificados.mis-certificados' => ['certificados.mis-certificados'],
+            'certificados.verificar' => ['certificados.verificar'],
+            'reportes.index' => ['reportes.index'],
         ];
     }
 

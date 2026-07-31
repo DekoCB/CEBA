@@ -146,6 +146,42 @@
         @endcan
     @endcanany
 
+    @canany(['certificados.ver', 'certificados.emitir', 'certificados.duplicar', 'certificados.solicitar'])
+        <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+            Certificados
+        </p>
+
+        @canany(['certificados.ver', 'certificados.emitir'])
+            <a
+                href="{{ route('certificados.index') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-accent-soft text-accent' => request()->routeIs('certificados.index'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('certificados.index'),
+                ])
+            >
+                <x-heroicon-o-document-check class="h-5 w-5 shrink-0" />
+                Certificados
+            </a>
+        @endcanany
+
+        @can('certificados.solicitar')
+            <a
+                href="{{ route('certificados.mis-certificados') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-accent-soft text-accent' => request()->routeIs('certificados.mis-certificados'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('certificados.mis-certificados'),
+                ])
+            >
+                <x-heroicon-o-document-text class="h-5 w-5 shrink-0" />
+                Mis certificados
+            </a>
+        @endcan
+    @endcanany
+
     @can('academico.ver')
         <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
             Académico
@@ -172,6 +208,21 @@
             </a>
         @endforeach
     @endcan
+
+    @canany(['reportes.academicos', 'reportes.matricula', 'reportes.financieros', 'reportes.certificados', 'reportes.operativos', 'reportes.propios'])
+        <a
+            href="{{ route('reportes.index') }}"
+            wire:navigate
+            @class([
+                'mt-4 flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                'bg-accent-soft text-accent' => request()->routeIs('reportes.*'),
+                'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('reportes.*'),
+            ])
+        >
+            <x-heroicon-o-chart-bar class="h-5 w-5 shrink-0" />
+            Reportes
+        </a>
+    @endcanany
 
     @canany(['usuarios.ver', 'roles.gestionar', 'auditoria.ver'])
         <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
