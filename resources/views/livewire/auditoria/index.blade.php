@@ -74,7 +74,7 @@ new #[Layout('layouts.app')] class extends Component
             <tbody class="divide-y divide-border">
                 @forelse ($entradas as $entrada)
                     <tr wire:key="log-{{ $entrada->id }}">
-                        <td class="px-4 py-3 text-ink-dim" title="{{ $entrada->created_at }}">{{ $entrada->created_at?->diffForHumans() }}</td>
+                        <td class="px-4 py-3 text-ink-dim" title="{{ $entrada->created_at?->format('d/m/Y H:i') }}">{{ $entrada->created_at?->diffForHumans() }}</td>
                         <td class="px-4 py-3 text-ink">{{ $entrada->user?->name ?? 'Sistema' }}</td>
                         <td class="px-4 py-3">
                             <span @class([

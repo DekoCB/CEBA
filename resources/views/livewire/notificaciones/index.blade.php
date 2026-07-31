@@ -285,7 +285,7 @@ new #[Layout('layouts.app')] class extends Component
                                         <span class="block text-xs text-danger" title="{{ $mensaje->error }}">{{ Str::limit($mensaje->error, 40) }}</span>
                                     @endif
                                 </td>
-                                <td class="px-4 py-3 text-ink-faint" title="{{ $mensaje->created_at }}">
+                                <td class="px-4 py-3 text-ink-faint" title="{{ $mensaje->created_at?->format('d/m/Y H:i') }}">
                                     {{ ($mensaje->enviado_en ?? $mensaje->created_at)?->format('d/m/Y H:i') }}
                                 </td>
                             </tr>
