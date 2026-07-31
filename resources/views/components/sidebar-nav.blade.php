@@ -100,7 +100,9 @@
             </a>
         @endcanany
 
-        @can('pagos.ver_propio')
+        {{-- pagos.ver_propio también lo tiene Dirección vía '*', pero mi-cuenta
+             exige además una ficha de Estudiante: sin ella el enlace 403ea. --}}
+        @if (auth()->user()->can('pagos.ver_propio') && auth()->user()->estudiante)
             <a
                 href="{{ route('pagos.mi-cuenta') }}"
                 wire:navigate
@@ -113,7 +115,7 @@
                 <x-heroicon-o-credit-card class="h-5 w-5 shrink-0" />
                 Mi estado de cuenta
             </a>
-        @endcan
+        @endif
 
         @can('pagos.gestionar')
             <a
@@ -166,7 +168,9 @@
             </a>
         @endcanany
 
-        @can('certificados.solicitar')
+        {{-- certificados.solicitar también lo tiene Dirección vía '*', pero
+             mis-certificados exige además una ficha de Estudiante. --}}
+        @if (auth()->user()->can('certificados.solicitar') && auth()->user()->estudiante)
             <a
                 href="{{ route('certificados.mis-certificados') }}"
                 wire:navigate
@@ -179,7 +183,7 @@
                 <x-heroicon-o-document-text class="h-5 w-5 shrink-0" />
                 Mis certificados
             </a>
-        @endcan
+        @endif
     @endcanany
 
     @can('academico.ver')
