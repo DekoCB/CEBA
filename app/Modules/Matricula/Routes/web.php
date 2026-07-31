@@ -10,10 +10,6 @@ Route::middleware(['auth'])->prefix('matricula')->name('matricula.')->group(func
         ->middleware('can:matricula.ver')
         ->name('index');
 
-    Volt::route('nueva', 'matricula.wizard')
-        ->middleware('can:matricula.crear')
-        ->name('wizard');
-
     Volt::route('{estudiante}', 'matricula.show')
         ->middleware('can:matricula.ver')
         ->name('show');

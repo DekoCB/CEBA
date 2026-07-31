@@ -4,6 +4,7 @@ use App\Modules\Matricula\Enums\EstadoEstudianteEnum;
 use App\Modules\Matricula\Services\MatriculaService;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -15,9 +16,25 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $estadoFiltro = '';
 
+    public bool $mostrarWizard = false;
+
     public function mount(): void
     {
         Gate::authorize('matricula.ver');
+    }
+
+    #[On('wizard-cerrado')]
+    public function cerrarWizard(): void
+    {
+        $this->mostrarWizard = false;
+    }
+
+    #[On('matricula-registrada')]
+    public function matriculaRegistrada(int $estudianteId, string $nombre): void
+    {
+        $this->mostrarWizard = false;
+        session()->flash('status', "Matrícula de {$nombre} registrada correctamente.");
+        session()->flash('estudianteRegistradoId', $estudianteId);
     }
 
     public function updatingTermino(): void
@@ -41,19 +58,34 @@ new #[Layout('layouts.app')] class extends Component
 
 <div>
     <x-slot name="header">
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="font-display text-2xl text-ink">Matrícula</h1>
-                <p class="mt-1 text-sm text-ink-dim">Estudiantes registrados y su estado.</p>
-            </div>
-            @can('matricula.crear')
-                <a href="{{ route('matricula.wizard') }}" wire:navigate class="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90">
-                    <x-heroicon-o-plus class="h-4 w-4" />
-                    Nueva matrícula
-                </a>
-            @endcan
-        </div>
+        <h1 class="font-display text-2xl text-ink">Matrícula</h1>
+        <p class="mt-1 text-sm text-ink-dim">Estudiantes registrados y su estado.</p>
     </x-slot>
+
+    {{-- Ver academico/grados/index.blade.php: el botón no puede vivir en x-slot="header". --}}
+    @can('matricula.crear')
+        <div class="mb-4 flex justify-end">
+            <button type="button" wire:click="$set('mostrarWizard', true)" class="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+                <x-heroicon-o-plus class="h-4 w-4" />
+                Nueva matrícula
+            </button>
+        </div>
+    @endcan
+
+    @if (session('status'))
+        <div class="mb-4 flex items-center justify-between rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">
+            <span>{{ session('status') }}</span>
+            @if (session('estudianteRegistradoId'))
+                <a href="{{ route('matricula.show', session('estudianteRegistradoId')) }}" wire:navigate class="font-medium underline">
+                    Ver ficha →
+                </a>
+            @endif
+        </div>
+    @endif
+
+    @if ($mostrarWizard)
+        <livewire:matricula.wizard wire:key="wizard-nueva-matricula" />
+    @endif
 
     <div class="mb-4 flex flex-col gap-3 sm:flex-row">
         <input

@@ -82,10 +82,38 @@ class MatriculaPermisosTest extends TestCase
             ->set('cicloId', (string) $ciclo->id)
             ->set('gradoId', (string) $grado->id)
             ->call('confirmar')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
 
         $this->assertDatabaseHas('estudiantes', ['dni' => '55667788']);
         $estudiante = Estudiante::query()->where('dni', '55667788')->firstOrFail();
         $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'ciclo_id' => $ciclo->id]);
+    }
+
+    public function test_cancelar_el_wizard_dispara_el_evento_que_cierra_el_modal(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->call('cancelar')
+            ->assertDispatched('wizard-cerrado');
+    }
+
+    public function test_el_listado_abre_y_cierra_el_modal_del_wizard(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.index')
+            ->assertSet('mostrarWizard', false)
+            ->set('mostrarWizard', true)
+            ->assertSet('mostrarWizard', true)
+            ->call('cerrarWizard')
+            ->assertSet('mostrarWizard', false);
     }
 }

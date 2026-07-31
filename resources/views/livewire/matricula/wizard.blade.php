@@ -15,11 +15,10 @@ use App\Shared\ValueObjects\Dni;
 use App\Shared\ValueObjects\Telefono;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
-use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 
-new #[Layout('layouts.app')] class extends Component
+new class extends Component
 {
     use WithFileUploads;
 
@@ -191,6 +190,11 @@ new #[Layout('layouts.app')] class extends Component
         $this->paso = max(1, $this->paso - 1);
     }
 
+    public function cancelar(): void
+    {
+        $this->dispatch('wizard-cerrado');
+    }
+
     public function confirmar(
         MatriculaService $matriculaService,
         DocumentoEstudianteService $documentoService,
@@ -271,7 +275,7 @@ new #[Layout('layouts.app')] class extends Component
             registradoPor: auth()->id(),
         ));
 
-        $this->redirect(route('matricula.show', $estudiante), navigate: true);
+        $this->dispatch('matricula-registrada', estudianteId: $estudiante->id, nombre: $estudiante->nombreCompleto());
     }
 
     public function with(): array
@@ -300,19 +304,33 @@ new #[Layout('layouts.app')] class extends Component
     }
 }; ?>
 
-<div class="max-w-3xl">
-    <x-slot name="header">
-        <h1 class="font-display text-2xl text-ink">Nueva matrícula</h1>
-        <p class="mt-1 text-sm text-ink-dim">Paso {{ $paso }} de 5</p>
-    </x-slot>
+<div
+    class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/40 px-4 py-8"
+    wire:click.self="cancelar"
+>
+    <div class="w-full max-w-3xl rounded-lg border border-border bg-surface p-6 shadow-lg">
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <h1 class="font-display text-2xl text-ink">Nueva matrícula</h1>
+                <p class="mt-1 text-sm text-ink-dim">Paso {{ $paso }} de 5</p>
+            </div>
+            <button
+                type="button"
+                wire:click="cancelar"
+                class="rounded-md p-1 text-ink-faint hover:bg-surface-2 hover:text-ink"
+                aria-label="Cerrar"
+            >
+                <x-heroicon-o-x-mark class="h-5 w-5" />
+            </button>
+        </div>
 
-    <div class="mb-6 flex gap-1">
-        @for ($i = 1; $i <= 5; $i++)
-            <div @class(['h-1.5 flex-1 rounded-full', 'bg-accent' => $i <= $paso, 'bg-surface-2' => $i > $paso])></div>
-        @endfor
-    </div>
+        <div class="mb-6 mt-4 flex gap-1">
+            @for ($i = 1; $i <= 5; $i++)
+                <div @class(['h-1.5 flex-1 rounded-full', 'bg-accent' => $i <= $paso, 'bg-surface-2' => $i > $paso])></div>
+            @endfor
+        </div>
 
-    <div class="rounded-lg border border-border bg-surface p-6">
+        <div>
         {{-- Paso 1: Estudiante --}}
         @if ($paso === 1)
             <h2 class="font-display text-lg text-ink">Datos del estudiante</h2>
@@ -546,6 +564,7 @@ new #[Layout('layouts.app')] class extends Component
             @else
                 <x-primary-button type="button" wire:click="confirmar">Confirmar matrícula</x-primary-button>
             @endif
+        </div>
         </div>
     </div>
 </div>

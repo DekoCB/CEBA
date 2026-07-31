@@ -46,6 +46,7 @@ class HeaderActionButtonsAreInteractiveTest extends TestCase
             'academico.horarios.index' => ['academico.horarios.index', RolEnum::COORDINADOR->value, 'wire:click="abrirModal"'],
             'pagos.conceptos' => ['pagos.conceptos', RolEnum::COORDINADOR->value, 'wire:click="abrirModal"'],
             'pagos.cuentas-bancarias' => ['pagos.cuentas-bancarias', RolEnum::TESORERIA->value, 'wire:click="abrirModal"'],
+            'matricula.index' => ['matricula.index', RolEnum::COORDINADOR->value, "wire:click=\"\$set('mostrarWizard', true)\""],
         ];
     }
 
