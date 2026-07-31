@@ -3,7 +3,9 @@
 namespace Tests\Feature\Dashboard;
 
 use App\Models\User;
+use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
+use App\Modules\Asistencia\Models\Asistencia;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
@@ -94,7 +96,9 @@ class DashboardTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Estudiantes activos')
-            ->assertSee('Evaluaciones sin publicar');
+            ->assertSee('Evaluaciones sin publicar')
+            ->assertSee('Ingresos aprobados')
+            ->assertSee('Notificaciones');
     }
 
     public function test_tesoreria_ve_la_cola_de_aprobacion(): void
@@ -107,7 +111,39 @@ class DashboardTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Pagos por aprobar')
-            ->assertSee('2');
+            ->assertSee('2')
+            ->assertSee('Ingresos aprobados')
+            ->assertSee('pago');
+    }
+
+    public function test_coordinador_sin_alertas_ve_notificaciones_vacias(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $this->actingAs($coordinador)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Todo al día. No hay notificaciones pendientes.');
+    }
+
+    public function test_coordinador_ve_asistencia_por_grado_cuando_hay_registros(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $grado = Grado::factory()->create(['nombre' => '1ro de Secundaria']);
+        $horario = Horario::factory()->create(['grado_id' => $grado->id]);
+        Asistencia::factory()->create([
+            'horario_id' => $horario->id,
+            'estado' => 'presente',
+        ]);
+
+        $this->actingAs($coordinador)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Asistencia por grado')
+            ->assertSee('1ro de Secundaria');
     }
 
     public function test_un_usuario_sin_rol_reconocido_ve_el_mensaje_de_bienvenida(): void

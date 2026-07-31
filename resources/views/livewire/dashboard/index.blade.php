@@ -1,7 +1,9 @@
 <?php
 
 use App\Models\User;
+use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
+use App\Modules\Asistencia\Models\Asistencia;
 use App\Modules\AulaVirtual\Models\Tarea;
 use App\Modules\AulaVirtual\Services\CursoVirtualService;
 use App\Modules\Evaluaciones\Models\Evaluacion;
@@ -68,6 +70,9 @@ new #[Layout('layouts.app')] class extends Component
 
     public int $matriculasSinPlanDePago = 0;
 
+    /** @var array<int, array{label: string, valor: float}> */
+    public array $asistenciaPorGrado = [];
+
     public bool $esTesoreria = false;
 
     public int $pagosPendientesAprobacion = 0;
@@ -75,6 +80,17 @@ new #[Layout('layouts.app')] class extends Component
     public float $ingresosDelMes = 0.0;
 
     public int $cuentasBancariasActivas = 0;
+
+    /** @var array<int, string> */
+    public array $ingresosSemanasLabels = [];
+
+    /** @var array<int, float> */
+    public array $ingresosSemanasDatos = [];
+
+    /**
+     * @var array<int, array{pill: string, color: string, texto: string}>
+     */
+    public array $notificaciones = [];
 
     public function mount(BloqueoAccesoService $bloqueos, CursoVirtualService $cursosVirtuales): void
     {
@@ -139,6 +155,7 @@ new #[Layout('layouts.app')] class extends Component
                 ->where('estado', 'aprobada')
                 ->whereNotIn('id', PlanPago::query()->pluck('matricula_id'))
                 ->count();
+            $this->asistenciaPorGrado = $this->calcularAsistenciaPorGrado();
         }
 
         if (Gate::allows('pagos.aprobar')) {
@@ -151,6 +168,91 @@ new #[Layout('layouts.app')] class extends Component
                 ->sum('monto');
             $this->cuentasBancariasActivas = CuentaBancaria::query()->where('activa', true)->count();
         }
+
+        if ($this->esCoordinador || $this->esTesoreria) {
+            [$this->ingresosSemanasLabels, $this->ingresosSemanasDatos] = $this->calcularIngresosPorSemana();
+        }
+
+        $this->notificaciones = $this->construirNotificaciones();
+    }
+
+    /**
+     * @return array{0: array<int, string>, 1: array<int, float>}
+     */
+    private function calcularIngresosPorSemana(): array
+    {
+        $labels = [];
+        $datos = [];
+
+        for ($semanasAtras = 7; $semanasAtras >= 0; $semanasAtras--) {
+            $inicio = now()->subWeeks($semanasAtras)->startOfWeek();
+            $fin = now()->subWeeks($semanasAtras)->endOfWeek();
+
+            $labels[] = $inicio->format('d/m');
+            $datos[] = (float) Pago::query()
+                ->where('estado', 'aprobado')
+                ->whereBetween('fecha_aprobacion', [$inicio, $fin])
+                ->sum('monto');
+        }
+
+        return [$labels, $datos];
+    }
+
+    /**
+     * @return array<int, array{label: string, valor: float}>
+     */
+    private function calcularAsistenciaPorGrado(): array
+    {
+        return Grado::query()
+            ->orderBy('orden')
+            ->get()
+            ->map(function (Grado $grado) {
+                $registros = Asistencia::query()->whereHas('horario', fn ($query) => $query->where('grado_id', $grado->id));
+                $total = $registros->count();
+
+                if ($total === 0) {
+                    return null;
+                }
+
+                $positivos = (clone $registros)->whereIn('estado', ['presente', 'justificado'])->count();
+
+                return ['label' => $grado->nombre, 'valor' => round($positivos / $total * 100, 1)];
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{pill: string, color: string, texto: string}>
+     */
+    private function construirNotificaciones(): array
+    {
+        $notificaciones = [];
+
+        if ($this->esCoordinador) {
+            if ($this->estudiantesBloqueados > 0) {
+                $notificaciones[] = ['pill' => 'deuda', 'color' => 'danger', 'texto' => "{$this->estudiantesBloqueados} estudiantes bloqueados por deuda"];
+            }
+
+            if ($this->matriculasSinPlanDePago > 0) {
+                $notificaciones[] = ['pill' => 'matrícula', 'color' => 'info', 'texto' => "{$this->matriculasSinPlanDePago} matrículas sin plan de pago"];
+            }
+
+            if ($this->evaluacionesSinPublicar > 0) {
+                $notificaciones[] = ['pill' => 'evaluación', 'color' => 'gold', 'texto' => "{$this->evaluacionesSinPublicar} evaluaciones sin publicar"];
+            }
+        }
+
+        if ($this->esTesoreria && $this->pagosPendientesAprobacion > 0) {
+            $notificaciones[] = ['pill' => 'pago', 'color' => 'warn', 'texto' => "{$this->pagosPendientesAprobacion} pagos por aprobar"];
+        }
+
+        if ($this->esDocente && $this->tareasPorCalificar > 0) {
+            $notificaciones[] = ['pill' => 'tarea', 'color' => 'warn', 'texto' => "{$this->tareasPorCalificar} entregas por calificar"];
+        }
+
+        return $notificaciones;
     }
 }; ?>
 
@@ -198,11 +300,61 @@ new #[Layout('layouts.app')] class extends Component
                 </a>
             </div>
 
-            @if ($matriculasSinPlanDePago > 0)
-                <a href="{{ route('pagos.index') }}" wire:navigate class="block rounded-lg border border-warn/30 bg-warn/10 px-4 py-3 text-sm text-warn hover:underline">
-                    {{ $matriculasSinPlanDePago }} {{ $matriculasSinPlanDePago === 1 ? 'matrícula todavía no tiene' : 'matrículas todavía no tienen' }} un plan de pago asignado este ciclo →
-                </a>
-            @endif
+        @endif
+
+        @if ($esCoordinador || $esTesoreria)
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div class="rounded-lg border border-border bg-surface p-4 lg:col-span-2">
+                    <h2 class="mb-3 text-sm font-semibold text-ink">Ingresos aprobados — últimas 8 semanas</h2>
+                    <x-chart-canvas
+                        type="line"
+                        :labels="$ingresosSemanasLabels"
+                        :data="$ingresosSemanasDatos"
+                        label="Ingresos (S/)"
+                        color="#35CDB8"
+                    />
+                </div>
+
+                <div class="rounded-lg border border-border bg-surface">
+                    <div class="border-b border-border px-4 py-3">
+                        <h2 class="text-sm font-semibold text-ink">Notificaciones</h2>
+                    </div>
+                    <div class="divide-y divide-border">
+                        @forelse ($notificaciones as $notificacion)
+                            @php
+                                $estiloPill = match ($notificacion['color']) {
+                                    'danger' => 'bg-danger/10 text-danger',
+                                    'warn' => 'bg-warn/10 text-warn',
+                                    'info' => 'bg-info/10 text-info',
+                                    'gold' => 'bg-gold/10 text-gold',
+                                    default => 'bg-ink-faint/10 text-ink-faint',
+                                };
+                            @endphp
+                            <div class="flex items-center gap-3 px-4 py-3 text-sm">
+                                <span class="shrink-0 rounded-full px-2 py-0.5 font-mono text-xs uppercase tracking-wide {{ $estiloPill }}">
+                                    {{ $notificacion['pill'] }}
+                                </span>
+                                <span class="text-ink-dim">{{ $notificacion['texto'] }}</span>
+                            </div>
+                        @empty
+                            <p class="px-4 py-6 text-center text-sm text-ink-faint">Todo al día. No hay notificaciones pendientes.</p>
+                        @endforelse
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        @if ($esCoordinador && count($asistenciaPorGrado) > 0)
+            <div class="rounded-lg border border-border bg-surface p-4">
+                <h2 class="mb-3 text-sm font-semibold text-ink">Asistencia por grado (% presente/justificado)</h2>
+                <x-chart-canvas
+                    type="bar"
+                    :labels="collect($asistenciaPorGrado)->pluck('label')->all()"
+                    :data="collect($asistenciaPorGrado)->pluck('valor')->all()"
+                    label="% Asistencia"
+                    color="#5B8DEF"
+                />
+            </div>
         @endif
 
         @if ($esDocente)
