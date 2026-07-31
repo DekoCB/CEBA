@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\AulaVirtual\Services\CursoVirtualService;
+use App\Shared\Enums\RolEnum;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -21,7 +22,10 @@ new #[Layout('layouts.app')] class extends Component
     {
         $user = Auth::user();
 
-        if ($user->hasPermissionTo('aula_virtual.gestionar_propio')) {
+        // hasPermissionTo() no basta: Dirección tiene este permiso vía '*'
+        // sin ser realmente docente, y quedaría viendo "sus" cursos (ninguno)
+        // en vez de la vista de supervisión.
+        if ($user->hasPermissionTo('aula_virtual.gestionar_propio') && $user->hasRole(RolEnum::DOCENTE->value)) {
             return ['cursos' => $service->delDocente($user->id), 'rol' => 'docente'];
         }
 

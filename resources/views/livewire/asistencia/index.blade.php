@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Asistencia\Services\AsistenciaService;
+use App\Shared\Enums\RolEnum;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -21,7 +22,10 @@ new #[Layout('layouts.app')] class extends Component
     {
         $user = Auth::user();
 
-        if ($user->hasPermissionTo('asistencia.registrar')) {
+        // hasPermissionTo() no basta: Dirección tiene este permiso vía '*'
+        // sin ser realmente docente, y quedaría viendo "sus" horarios
+        // (ninguno) en vez de la vista de supervisión.
+        if ($user->hasPermissionTo('asistencia.registrar') && $user->hasRole(RolEnum::DOCENTE->value)) {
             return ['horarios' => $service->horariosDelDocente($user->id), 'rol' => 'docente'];
         }
 

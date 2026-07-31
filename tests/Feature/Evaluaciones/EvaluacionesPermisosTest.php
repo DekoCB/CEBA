@@ -109,6 +109,23 @@ class EvaluacionesPermisosTest extends TestCase
             ->assertForbidden();
     }
 
+    /**
+     * Dirección tiene evaluaciones.registrar vía '*' sin ser docente: debía
+     * mostrar la vista de supervisión, no la de "tus horarios" (vacía).
+     */
+    public function test_direccion_ve_la_supervision_general_no_la_vista_de_docente(): void
+    {
+        $direccion = User::factory()->create();
+        $direccion->assignRole(RolEnum::DIRECCION->value);
+        Horario::factory()->create();
+
+        $this->actingAs($direccion)
+            ->get(route('evaluaciones.index'))
+            ->assertOk()
+            ->assertSee('Supervisión de evaluaciones')
+            ->assertDontSee('Todavía no tienes horarios asignados este ciclo.');
+    }
+
     public function test_coordinador_puede_publicar_una_evaluacion(): void
     {
         $docente = User::factory()->create();

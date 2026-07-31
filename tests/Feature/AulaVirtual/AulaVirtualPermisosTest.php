@@ -136,4 +136,23 @@ class AulaVirtualPermisosTest extends TestCase
             ->get(route('aula-virtual.index'))
             ->assertForbidden();
     }
+
+    /**
+     * Dirección tiene aula_virtual.gestionar_propio vía '*' sin ser docente:
+     * debía mostrar la vista de supervisión, no la de "tus cursos" (vacía).
+     */
+    public function test_direccion_ve_la_supervision_general_no_la_vista_de_docente(): void
+    {
+        $direccion = User::factory()->create();
+        $direccion->assignRole(RolEnum::DIRECCION->value);
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $this->cursoDelDocente($docente);
+
+        $this->actingAs($direccion)
+            ->get(route('aula-virtual.index'))
+            ->assertOk()
+            ->assertSee('Todos los cursos virtuales activos.')
+            ->assertDontSee('Todavía no tienes cursos con aula virtual activada.');
+    }
 }
