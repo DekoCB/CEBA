@@ -409,7 +409,7 @@ new #[Layout('layouts.app')] class extends Component
                     :labels="collect($asistenciaPorGrado)->pluck('label')->all()"
                     :data="collect($asistenciaPorGrado)->pluck('valor')->all()"
                     label="% Asistencia"
-                    color="#5B8DEF"
+                    color="#35CDB8"
                 />
             </div>
         @endif
