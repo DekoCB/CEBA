@@ -5,11 +5,13 @@ namespace Tests\Feature\AulaVirtual;
 use App\Models\User;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\AulaVirtual\Models\CursoVirtual;
+use App\Modules\AulaVirtual\Models\Foro;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 class AulaVirtualPermisosTest extends TestCase
@@ -75,6 +77,39 @@ class AulaVirtualPermisosTest extends TestCase
         $this->actingAs($usuario)
             ->get(route('aula-virtual.show', $curso))
             ->assertOk();
+    }
+
+    public function test_un_estudiante_matriculado_puede_responder_en_un_foro(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario = Horario::factory()->create(['docente_id' => $docente->id]);
+        $curso = CursoVirtual::factory()->create(['horario_id' => $horario->id]);
+
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $horario->ciclo_id,
+            'grado_id' => $horario->grado_id,
+        ]);
+
+        $foro = Foro::factory()->create(['curso_virtual_id' => $curso->id, 'autor_id' => $docente->id]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('aula-virtual.show', ['curso' => $curso])
+            ->set("nuevaRespuestaForo.{$foro->id}", 'Mi respuesta')
+            ->call('responderForo', $foro->id)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('foro_respuestas', [
+            'foro_id' => $foro->id,
+            'autor_id' => $usuario->id,
+            'contenido' => 'Mi respuesta',
+        ]);
     }
 
     public function test_un_estudiante_no_matriculado_en_ese_grado_y_ciclo_no_puede_ver_el_curso(): void

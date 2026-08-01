@@ -3,6 +3,7 @@
 use App\Modules\AulaVirtual\Enums\TipoMaterialEnum;
 use App\Modules\AulaVirtual\Enums\TipoPublicacionEnum;
 use App\Modules\AulaVirtual\Models\CursoVirtual;
+use App\Modules\AulaVirtual\Models\Foro;
 use App\Modules\AulaVirtual\Models\Publicacion;
 use App\Modules\AulaVirtual\Services\ComentarioService;
 use App\Modules\AulaVirtual\Services\ForoService;
@@ -10,6 +11,7 @@ use App\Modules\AulaVirtual\Services\MaterialService;
 use App\Modules\AulaVirtual\Services\PublicacionService;
 use App\Modules\AulaVirtual\Services\TareaService;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
@@ -60,6 +62,9 @@ new #[Layout('layouts.app')] class extends Component
     public string $foroTitulo = '';
 
     public string $foroDescripcion = '';
+
+    /** @var array<int, string> */
+    public array $nuevaRespuestaForo = [];
 
     public function mount(CursoVirtual $curso): void
     {
@@ -163,6 +168,23 @@ new #[Layout('layouts.app')] class extends Component
         $this->reset(['foroTitulo', 'foroDescripcion', 'mostrarFormForo']);
     }
 
+    public function responderForo(int $foroId, ForoService $service): void
+    {
+        Gate::authorize('view', $this->curso);
+
+        $contenido = trim($this->nuevaRespuestaForo[$foroId] ?? '');
+
+        if ($contenido === '') {
+            return;
+        }
+
+        $foro = Foro::query()->where('curso_virtual_id', $this->curso->id)->findOrFail($foroId);
+
+        $service->responder($foro, auth()->id(), $contenido);
+
+        unset($this->nuevaRespuestaForo[$foroId]);
+    }
+
     public function with(): array
     {
         return [
@@ -170,7 +192,7 @@ new #[Layout('layouts.app')] class extends Component
             'materiales' => $this->curso->materiales,
             'tareas' => $this->curso->tareas()->latest('fecha_limite')->get(),
             'publicaciones' => $this->curso->publicaciones()->with(['autor', 'comentarios.autor'])->latest()->get(),
-            'foros' => $this->curso->foros()->with('autor')->withCount('respuestas')->latest()->get(),
+            'foros' => $this->curso->foros()->with(['autor', 'respuestas.autor'])->latest()->get(),
             'tiposMaterial' => TipoMaterialEnum::cases(),
             'tiposPublicacion' => TipoPublicacionEnum::cases(),
         ];
@@ -423,14 +445,38 @@ new #[Layout('layouts.app')] class extends Component
                 </form>
             @endif
 
-            <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+            <div class="space-y-4">
                 @forelse ($foros as $foro)
-                    <div class="px-4 py-3 text-sm">
+                    <div class="rounded-lg border border-border bg-surface p-4">
                         <p class="text-ink">{{ $foro->titulo }}</p>
-                        <p class="text-xs text-ink-faint">{{ $foro->autor->name }} · {{ $foro->respuestas_count }} respuestas</p>
+                        <p class="text-xs text-ink-faint">
+                            {{ $foro->autor->name }} · {{ $foro->respuestas->count() }} {{ Str::plural('respuesta', $foro->respuestas->count()) }}
+                        </p>
+                        @if ($foro->descripcion)
+                            <p class="mt-2 text-sm text-ink-dim">{{ $foro->descripcion }}</p>
+                        @endif
+
+                        <div class="mt-4 space-y-2 border-t border-border pt-3">
+                            @foreach ($foro->respuestas as $respuesta)
+                                <div class="text-xs">
+                                    <span class="font-medium text-ink">{{ $respuesta->autor->name }}</span>
+                                    <span class="text-ink-dim">{{ $respuesta->contenido }}</span>
+                                </div>
+                            @endforeach
+
+                            <form wire:submit="responderForo({{ $foro->id }})" class="flex gap-2 pt-1">
+                                <input
+                                    type="text"
+                                    wire:model="nuevaRespuestaForo.{{ $foro->id }}"
+                                    placeholder="Escribe una respuesta…"
+                                    class="flex-1 rounded-md border-border bg-surface text-xs text-ink placeholder:text-ink-faint focus:border-accent focus:ring-accent"
+                                >
+                                <button type="submit" class="text-xs font-medium text-accent hover:underline">Responder</button>
+                            </form>
+                        </div>
                     </div>
                 @empty
-                    <p class="px-4 py-8 text-center text-sm text-ink-faint">Todavía no hay foros.</p>
+                    <p class="py-8 text-center text-sm text-ink-faint">Todavía no hay foros.</p>
                 @endforelse
             </div>
         </div>
