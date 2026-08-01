@@ -4,11 +4,14 @@ namespace Tests\Feature\Asistencia;
 
 use App\Models\User;
 use App\Modules\Academico\Models\Horario;
+use App\Modules\Asistencia\Enums\EstadoAsistenciaEnum;
+use App\Modules\Asistencia\Models\Asistencia;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 class AsistenciaPermisosTest extends TestCase
@@ -90,6 +93,44 @@ class AsistenciaPermisosTest extends TestCase
         $this->actingAs($coordinador)
             ->get(route('asistencia.show', $horario))
             ->assertOk();
+    }
+
+    /**
+     * Regresión: el listado de estados solo se precargaba para quien podía
+     * registrar asistencia (el docente dueño del horario), así que un
+     * supervisor como Coordinador siempre veía todos los botones sin marcar,
+     * incluso si ya había asistencia guardada para esa fecha.
+     */
+    public function test_coordinador_ve_los_estados_ya_registrados_al_supervisar(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario = Horario::factory()->create(['docente_id' => $docente->id]);
+
+        $usuarioEstudiante = User::factory()->create();
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuarioEstudiante->id]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+            'estado' => 'aprobada',
+        ]);
+
+        $fecha = now()->format('Y-m-d');
+        Asistencia::factory()->create([
+            'horario_id' => $horario->id,
+            'estudiante_id' => $estudiante->id,
+            'fecha' => $fecha,
+            'estado' => EstadoAsistenciaEnum::FALTA->value,
+        ]);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('asistencia.show', ['horario' => $horario])
+            ->assertSet("estados.{$estudiante->id}", EstadoAsistenciaEnum::FALTA->value);
     }
 
     public function test_coordinador_puede_ver_el_listado(): void

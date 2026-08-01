@@ -26,7 +26,7 @@ new #[Layout('layouts.app')] class extends Component
         $this->horario = $horario;
         $this->fecha = now()->format('Y-m-d');
 
-        if (Gate::allows('asistencia.registrar-horario', $horario)) {
+        if ($this->puedeVerRegistros()) {
             $this->cargarRegistros($service);
         }
     }
@@ -35,9 +35,22 @@ new #[Layout('layouts.app')] class extends Component
     {
         $this->guardado = false;
 
-        if (Gate::allows('asistencia.registrar-horario', $this->horario)) {
+        if ($this->puedeVerRegistros()) {
             $this->cargarRegistros($service);
         }
+    }
+
+    /**
+     * Determina si el usuario debe ver los estados ya registrados: incluye
+     * a quien puede registrar (el docente del horario, o Dirección) y a
+     * quien solo supervisa (p. ej. Coordinador, con asistencia.ver) — antes
+     * solo se cargaba para el primer grupo, dejando la lista de un
+     * supervisor siempre en blanco aunque sí hubiera asistencia guardada.
+     */
+    private function puedeVerRegistros(): bool
+    {
+        return Gate::allows('asistencia.registrar-horario', $this->horario)
+            || Auth::user()->hasPermissionTo('asistencia.ver');
     }
 
     private function cargarRegistros(AsistenciaService $service): void
