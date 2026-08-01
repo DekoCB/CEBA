@@ -7,6 +7,8 @@
 
         <title>{{ config('app.name', 'Laravel') }}</title>
 
+        <link rel="icon" type="image/png" href="{{ asset('images/Logo.png') }}">
+
         @include('partials.theme-boot-script')
 
         <!-- Fonts -->
