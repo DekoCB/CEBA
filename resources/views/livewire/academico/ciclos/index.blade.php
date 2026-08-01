@@ -162,12 +162,12 @@ new #[Layout('layouts.app')] class extends Component
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <x-input-label for="fechaInicio" value="Fecha inicio" />
-                            <x-text-input wire:model="fechaInicio" id="fechaInicio" type="date" class="mt-1 block w-full" />
+                            <x-date-input wire:model="fechaInicio" id="fechaInicio" class="mt-1 block w-full" />
                             <x-input-error :messages="$errors->get('fechaInicio')" class="mt-1" />
                         </div>
                         <div>
                             <x-input-label for="fechaFin" value="Fecha fin" />
-                            <x-text-input wire:model="fechaFin" id="fechaFin" type="date" class="mt-1 block w-full" />
+                            <x-date-input wire:model="fechaFin" id="fechaFin" class="mt-1 block w-full" />
                             <x-input-error :messages="$errors->get('fechaFin')" class="mt-1" />
                         </div>
                     </div>

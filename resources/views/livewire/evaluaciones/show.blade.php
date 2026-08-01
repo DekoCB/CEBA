@@ -214,7 +214,7 @@ new #[Layout('layouts.app')] class extends Component
                         </div>
                         <div>
                             <x-input-label for="nuevaFecha" value="Fecha" />
-                            <x-text-input wire:model="nuevaFecha" id="nuevaFecha" type="date" class="mt-1 block w-full" />
+                            <x-date-input wire:model="nuevaFecha" id="nuevaFecha" class="mt-1 block w-full" />
                             <x-input-error :messages="$errors->get('nuevaFecha')" class="mt-1" />
                         </div>
                         <div class="flex justify-end gap-2">

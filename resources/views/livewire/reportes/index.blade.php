@@ -131,11 +131,11 @@ new #[Layout('layouts.app')] class extends Component
             </div>
             <div>
                 <x-input-label for="desde" value="Desde" />
-                <input type="date" wire:model.live="desde" id="desde" class="mt-1 block rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
+                <x-date-input wire:model.live="desde" id="desde" class="mt-1 block" />
             </div>
             <div>
                 <x-input-label for="hasta" value="Hasta" />
-                <input type="date" wire:model.live="hasta" id="hasta" class="mt-1 block rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
+                <x-date-input wire:model.live="hasta" id="hasta" class="mt-1 block" />
             </div>
 
             @if ($puedeExportar)

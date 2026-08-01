@@ -121,7 +121,7 @@ new #[Layout('layouts.app')] class extends Component
         <div class="mb-4 flex flex-wrap items-center gap-3">
             <div>
                 <x-input-label for="fecha" value="Fecha de la sesión" />
-                <x-text-input wire:model.live="fecha" id="fecha" type="date" class="mt-1" />
+                <x-date-input wire:model.live="fecha" id="fecha" class="mt-1" />
             </div>
 
             @if ($fechasRegistradas->isNotEmpty())

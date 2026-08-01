@@ -352,7 +352,7 @@ new class extends Component
                 </div>
                 <div>
                     <x-input-label for="fechaNacimiento" value="Fecha de nacimiento" />
-                    <x-text-input wire:model.live="fechaNacimiento" id="fechaNacimiento" type="date" class="mt-1 block w-full" />
+                    <x-date-input wire:model.live="fechaNacimiento" id="fechaNacimiento" class="mt-1 block w-full" />
                     <x-input-error :messages="$errors->get('fechaNacimiento')" class="mt-1" />
                     @if ($fechaNacimiento)
                         <p class="mt-1 text-xs text-ink-faint">{{ $this->esMenorDeEdad ? 'Menor de edad — se pedirán datos del apoderado.' : 'Mayor de edad.' }}</p>
@@ -488,7 +488,7 @@ new class extends Component
                 <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                         <x-input-label for="examenFecha" value="Fecha" />
-                        <x-text-input wire:model="examenFecha" id="examenFecha" type="date" class="mt-1 block w-full" />
+                        <x-date-input wire:model="examenFecha" id="examenFecha" class="mt-1 block w-full" />
                         <x-input-error :messages="$errors->get('examenFecha')" class="mt-1" />
                     </div>
                     <div>

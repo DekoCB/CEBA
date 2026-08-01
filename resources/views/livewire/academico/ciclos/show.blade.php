@@ -85,12 +85,12 @@ new #[Layout('layouts.app')] class extends Component
             <form wire:submit="crearPeriodo" class="mt-4 flex items-end gap-3 border-t border-border pt-4">
                 <div class="flex-1">
                     <x-input-label for="fechaInicio" value="Apertura" />
-                    <x-text-input wire:model="fechaInicio" id="fechaInicio" type="date" class="mt-1 block w-full" />
+                    <x-date-input wire:model="fechaInicio" id="fechaInicio" class="mt-1 block w-full" />
                     <x-input-error :messages="$errors->get('fechaInicio')" class="mt-1" />
                 </div>
                 <div class="flex-1">
                     <x-input-label for="fechaFin" value="Cierre" />
-                    <x-text-input wire:model="fechaFin" id="fechaFin" type="date" class="mt-1 block w-full" />
+                    <x-date-input wire:model="fechaFin" id="fechaFin" class="mt-1 block w-full" />
                     <x-input-error :messages="$errors->get('fechaFin')" class="mt-1" />
                 </div>
                 <x-primary-button type="submit">Crear periodo</x-primary-button>
