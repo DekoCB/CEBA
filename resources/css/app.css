@@ -46,6 +46,12 @@
         @apply bg-bg text-ink;
     }
 
+    /* Alpine oculta [x-cloak] recién tras inicializar; sin esta regla, el
+       elemento parpadea visible un instante en cada carga de página. */
+    [x-cloak] {
+        display: none !important;
+    }
+
     /*
      * Scrollbars con los tokens de marca: sin esto, todo scroll interno
      * (sidebar, tablas, modales) usa la barra gris por defecto del SO/
