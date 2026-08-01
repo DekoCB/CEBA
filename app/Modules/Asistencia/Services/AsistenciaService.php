@@ -10,6 +10,7 @@ use App\Modules\Asistencia\Models\Asistencia;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 
@@ -104,15 +105,23 @@ class AsistenciaService
 
     /**
      * @param  array<int, string>  $registros  estudiante_id => EstadoAsistenciaEnum::value
+     * @param  array<int, string|null>  $observaciones  estudiante_id => motivo de la justificación
+     * @param  array<int, UploadedFile|null>  $justificantes  estudiante_id => documento de sustento
      */
-    public function registrar(Horario $horario, string $fecha, array $registros): void
+    public function registrar(Horario $horario, string $fecha, array $registros, array $observaciones = [], array $justificantes = []): void
     {
-        DB::transaction(function () use ($horario, $fecha, $registros) {
+        DB::transaction(function () use ($horario, $fecha, $registros, $observaciones, $justificantes) {
             foreach ($registros as $estudianteId => $estado) {
-                Asistencia::query()->updateOrCreate(
+                $asistencia = Asistencia::query()->updateOrCreate(
                     ['horario_id' => $horario->id, 'estudiante_id' => $estudianteId, 'fecha' => $fecha],
-                    ['estado' => $estado],
+                    ['estado' => $estado, 'observacion' => $observaciones[$estudianteId] ?? null],
                 );
+
+                if (! empty($justificantes[$estudianteId])) {
+                    $asistencia->addMedia($justificantes[$estudianteId]->getRealPath())
+                        ->usingFileName($justificantes[$estudianteId]->getClientOriginalName())
+                        ->toMediaCollection('justificante');
+                }
             }
         });
     }

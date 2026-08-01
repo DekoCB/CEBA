@@ -2,20 +2,33 @@
 
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Asistencia\Enums\EstadoAsistenciaEnum;
+use App\Modules\Asistencia\Models\Asistencia;
 use App\Modules\Asistencia\Services\AsistenciaService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 new #[Layout('layouts.app')] class extends Component
 {
+    use WithFileUploads;
+
     public Horario $horario;
 
     public string $fecha = '';
 
     /** @var array<int, string> */
     public array $estados = [];
+
+    /** @var array<int, string|null> */
+    public array $observaciones = [];
+
+    /** @var array<int, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile|null> */
+    public array $justificantes = [];
+
+    /** @var array<int, Asistencia> */
+    public array $registrosExistentes = [];
 
     public bool $guardado = false;
 
@@ -59,10 +72,20 @@ new #[Layout('layouts.app')] class extends Component
         $existentes = $service->deSesion($this->horario, $this->fecha);
 
         $this->estados = [];
+        $this->observaciones = [];
+        $this->justificantes = [];
+        $this->registrosExistentes = [];
 
         foreach ($estudiantes as $estudiante) {
-            $this->estados[$estudiante->id] = $existentes->get($estudiante->id)?->estado->value
+            $registro = $existentes->get($estudiante->id);
+
+            $this->estados[$estudiante->id] = $registro?->estado->value
                 ?? EstadoAsistenciaEnum::PRESENTE->value;
+            $this->observaciones[$estudiante->id] = $registro?->observacion;
+
+            if ($registro) {
+                $this->registrosExistentes[$estudiante->id] = $registro;
+            }
         }
     }
 
@@ -75,13 +98,18 @@ new #[Layout('layouts.app')] class extends Component
 
         foreach (array_keys($this->estados) as $estudianteId) {
             $rules["estados.{$estudianteId}"] = "required|string|in:{$valores}";
+            $rules["observaciones.{$estudianteId}"] = 'nullable|string|max:255';
+            $rules["justificantes.{$estudianteId}"] = 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096';
         }
 
         $this->validate($rules);
 
-        $service->registrar($this->horario, $this->fecha, $this->estados);
+        $service->registrar($this->horario, $this->fecha, $this->estados, $this->observaciones, $this->justificantes);
 
+        $this->justificantes = [];
         $this->guardado = true;
+
+        $this->cargarRegistros($service);
     }
 
     public function with(AsistenciaService $service): array
@@ -149,29 +177,61 @@ new #[Layout('layouts.app')] class extends Component
 
         <div class="divide-y divide-border rounded-lg border border-border bg-surface">
             @forelse ($estudiantes as $estudiante)
-                <div class="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                    <p class="text-ink">{{ $estudiante->nombreCompleto() }}</p>
+                <div class="px-4 py-3 text-sm" x-data="{ estado: @entangle('estados.'.$estudiante->id) }">
+                    <div class="flex items-center justify-between gap-4">
+                        <p class="text-ink">{{ $estudiante->nombreCompleto() }}</p>
 
-                    <div class="flex gap-1">
-                        @foreach ($estadosDisponibles as $estado)
-                            <label
-                                @class([
-                                    'cursor-pointer rounded-full px-2.5 py-1 text-xs font-medium transition',
-                                    'bg-accent-soft text-accent' => ($estados[$estudiante->id] ?? null) === $estado->value,
-                                    'bg-surface-2 text-ink-faint hover:text-ink' => ($estados[$estudiante->id] ?? null) !== $estado->value,
-                                    'pointer-events-none opacity-60' => ! $puedeRegistrar,
-                                ])
-                            >
-                                <input
-                                    type="radio"
-                                    class="sr-only"
-                                    wire:model="estados.{{ $estudiante->id }}"
-                                    value="{{ $estado->value }}"
-                                    @disabled(! $puedeRegistrar)
+                        <div class="flex gap-1">
+                            @foreach ($estadosDisponibles as $estado)
+                                <label
+                                    @class([
+                                        'cursor-pointer rounded-full px-2.5 py-1 text-xs font-medium transition',
+                                        'bg-accent-soft text-accent' => ($estados[$estudiante->id] ?? null) === $estado->value,
+                                        'bg-surface-2 text-ink-faint hover:text-ink' => ($estados[$estudiante->id] ?? null) !== $estado->value,
+                                        'pointer-events-none opacity-60' => ! $puedeRegistrar,
+                                    ])
                                 >
-                                {{ $estado->label() }}
-                            </label>
-                        @endforeach
+                                    <input
+                                        type="radio"
+                                        class="sr-only"
+                                        wire:model="estados.{{ $estudiante->id }}"
+                                        value="{{ $estado->value }}"
+                                        @disabled(! $puedeRegistrar)
+                                    >
+                                    {{ $estado->label() }}
+                                </label>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <div x-show="estado === 'justificado'" x-cloak class="mt-3 grid grid-cols-1 gap-3 border-t border-border pt-3 sm:grid-cols-2">
+                        <div>
+                            <x-input-label :for="'observacion-'.$estudiante->id" value="Motivo de la justificación" />
+                            <x-text-input
+                                wire:model="observaciones.{{ $estudiante->id }}"
+                                :id="'observacion-'.$estudiante->id"
+                                class="mt-1 block w-full text-xs"
+                                placeholder="Ej. Cita médica, duelo familiar…"
+                                :disabled="! $puedeRegistrar"
+                            />
+                            <x-input-error :messages="$errors->get('observaciones.'.$estudiante->id)" class="mt-1" />
+                        </div>
+                        <div>
+                            <x-input-label :for="'justificante-'.$estudiante->id" value="Documento de sustento" />
+                            @if ($puedeRegistrar)
+                                <input
+                                    type="file"
+                                    wire:model="justificantes.{{ $estudiante->id }}"
+                                    id="justificante-{{ $estudiante->id }}"
+                                    accept=".pdf,image/*"
+                                    class="mt-1 block w-full text-xs text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-xs file:text-ink"
+                                >
+                                <x-input-error :messages="$errors->get('justificantes.'.$estudiante->id)" class="mt-1" />
+                            @endif
+                            @if (($registrosExistentes[$estudiante->id] ?? null)?->getFirstMedia('justificante'))
+                                <a href="{{ $registrosExistentes[$estudiante->id]->getFirstMediaUrl('justificante') }}" target="_blank" class="mt-1 inline-block text-xs text-accent hover:underline">Ver documento actual</a>
+                            @endif
+                        </div>
                     </div>
                 </div>
             @empty

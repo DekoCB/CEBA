@@ -11,6 +11,8 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -131,6 +133,43 @@ class AsistenciaPermisosTest extends TestCase
 
         Volt::test('asistencia.show', ['horario' => $horario])
             ->assertSet("estados.{$estudiante->id}", EstadoAsistenciaEnum::FALTA->value);
+    }
+
+    public function test_el_docente_registra_una_falta_justificada_con_documento(): void
+    {
+        Storage::fake('public');
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario = Horario::factory()->create(['docente_id' => $docente->id]);
+
+        $usuarioEstudiante = User::factory()->create();
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuarioEstudiante->id]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+            'estado' => 'aprobada',
+        ]);
+
+        $this->actingAs($docente);
+
+        Volt::test('asistencia.show', ['horario' => $horario])
+            ->set("estados.{$estudiante->id}", EstadoAsistenciaEnum::JUSTIFICADO->value)
+            ->set("observaciones.{$estudiante->id}", 'Cita médica')
+            ->set("justificantes.{$estudiante->id}", UploadedFile::fake()->create('constancia.pdf', 100, 'application/pdf'))
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('asistencias', [
+            'horario_id' => $horario->id,
+            'estudiante_id' => $estudiante->id,
+            'estado' => 'justificado',
+            'observacion' => 'Cita médica',
+        ]);
+
+        $asistencia = Asistencia::query()->where('estudiante_id', $estudiante->id)->firstOrFail();
+        $this->assertNotNull($asistencia->getFirstMedia('justificante'));
     }
 
     public function test_coordinador_puede_ver_el_listado(): void

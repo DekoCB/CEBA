@@ -4,10 +4,13 @@ namespace Tests\Feature\Asistencia;
 
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Asistencia\Enums\EstadoAsistenciaEnum;
+use App\Modules\Asistencia\Models\Asistencia;
 use App\Modules\Asistencia\Services\AsistenciaService;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class AsistenciaServiceTest extends TestCase
@@ -69,6 +72,60 @@ class AsistenciaServiceTest extends TestCase
 
         $this->assertDatabaseCount('asistencias', 1);
         $this->assertDatabaseHas('asistencias', ['estado' => 'tardanza']);
+    }
+
+    public function test_registrar_guarda_la_observacion_y_el_documento_de_una_falta_justificada(): void
+    {
+        Storage::fake('public');
+
+        $horario = Horario::factory()->create();
+        $estudiante = Estudiante::factory()->create();
+
+        $this->service()->registrar(
+            $horario,
+            '2026-09-01',
+            [$estudiante->id => EstadoAsistenciaEnum::JUSTIFICADO->value],
+            [$estudiante->id => 'Cita médica'],
+            [$estudiante->id => UploadedFile::fake()->create('constancia.pdf', 100, 'application/pdf')],
+        );
+
+        $this->assertDatabaseHas('asistencias', [
+            'horario_id' => $horario->id,
+            'estudiante_id' => $estudiante->id,
+            'estado' => 'justificado',
+            'observacion' => 'Cita médica',
+        ]);
+
+        $asistencia = Asistencia::query()->where('estudiante_id', $estudiante->id)->firstOrFail();
+        $this->assertNotNull($asistencia->getFirstMedia('justificante'));
+    }
+
+    public function test_registrar_sin_documento_no_borra_el_justificante_ya_subido(): void
+    {
+        Storage::fake('public');
+
+        $horario = Horario::factory()->create();
+        $estudiante = Estudiante::factory()->create();
+        $service = $this->service();
+
+        $service->registrar(
+            $horario,
+            '2026-09-01',
+            [$estudiante->id => EstadoAsistenciaEnum::JUSTIFICADO->value],
+            [$estudiante->id => 'Cita médica'],
+            [$estudiante->id => UploadedFile::fake()->create('constancia.pdf', 100, 'application/pdf')],
+        );
+
+        $service->registrar(
+            $horario,
+            '2026-09-01',
+            [$estudiante->id => EstadoAsistenciaEnum::JUSTIFICADO->value],
+            [$estudiante->id => 'Cita médica reprogramada'],
+        );
+
+        $asistencia = Asistencia::query()->where('estudiante_id', $estudiante->id)->firstOrFail();
+        $this->assertSame('Cita médica reprogramada', $asistencia->observacion);
+        $this->assertNotNull($asistencia->getFirstMedia('justificante'));
     }
 
     public function test_resumen_estudiante_calcula_el_porcentaje_de_asistencia(): void

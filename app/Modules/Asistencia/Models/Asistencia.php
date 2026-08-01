@@ -12,6 +12,8 @@ use App\Modules\Matricula\Models\Estudiante;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
 
 /**
  * @property int $id
@@ -25,10 +27,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read Horario $horario
  * @property-read Estudiante $estudiante
  */
-class Asistencia extends Model
+class Asistencia extends Model implements HasMedia
 {
     /** @use HasFactory<AsistenciaFactory> */
-    use Auditable, HasFactory;
+    use Auditable, HasFactory, InteractsWithMedia;
 
     protected $fillable = [
         'horario_id',
@@ -48,6 +50,11 @@ class Asistencia extends Model
     protected static function newFactory(): AsistenciaFactory
     {
         return AsistenciaFactory::new();
+    }
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection('justificante')->singleFile();
     }
 
     public function horario(): BelongsTo
