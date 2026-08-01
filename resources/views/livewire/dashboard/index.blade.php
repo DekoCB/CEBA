@@ -6,6 +6,7 @@ use App\Modules\Academico\Models\Horario;
 use App\Modules\Asistencia\Models\Asistencia;
 use App\Modules\AulaVirtual\Models\Tarea;
 use App\Modules\AulaVirtual\Services\CursoVirtualService;
+use App\Modules\Evaluaciones\Enums\EstadoEvaluacionEnum;
 use App\Modules\Evaluaciones\Enums\NotaLetraEnum;
 use App\Modules\Evaluaciones\Models\Calificacion;
 use App\Modules\Evaluaciones\Models\Evaluacion;
@@ -61,6 +62,12 @@ new #[Layout('layouts.app')] class extends Component
     public bool $estoyBloqueado = false;
 
     public ?Cuota $proximaCuota = null;
+
+    /** @var array<int, string> */
+    public array $rendimientoMensualLabels = [];
+
+    /** @var array<int, float> */
+    public array $rendimientoMensualDatos = [];
 
     public int $misCursosVirtuales = 0;
 
@@ -153,6 +160,8 @@ new #[Layout('layouts.app')] class extends Component
                 ->whereIn('curso_virtual_id', $misCursos->pluck('id'))
                 ->whereDoesntHave('entregas', fn ($query) => $query->where('estudiante_id', $estudiante->id))
                 ->count();
+
+            [$this->rendimientoMensualLabels, $this->rendimientoMensualDatos] = $this->calcularRendimientoMensualDelEstudiante($estudiante);
         }
 
         if (Gate::allows('academico.gestionar')) {
@@ -203,6 +212,34 @@ new #[Layout('layouts.app')] class extends Component
                 ->where('estado', 'aprobado')
                 ->whereBetween('fecha_aprobacion', [$inicio, $fin])
                 ->sum('monto');
+        }
+
+        return [$labels, $datos];
+    }
+
+    /**
+     * @return array{0: array<int, string>, 1: array<int, float>}
+     */
+    private function calcularRendimientoMensualDelEstudiante(Estudiante $estudiante): array
+    {
+        $labels = [];
+        $datos = [];
+
+        for ($mesesAtras = 5; $mesesAtras >= 0; $mesesAtras--) {
+            $inicio = now()->subMonths($mesesAtras)->startOfMonth();
+            $fin = now()->subMonths($mesesAtras)->endOfMonth();
+
+            $labels[] = ucfirst($inicio->translatedFormat('M'));
+            $datos[] = (float) round(
+                Calificacion::query()
+                    ->where('estudiante_id', $estudiante->id)
+                    ->whereHas('evaluacion', function ($query) use ($inicio, $fin) {
+                        $query->where('estado', EstadoEvaluacionEnum::PUBLICADA)
+                            ->whereBetween('fecha', [$inicio, $fin]);
+                    })
+                    ->avg('nota_numerica') ?? 0,
+                1
+            );
         }
 
         return [$labels, $datos];
@@ -496,6 +533,19 @@ new #[Layout('layouts.app')] class extends Component
                     <p class="mt-1 font-display text-sm text-accent">Ver evaluaciones →</p>
                 </a>
             </div>
+
+            @if (array_sum($rendimientoMensualDatos) > 0)
+                <div class="rounded-lg border border-border bg-surface p-4">
+                    <h2 class="mb-3 text-sm font-semibold text-ink">Mi rendimiento — promedio de notas por mes</h2>
+                    <x-chart-canvas
+                        type="line"
+                        :labels="$rendimientoMensualLabels"
+                        :data="$rendimientoMensualDatos"
+                        label="Promedio"
+                        color="#35CDB8"
+                    />
+                </div>
+            @endif
         @endif
 
         @if ($puedeVerUsuarios)

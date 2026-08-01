@@ -113,6 +113,54 @@ class DashboardTest extends TestCase
             ->assertDontSee('no está disponible');
     }
 
+    public function test_estudiante_ve_su_rendimiento_mensual_en_notas(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+        $evaluacion = Evaluacion::factory()->publicada()->create(['fecha' => now()->format('Y-m-d')]);
+        Calificacion::factory()->create([
+            'evaluacion_id' => $evaluacion->id,
+            'estudiante_id' => $estudiante->id,
+            'nota_numerica' => 16,
+        ]);
+
+        $this->actingAs($usuario)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Mi rendimiento');
+    }
+
+    public function test_estudiante_sin_notas_no_ve_el_grafico_de_rendimiento(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        Estudiante::factory()->create(['user_id' => $usuario->id]);
+
+        $this->actingAs($usuario)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('Mi rendimiento');
+    }
+
+    public function test_estudiante_no_ve_notas_de_evaluaciones_sin_publicar_en_su_rendimiento(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+        $evaluacion = Evaluacion::factory()->create(['fecha' => now()->format('Y-m-d')]);
+        Calificacion::factory()->create([
+            'evaluacion_id' => $evaluacion->id,
+            'estudiante_id' => $estudiante->id,
+            'nota_numerica' => 16,
+        ]);
+
+        $this->actingAs($usuario)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('Mi rendimiento');
+    }
+
     public function test_estudiante_bloqueado_ve_el_aviso_de_deuda(): void
     {
         $usuario = User::factory()->create();
