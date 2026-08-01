@@ -127,13 +127,14 @@ class AsistenciaService
     }
 
     /**
-     * @return array{total: int, asistio: int, porcentaje: float, por_estado: array<string, int>}
+     * @return array{total: int, asistio: int, porcentaje: float, por_estado: array<string, int>, registros: Collection<int, Asistencia>}
      */
     public function resumenEstudiante(Estudiante $estudiante, Horario $horario): array
     {
         $registros = Asistencia::query()
             ->where('horario_id', $horario->id)
             ->where('estudiante_id', $estudiante->id)
+            ->with('solicitudJustificacion')
             ->orderByDesc('fecha')
             ->get();
 
@@ -150,6 +151,7 @@ class AsistenciaService
             'asistio' => $asistio,
             'porcentaje' => $total > 0 ? round(($asistio / $total) * 100, 1) : 0.0,
             'por_estado' => $porEstado,
+            'registros' => $registros,
         ];
     }
 }

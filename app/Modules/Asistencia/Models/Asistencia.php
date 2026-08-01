@@ -12,6 +12,7 @@ use App\Modules\Matricula\Models\Estudiante;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
@@ -26,6 +27,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property string|null $observacion
  * @property-read Horario $horario
  * @property-read Estudiante $estudiante
+ * @property-read SolicitudJustificacion|null $solicitudJustificacion
  */
 class Asistencia extends Model implements HasMedia
 {
@@ -65,5 +67,10 @@ class Asistencia extends Model implements HasMedia
     public function estudiante(): BelongsTo
     {
         return $this->belongsTo(Estudiante::class);
+    }
+
+    public function solicitudJustificacion(): HasOne
+    {
+        return $this->hasOne(SolicitudJustificacion::class);
     }
 }

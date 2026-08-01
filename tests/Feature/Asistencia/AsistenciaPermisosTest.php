@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Asistencia\Enums\EstadoAsistenciaEnum;
 use App\Modules\Asistencia\Models\Asistencia;
+use App\Modules\Asistencia\Services\JustificacionService;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
@@ -207,5 +208,162 @@ class AsistenciaPermisosTest extends TestCase
             ->assertOk()
             ->assertSee('Supervisión de asistencia')
             ->assertDontSee('Todavía no tienes horarios asignados este ciclo.');
+    }
+
+    public function test_un_estudiante_solicita_justificar_su_falta(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario = Horario::factory()->create(['docente_id' => $docente->id]);
+
+        $usuarioEstudiante = User::factory()->create();
+        $usuarioEstudiante->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuarioEstudiante->id]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+            'estado' => 'aprobada',
+        ]);
+
+        $asistencia = Asistencia::factory()->create([
+            'horario_id' => $horario->id,
+            'estudiante_id' => $estudiante->id,
+            'estado' => EstadoAsistenciaEnum::FALTA->value,
+        ]);
+
+        $this->actingAs($usuarioEstudiante);
+
+        Volt::test('asistencia.show', ['horario' => $horario])
+            ->call('abrirSolicitud', $asistencia->id)
+            ->set('solicitudMotivo', 'Cita médica')
+            ->call('enviarSolicitud')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('solicitudes_justificacion', [
+            'asistencia_id' => $asistencia->id,
+            'motivo' => 'Cita médica',
+            'estado' => 'pendiente',
+        ]);
+    }
+
+    public function test_el_docente_ve_y_aprueba_una_solicitud_pendiente(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario = Horario::factory()->create(['docente_id' => $docente->id]);
+
+        $estudiante = Estudiante::factory()->create();
+        $asistencia = Asistencia::factory()->create([
+            'horario_id' => $horario->id,
+            'estudiante_id' => $estudiante->id,
+            'estado' => EstadoAsistenciaEnum::FALTA->value,
+        ]);
+
+        $solicitud = $this->app->make(JustificacionService::class)
+            ->solicitar($asistencia, 'Cita médica', null);
+
+        $this->actingAs($docente);
+
+        Volt::test('asistencia.show', ['horario' => $horario])
+            ->assertSee('Cita médica')
+            ->call('aprobarSolicitud', $solicitud->id);
+
+        $this->assertDatabaseHas('asistencias', [
+            'id' => $asistencia->id,
+            'estado' => 'justificado',
+        ]);
+        $this->assertDatabaseHas('solicitudes_justificacion', [
+            'id' => $solicitud->id,
+            'estado' => 'aprobada',
+            'revisado_por' => $docente->id,
+        ]);
+    }
+
+    public function test_un_estudiante_no_puede_solicitar_justificacion_de_una_asistencia_que_no_es_falta(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario = Horario::factory()->create(['docente_id' => $docente->id]);
+
+        $usuarioEstudiante = User::factory()->create();
+        $usuarioEstudiante->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuarioEstudiante->id]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+            'estado' => 'aprobada',
+        ]);
+
+        $asistencia = Asistencia::factory()->create([
+            'horario_id' => $horario->id,
+            'estudiante_id' => $estudiante->id,
+            'estado' => EstadoAsistenciaEnum::PRESENTE->value,
+        ]);
+
+        $this->actingAs($usuarioEstudiante);
+
+        rescue(fn () => Volt::test('asistencia.show', ['horario' => $horario])
+            ->call('abrirSolicitud', $asistencia->id)
+            ->set('solicitudMotivo', 'Cita médica')
+            ->call('enviarSolicitud'), report: false);
+
+        $this->assertDatabaseCount('solicitudes_justificacion', 0);
+    }
+
+    public function test_el_docente_rechaza_una_solicitud_y_la_falta_no_cambia(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario = Horario::factory()->create(['docente_id' => $docente->id]);
+
+        $estudiante = Estudiante::factory()->create();
+        $asistencia = Asistencia::factory()->create([
+            'horario_id' => $horario->id,
+            'estudiante_id' => $estudiante->id,
+            'estado' => EstadoAsistenciaEnum::FALTA->value,
+        ]);
+
+        $this->app->make(JustificacionService::class)
+            ->solicitar($asistencia, 'Cita médica', null);
+
+        $solicitud = $asistencia->fresh()->solicitudJustificacion;
+
+        $this->actingAs($docente);
+
+        Volt::test('asistencia.show', ['horario' => $horario])
+            ->call('rechazarSolicitud', $solicitud->id);
+
+        $this->assertDatabaseHas('solicitudes_justificacion', ['id' => $solicitud->id, 'estado' => 'rechazada']);
+        $this->assertDatabaseHas('asistencias', ['id' => $asistencia->id, 'estado' => 'falta']);
+    }
+
+    public function test_un_coordinador_no_puede_aprobar_solicitudes(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario = Horario::factory()->create(['docente_id' => $docente->id]);
+
+        $estudiante = Estudiante::factory()->create();
+        $asistencia = Asistencia::factory()->create([
+            'horario_id' => $horario->id,
+            'estudiante_id' => $estudiante->id,
+            'estado' => EstadoAsistenciaEnum::FALTA->value,
+        ]);
+
+        $this->app->make(JustificacionService::class)
+            ->solicitar($asistencia, 'Cita médica', null);
+
+        $solicitud = $asistencia->fresh()->solicitudJustificacion;
+
+        $this->actingAs($coordinador);
+
+        Volt::test('asistencia.show', ['horario' => $horario])
+            ->call('aprobarSolicitud', $solicitud->id)
+            ->assertForbidden();
     }
 }

@@ -2,8 +2,11 @@
 
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Asistencia\Enums\EstadoAsistenciaEnum;
+use App\Modules\Asistencia\Enums\EstadoSolicitudJustificacionEnum;
 use App\Modules\Asistencia\Models\Asistencia;
+use App\Modules\Asistencia\Models\SolicitudJustificacion;
 use App\Modules\Asistencia\Services\AsistenciaService;
+use App\Modules\Asistencia\Services\JustificacionService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
@@ -31,6 +34,13 @@ new #[Layout('layouts.app')] class extends Component
     public array $registrosExistentes = [];
 
     public bool $guardado = false;
+
+    // Solicitud de justificación (estudiante)
+    public ?int $solicitudAsistenciaId = null;
+
+    public string $solicitudMotivo = '';
+
+    public $solicitudDocumento = null;
 
     public function mount(Horario $horario, AsistenciaService $service): void
     {
@@ -112,6 +122,61 @@ new #[Layout('layouts.app')] class extends Component
         $this->cargarRegistros($service);
     }
 
+    public function abrirSolicitud(int $asistenciaId): void
+    {
+        $this->solicitudAsistenciaId = $asistenciaId;
+        $this->solicitudMotivo = '';
+        $this->solicitudDocumento = null;
+    }
+
+    public function enviarSolicitud(JustificacionService $service): void
+    {
+        $user = Auth::user();
+        abort_unless($user->estudiante, 403);
+
+        $asistencia = Asistencia::query()
+            ->where('horario_id', $this->horario->id)
+            ->where('estudiante_id', $user->estudiante->id)
+            ->findOrFail($this->solicitudAsistenciaId);
+
+        abort_unless($asistencia->estado === EstadoAsistenciaEnum::FALTA, 403);
+
+        $this->validate([
+            'solicitudMotivo' => 'required|string|max:255',
+            'solicitudDocumento' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
+        ]);
+
+        $service->solicitar($asistencia, $this->solicitudMotivo, $this->solicitudDocumento);
+
+        $this->solicitudAsistenciaId = null;
+        $this->solicitudMotivo = '';
+        $this->solicitudDocumento = null;
+    }
+
+    public function aprobarSolicitud(int $solicitudId, JustificacionService $justificacionService, AsistenciaService $asistenciaService): void
+    {
+        Gate::authorize('asistencia.registrar-horario', $this->horario);
+
+        $solicitud = SolicitudJustificacion::query()
+            ->whereHas('asistencia', fn ($query) => $query->where('horario_id', $this->horario->id))
+            ->findOrFail($solicitudId);
+
+        $justificacionService->aprobar($solicitud, Auth::user());
+
+        $this->cargarRegistros($asistenciaService);
+    }
+
+    public function rechazarSolicitud(int $solicitudId, JustificacionService $service): void
+    {
+        Gate::authorize('asistencia.registrar-horario', $this->horario);
+
+        $solicitud = SolicitudJustificacion::query()
+            ->whereHas('asistencia', fn ($query) => $query->where('horario_id', $this->horario->id))
+            ->findOrFail($solicitudId);
+
+        $service->rechazar($solicitud, Auth::user(), null);
+    }
+
     public function with(AsistenciaService $service): array
     {
         $user = Auth::user();
@@ -124,6 +189,15 @@ new #[Layout('layouts.app')] class extends Component
             $miResumen = $service->resumenEstudiante($user->estudiante, $this->horario);
         }
 
+        $solicitudesPendientes = $puedeRegistrar
+            ? SolicitudJustificacion::query()
+                ->whereHas('asistencia', fn ($query) => $query->where('horario_id', $this->horario->id))
+                ->where('estado', EstadoSolicitudJustificacionEnum::PENDIENTE)
+                ->with('asistencia.estudiante')
+                ->latest()
+                ->get()
+            : collect();
+
         return [
             'puedeRegistrar' => $puedeRegistrar,
             'puedeSupervisar' => $puedeSupervisar,
@@ -131,6 +205,7 @@ new #[Layout('layouts.app')] class extends Component
             'fechasRegistradas' => $service->fechasRegistradas($this->horario),
             'estadosDisponibles' => EstadoAsistenciaEnum::cases(),
             'miResumen' => $miResumen,
+            'solicitudesPendientes' => $solicitudesPendientes,
         ];
     }
 }; ?>
@@ -144,6 +219,36 @@ new #[Layout('layouts.app')] class extends Component
             {{ $horario->dia_semana->label() }} {{ substr($horario->hora_inicio, 0, 5) }}–{{ substr($horario->hora_fin, 0, 5) }}
         </p>
     </x-slot>
+
+    @if ($puedeRegistrar && $solicitudesPendientes->isNotEmpty())
+        <div class="mb-4 rounded-lg border border-warn/30 bg-warn/10 p-4">
+            <h2 class="mb-3 text-sm font-semibold text-warn">Solicitudes de justificación pendientes</h2>
+            <div class="space-y-2">
+                @foreach ($solicitudesPendientes as $solicitud)
+                    <div class="flex flex-wrap items-center justify-between gap-3 rounded-md bg-surface px-3 py-2 text-sm">
+                        <div>
+                            <p class="text-ink">
+                                {{ $solicitud->asistencia->estudiante->nombreCompleto() }} ·
+                                {{ \Illuminate\Support\Carbon::parse($solicitud->asistencia->fecha)->format('d/m/Y') }}
+                            </p>
+                            <p class="text-xs text-ink-dim">{{ $solicitud->motivo }}</p>
+                            @if ($solicitud->getFirstMedia('documento'))
+                                <a href="{{ $solicitud->getFirstMediaUrl('documento') }}" target="_blank" class="text-xs text-accent hover:underline">Ver documento</a>
+                            @endif
+                        </div>
+                        <div class="flex shrink-0 gap-3">
+                            <button type="button" wire:click="rechazarSolicitud({{ $solicitud->id }})" wire:confirm="¿Rechazar esta solicitud? La falta seguirá marcada como falta." class="text-xs font-medium text-danger hover:underline">
+                                Rechazar
+                            </button>
+                            <button type="button" wire:click="aprobarSolicitud({{ $solicitud->id }})" class="text-xs font-medium text-ok hover:underline">
+                                Aprobar
+                            </button>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
 
     @if ($puedeRegistrar || $puedeSupervisar)
         <div class="mb-4 flex flex-wrap items-center gap-3">
@@ -261,5 +366,69 @@ new #[Layout('layouts.app')] class extends Component
         <p class="mt-6 text-xs text-ink-faint">
             {{ $miResumen['total'] }} sesiones registradas de un total de {{ $fechasRegistradas->count() }}.
         </p>
+
+        @if ($miResumen['registros']->isNotEmpty())
+            <div class="mt-4 divide-y divide-border rounded-lg border border-border bg-surface">
+                @foreach ($miResumen['registros'] as $registro)
+                    <div class="px-4 py-3 text-sm">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <p class="text-ink">{{ \Illuminate\Support\Carbon::parse($registro->fecha)->format('d/m/Y') }}</p>
+                                <p class="text-xs text-ink-faint">{{ $registro->estado->label() }}</p>
+                            </div>
+
+                            @if ($registro->estado->value === 'falta')
+                                @if ($registro->solicitudJustificacion)
+                                    <span @class([
+                                        'rounded-full px-2.5 py-1 text-xs font-medium',
+                                        'bg-warn/10 text-warn' => $registro->solicitudJustificacion->estado->value === 'pendiente',
+                                        'bg-ok/10 text-ok' => $registro->solicitudJustificacion->estado->value === 'aprobada',
+                                        'bg-danger/10 text-danger' => $registro->solicitudJustificacion->estado->value === 'rechazada',
+                                    ])>
+                                        {{ $registro->solicitudJustificacion->estado->label() }}
+                                    </span>
+                                @else
+                                    <button type="button" wire:click="abrirSolicitud({{ $registro->id }})" class="text-xs font-medium text-accent hover:underline">
+                                        Justificar falta
+                                    </button>
+                                @endif
+                            @endif
+                        </div>
+
+                        @if ($registro->solicitudJustificacion?->estado->value === 'rechazada')
+                            <p class="mt-1 text-xs text-danger">
+                                Rechazada{{ $registro->solicitudJustificacion->motivo_rechazo ? ': '.$registro->solicitudJustificacion->motivo_rechazo : '.' }}
+                                <button type="button" wire:click="abrirSolicitud({{ $registro->id }})" class="font-medium text-accent hover:underline">Volver a enviar</button>
+                            </p>
+                        @endif
+
+                        @if ($solicitudAsistenciaId === $registro->id)
+                            <form wire:submit="enviarSolicitud" class="mt-3 space-y-2 border-t border-border pt-3">
+                                <div>
+                                    <x-input-label for="solicitudMotivo" value="Motivo de tu falta" />
+                                    <x-text-input wire:model="solicitudMotivo" id="solicitudMotivo" class="mt-1 block w-full" placeholder="Ej. Cita médica" />
+                                    <x-input-error :messages="$errors->get('solicitudMotivo')" class="mt-1" />
+                                </div>
+                                <div>
+                                    <x-input-label for="solicitudDocumento" value="Documento de sustento (opcional)" />
+                                    <input
+                                        type="file"
+                                        wire:model="solicitudDocumento"
+                                        id="solicitudDocumento"
+                                        accept=".pdf,image/*"
+                                        class="mt-1 block w-full text-xs text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-xs file:text-ink"
+                                    >
+                                    <x-input-error :messages="$errors->get('solicitudDocumento')" class="mt-1" />
+                                </div>
+                                <div class="flex justify-end gap-2">
+                                    <x-secondary-button type="button" wire:click="$set('solicitudAsistenciaId', null)">Cancelar</x-secondary-button>
+                                    <x-primary-button type="submit">Enviar solicitud</x-primary-button>
+                                </div>
+                            </form>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        @endif
     @endif
 </div>
