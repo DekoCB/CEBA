@@ -110,3 +110,51 @@
         background-color: rgb(var(--color-text-dim));
     }
 }
+
+/*
+ * Movimiento ambiental de la landing pública: el resplandor del hero respira
+ * lentamente de fondo, y el botón de WhatsApp emite un anillo que llama la
+ * atención sin ser intrusivo. Ambos se desactivan si el usuario pidió menos
+ * movimiento en su sistema.
+ */
+@keyframes hero-glow-drift {
+    0%, 100% {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: translate3d(1.5%, -2.5%, 0) scale(1.08);
+        opacity: 0.85;
+    }
+}
+
+.hero-glow {
+    animation: hero-glow-drift 14s ease-in-out infinite;
+}
+
+@keyframes whatsapp-button-ping {
+    0% {
+        transform: scale(1);
+        opacity: 0.55;
+    }
+    75%, 100% {
+        transform: scale(1.9);
+        opacity: 0;
+    }
+}
+
+.whatsapp-ping::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: inherit;
+    animation: whatsapp-button-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hero-glow,
+    .whatsapp-ping::before {
+        animation: none;
+    }
+}

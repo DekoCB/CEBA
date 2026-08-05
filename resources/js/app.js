@@ -54,9 +54,16 @@ document.addEventListener('alpine:init', () => {
      */
     let observadorReveal = null;
 
-    Alpine.directive('reveal', (el) => {
+    Alpine.directive('reveal', (el, { modifiers }) => {
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
             return;
+        }
+
+        // x-reveal.150 retrasa 150ms el inicio de la transición, para poder
+        // escalonar la entrada de varios elementos hermanos (p. ej. el hero).
+        const retraso = Number(modifiers[0]);
+        if (retraso > 0) {
+            el.style.transitionDelay = `${retraso}ms`;
         }
 
         el.classList.add('opacity-0', 'translate-y-4', 'transition', 'duration-700', 'ease-out');

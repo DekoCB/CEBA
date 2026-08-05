@@ -13,7 +13,7 @@
 <a
     href="{{ $href }}"
     @if ($target) target="{{ $target }}" rel="noopener" @endif
-    {{ $attributes->merge(['class' => "inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-bold transition {$clases}"]) }}
+    {{ $attributes->merge(['class' => "inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-bold transition duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 {$clases}"]) }}
 >
     @if ($icon)
         <x-dynamic-component :component="'heroicon-o-'.$icon" class="h-5 w-5 shrink-0" />
