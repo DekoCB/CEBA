@@ -50,22 +50,27 @@
 }
 
 /*
- * La barra lateral y la barra superior son la "carrocería" fija del panel:
- * igual que el header de la landing pública, siempre van en azul marino con
- * acento rojo, sin importar si el usuario tiene el contenido en modo claro
- * u oscuro. Al pisar los mismos tokens de marca en este solo selector, el
- * sidebar, sus enlaces, el logo y el menú de cuenta heredan el look correcto
- * sin tocar ninguno de esos componentes compartidos.
+ * El sidebar de escritorio puede colapsarse a una franja de solo íconos.
+ * El estado se guarda en localStorage y se aplica como clase en <html>
+ * antes del primer paint (ver partials/theme-boot-script), igual que el
+ * tema claro/oscuro, para que no parpadee el sidebar expandido en cada
+ * carga o navegación.
  */
-.shell-chrome {
-    --color-surface: 15 27 61;
-    --color-surface-2: 30 45 84;
-    --color-border: 35 48 84;
-    --color-text: 255 255 255;
-    --color-text-dim: 203 213 225;
-    --color-text-faint: 148 163 184;
-    --color-accent: 220 38 38;
-    --color-accent-soft: 69 10 10;
+.sidebar-collapsed .sidebar-desktop {
+    width: 5rem;
+}
+
+.sidebar-collapsed .sidebar-desktop .sidebar-label,
+.sidebar-collapsed .sidebar-desktop .sidebar-section-title {
+    display: none;
+}
+
+.sidebar-collapsed .sidebar-desktop nav a {
+    justify-content: center;
+}
+
+.sidebar-collapsed .sidebar-desktop .sidebar-chevron {
+    transform: rotate(180deg);
 }
 
 @layer base {

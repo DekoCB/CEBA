@@ -4,16 +4,16 @@
         wire:navigate
         @class([
             'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-            'bg-accent-soft text-accent' => request()->routeIs('dashboard'),
+            'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('dashboard'),
             'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('dashboard'),
         ])
     >
         <x-heroicon-o-squares-2x2 class="h-5 w-5 shrink-0" />
-        Dashboard
+        <span class="sidebar-label">Dashboard</span>
     </a>
 
     @can('matricula.ver')
-        <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+        <p class="sidebar-section-title mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
             Matrícula
         </p>
 
@@ -22,17 +22,17 @@
             wire:navigate
             @class([
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-accent-soft text-accent' => request()->routeIs('matricula.*'),
+                'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('matricula.*'),
                 'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('matricula.*'),
             ])
         >
             <x-heroicon-o-identification class="h-5 w-5 shrink-0" />
-            Estudiantes
+            <span class="sidebar-label">Estudiantes</span>
         </a>
     @endcan
 
     @canany(['aula_virtual.ver', 'aula_virtual.gestionar_propio', 'aula_virtual.ver_propio'])
-        <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+        <p class="sidebar-section-title mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
             Aula Virtual
         </p>
 
@@ -41,12 +41,12 @@
             wire:navigate
             @class([
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-accent-soft text-accent' => request()->routeIs('aula-virtual.*'),
+                'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('aula-virtual.*'),
                 'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('aula-virtual.*'),
             ])
         >
             <x-heroicon-o-computer-desktop class="h-5 w-5 shrink-0" />
-            Cursos virtuales
+            <span class="sidebar-label">Cursos virtuales</span>
         </a>
     @endcanany
 
@@ -56,12 +56,12 @@
             wire:navigate
             @class([
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-accent-soft text-accent' => request()->routeIs('asistencia.*'),
+                'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('asistencia.*'),
                 'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('asistencia.*'),
             ])
         >
             <x-heroicon-o-clipboard-document-check class="h-5 w-5 shrink-0" />
-            Asistencia
+            <span class="sidebar-label">Asistencia</span>
         </a>
     @endcanany
 
@@ -71,17 +71,17 @@
             wire:navigate
             @class([
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-accent-soft text-accent' => request()->routeIs('evaluaciones.*'),
+                'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('evaluaciones.*'),
                 'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('evaluaciones.*'),
             ])
         >
             <x-heroicon-o-pencil-square class="h-5 w-5 shrink-0" />
-            Evaluaciones
+            <span class="sidebar-label">Evaluaciones</span>
         </a>
     @endcanany
 
     @canany(['pagos.ver', 'pagos.registrar', 'pagos.gestionar', 'pagos.aprobar', 'pagos.rechazar', 'pagos.ver_propio', 'tesoreria.gestionar'])
-        <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+        <p class="sidebar-section-title mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
             Pagos
         </p>
 
@@ -91,12 +91,12 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-accent-soft text-accent' => request()->routeIs('pagos.index'),
+                    'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('pagos.index'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('pagos.index'),
                 ])
             >
                 <x-heroicon-o-banknotes class="h-5 w-5 shrink-0" />
-                Cobranza
+                <span class="sidebar-label">Cobranza</span>
             </a>
         @endcanany
 
@@ -108,12 +108,12 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-accent-soft text-accent' => request()->routeIs('pagos.mi-cuenta'),
+                    'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('pagos.mi-cuenta'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('pagos.mi-cuenta'),
                 ])
             >
                 <x-heroicon-o-credit-card class="h-5 w-5 shrink-0" />
-                Mi estado de cuenta
+                <span class="sidebar-label">Mi estado de cuenta</span>
             </a>
         @endif
 
@@ -123,12 +123,12 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-accent-soft text-accent' => request()->routeIs('pagos.conceptos'),
+                    'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('pagos.conceptos'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('pagos.conceptos'),
                 ])
             >
                 <x-heroicon-o-tag class="h-5 w-5 shrink-0" />
-                Conceptos de pago
+                <span class="sidebar-label">Conceptos de pago</span>
             </a>
         @endcan
 
@@ -138,18 +138,18 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-accent-soft text-accent' => request()->routeIs('pagos.cuentas-bancarias'),
+                    'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('pagos.cuentas-bancarias'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('pagos.cuentas-bancarias'),
                 ])
             >
                 <x-heroicon-o-building-library class="h-5 w-5 shrink-0" />
-                Cuentas bancarias
+                <span class="sidebar-label">Cuentas bancarias</span>
             </a>
         @endcan
     @endcanany
 
     @canany(['certificados.ver', 'certificados.emitir', 'certificados.duplicar', 'certificados.solicitar'])
-        <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+        <p class="sidebar-section-title mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
             Certificados
         </p>
 
@@ -159,12 +159,12 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-accent-soft text-accent' => request()->routeIs('certificados.index'),
+                    'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('certificados.index'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('certificados.index'),
                 ])
             >
                 <x-heroicon-o-document-check class="h-5 w-5 shrink-0" />
-                Certificados
+                <span class="sidebar-label">Certificados</span>
             </a>
         @endcanany
 
@@ -176,18 +176,18 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-accent-soft text-accent' => request()->routeIs('certificados.mis-certificados'),
+                    'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('certificados.mis-certificados'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('certificados.mis-certificados'),
                 ])
             >
                 <x-heroicon-o-document-text class="h-5 w-5 shrink-0" />
-                Mis certificados
+                <span class="sidebar-label">Mis certificados</span>
             </a>
         @endif
     @endcanany
 
     @can('academico.ver')
-        <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+        <p class="sidebar-section-title mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
             Académico
         </p>
 
@@ -203,12 +203,12 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-accent-soft text-accent' => request()->routeIs($enlace['prefix']),
+                    'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs($enlace['prefix']),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs($enlace['prefix']),
                 ])
             >
                 <x-dynamic-component :component="'heroicon-o-'.$enlace['icon']" class="h-5 w-5 shrink-0" />
-                {{ $enlace['label'] }}
+                <span class="sidebar-label">{{ $enlace['label'] }}</span>
             </a>
         @endforeach
     @endcan
@@ -219,12 +219,12 @@
             wire:navigate
             @class([
                 'mt-4 flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-accent-soft text-accent' => request()->routeIs('reportes.*'),
+                'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('reportes.*'),
                 'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('reportes.*'),
             ])
         >
             <x-heroicon-o-chart-bar class="h-5 w-5 shrink-0" />
-            Reportes
+            <span class="sidebar-label">Reportes</span>
         </a>
     @endcanany
 
@@ -234,17 +234,17 @@
             wire:navigate
             @class([
                 'mt-4 flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-accent-soft text-accent' => request()->routeIs('notificaciones.*'),
+                'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('notificaciones.*'),
                 'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('notificaciones.*'),
             ])
         >
             <x-heroicon-o-chat-bubble-left-right class="h-5 w-5 shrink-0" />
-            Notificaciones
+            <span class="sidebar-label">Notificaciones</span>
         </a>
     @endcanany
 
     @canany(['usuarios.ver', 'roles.gestionar', 'auditoria.ver'])
-        <p class="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+        <p class="sidebar-section-title mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
             Administración
         </p>
 
@@ -254,12 +254,12 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-accent-soft text-accent' => request()->routeIs('usuarios.*'),
+                    'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('usuarios.*'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('usuarios.*'),
                 ])
             >
                 <x-heroicon-o-users class="h-5 w-5 shrink-0" />
-                Usuarios
+                <span class="sidebar-label">Usuarios</span>
             </a>
         @endcan
 
@@ -269,12 +269,12 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-accent-soft text-accent' => request()->routeIs('roles.*'),
+                    'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('roles.*'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('roles.*'),
                 ])
             >
                 <x-heroicon-o-shield-check class="h-5 w-5 shrink-0" />
-                Roles y permisos
+                <span class="sidebar-label">Roles y permisos</span>
             </a>
         @endcan
 
@@ -284,12 +284,12 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-accent-soft text-accent' => request()->routeIs('auditoria.*'),
+                    'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('auditoria.*'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('auditoria.*'),
                 ])
             >
                 <x-heroicon-o-clipboard-document-list class="h-5 w-5 shrink-0" />
-                Auditoría
+                <span class="sidebar-label">Auditoría</span>
             </a>
         @endcan
     @endcanany
@@ -300,12 +300,12 @@
             wire:navigate
             @class([
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-accent-soft text-accent' => request()->routeIs('profile'),
+                'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('profile'),
                 'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('profile'),
             ])
         >
             <x-heroicon-o-user-circle class="h-5 w-5 shrink-0" />
-            Mi perfil
+            <span class="sidebar-label">Mi perfil</span>
         </a>
     </div>
 </nav>
