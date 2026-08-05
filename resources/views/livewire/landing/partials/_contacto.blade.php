@@ -32,7 +32,7 @@
                 <div x-data x-reveal class="rounded-2xl border border-white/5 bg-[#1a1a1c] p-6">
                     <x-landing.icon-circle icon="map-pin" color="red" />
                     <h3 class="mt-4 font-sans text-base font-bold text-white">¿Dónde estamos?</h3>
-                    <p class="mt-1 text-sm text-gray-400">Escríbenos por WhatsApp y coordinamos contigo el punto de atención más cercano.</p>
+                    <p class="mt-1 text-sm text-gray-400">{{ $direccion }}</p>
                 </div>
             </div>
 

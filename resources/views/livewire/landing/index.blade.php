@@ -12,6 +12,8 @@ new #[Layout('layouts.landing')] class extends Component
 
     private const EMAIL_CONTACTO = 'colegiocebaperuanobritanico@gmail.com';
 
+    private const DIRECCION = 'Sede UGEL 05 - San Juan de Lurigancho, Lima, Perú';
+
     public string $nombre = '';
 
     public string $email = '';
@@ -55,6 +57,7 @@ new #[Layout('layouts.landing')] class extends Component
             'whatsappNumero' => self::WHATSAPP_NUMERO,
             'whatsappNumeroVisible' => '+51 978 351 141',
             'emailContacto' => self::EMAIL_CONTACTO,
+            'direccion' => self::DIRECCION,
             'whatsappHref' => fn (string $mensaje) => 'https://wa.me/'.self::WHATSAPP_NUMERO.'?text='.rawurlencode($mensaje),
         ];
     }

@@ -47,6 +47,10 @@
                         <x-heroicon-o-envelope class="h-4 w-4 shrink-0 text-red-500" />
                         <span class="break-all">{{ $emailContacto }}</span>
                     </li>
+                    <li class="flex items-start gap-2 text-sm text-gray-400">
+                        <x-heroicon-o-map-pin class="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                        {{ $direccion }}
+                    </li>
                 </ul>
             </div>
         </div>
