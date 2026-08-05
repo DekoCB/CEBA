@@ -60,13 +60,38 @@
     width: 5rem;
 }
 
-.sidebar-collapsed .sidebar-desktop .sidebar-label,
-.sidebar-collapsed .sidebar-desktop .sidebar-section-title {
-    display: none;
+/*
+ * display:none no se puede animar, así que el texto se recoge encogiendo su
+ * ancho y opacidad en vez de desaparecer de golpe -- eso es lo que hacía que
+ * los íconos "saltaran" al colapsar. overflow:hidden + max-width recorta el
+ * texto suavemente mientras el sidebar se angosta, en vez de que el ícono se
+ * reacomode de un tirón.
+ */
+.sidebar-desktop .sidebar-label {
+    display: inline-block;
+    max-width: 10rem;
+    overflow: hidden;
+    white-space: nowrap;
+    opacity: 1;
+    transition: opacity 200ms ease, max-width 300ms ease;
 }
 
-.sidebar-collapsed .sidebar-desktop nav a {
-    justify-content: center;
+.sidebar-desktop .sidebar-section-title {
+    max-height: 1.5rem;
+    overflow: hidden;
+    opacity: 1;
+    transition: opacity 200ms ease, max-height 300ms ease, margin-top 300ms ease;
+}
+
+.sidebar-collapsed .sidebar-desktop .sidebar-label {
+    max-width: 0;
+    opacity: 0;
+}
+
+.sidebar-collapsed .sidebar-desktop .sidebar-section-title {
+    max-height: 0;
+    margin-top: 0;
+    opacity: 0;
 }
 
 .sidebar-collapsed .sidebar-desktop .sidebar-chevron {
