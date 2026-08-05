@@ -3,7 +3,7 @@
     'labels' => [],
     'data' => [],
     'label' => '',
-    'color' => '#35CDB8',
+    'color' => '#DC2626',
     'height' => 220,
 ])
 
@@ -42,7 +42,7 @@
                 plugins: { legend: { display: false } },
                 scales: {
                     x: { grid: { display: false } },
-                    y: { beginAtZero: true, grace: '10%' },
+                    y: { beginAtZero: true, grace: '10%', grid: { display: false } },
                 },
             },
         })"

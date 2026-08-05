@@ -405,7 +405,6 @@ new #[Layout('layouts.app')] class extends Component
                         :labels="$ingresosSemanasLabels"
                         :data="$ingresosSemanasDatos"
                         label="Ingresos (S/)"
-                        color="#35CDB8"
                     />
                 </div>
 
@@ -482,7 +481,6 @@ new #[Layout('layouts.app')] class extends Component
                             :labels="collect($distribucionNotas)->pluck('label')->all()"
                             :data="collect($distribucionNotas)->pluck('valor')->all()"
                             label="Estudiantes"
-                            color="#35CDB8"
                         />
                     </div>
                 @endif
@@ -546,7 +544,6 @@ new #[Layout('layouts.app')] class extends Component
                         :labels="$rendimientoMensualLabels"
                         :data="$rendimientoMensualDatos"
                         label="Promedio"
-                        color="#35CDB8"
                     />
                 </div>
             @endif
