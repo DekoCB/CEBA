@@ -510,7 +510,11 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
             @endif
 
-            <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                <a href="{{ route('asistencia.marcar') }}" wire:navigate class="rounded-lg border border-accent/30 bg-accent-soft p-4 transition hover:border-accent">
+                    <p class="font-mono text-xs uppercase tracking-wide text-accent">Marcar asistencia</p>
+                    <p class="mt-1 font-display text-sm text-accent">Con tu DNI →</p>
+                </a>
                 <a href="{{ route('pagos.mi-cuenta') }}" wire:navigate class="rounded-lg border border-border bg-surface p-4 transition hover:border-accent">
                     <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Próxima cuota</p>
                     @if ($proximaCuota)

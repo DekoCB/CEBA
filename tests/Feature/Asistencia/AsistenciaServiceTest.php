@@ -226,4 +226,95 @@ class AsistenciaServiceTest extends TestCase
             $this->assertTrue(Carbon::parse($fecha)->lte($ciclo->fecha_fin));
         }
     }
+
+    /**
+     * @return array{0: Horario, 1: Estudiante, 2: Carbon}
+     */
+    private function horarioMatriculadoUnDomingo(): array
+    {
+        $domingo = Carbon::now()->next(Carbon::SUNDAY);
+
+        $ciclo = Ciclo::factory()->create([
+            'fecha_inicio' => $domingo->copy()->subMonth()->format('Y-m-d'),
+            'fecha_fin' => $domingo->copy()->addMonth()->format('Y-m-d'),
+        ]);
+        $horario = Horario::factory()->create([
+            'ciclo_id' => $ciclo->id,
+            'dia_semana' => DiaSemanaEnum::DOMINGO,
+            'hora_inicio' => '18:00:00',
+            'hora_fin' => '20:00:00',
+        ]);
+
+        $estudiante = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+            'estado' => 'aprobada',
+        ]);
+
+        return [$horario, $estudiante, $domingo];
+    }
+
+    public function test_horario_en_curso_del_estudiante_detecta_la_clase_dentro_de_su_horario(): void
+    {
+        [$horario, $estudiante, $domingo] = $this->horarioMatriculadoUnDomingo();
+
+        $this->travelTo($domingo->copy()->setTime(18, 5));
+
+        $encontrado = $this->service()->horarioEnCursoDelEstudiante($estudiante);
+
+        $this->assertNotNull($encontrado);
+        $this->assertSame($horario->id, $encontrado->id);
+    }
+
+    public function test_horario_en_curso_del_estudiante_devuelve_null_fuera_de_horario(): void
+    {
+        [, $estudiante, $domingo] = $this->horarioMatriculadoUnDomingo();
+
+        $this->travelTo($domingo->copy()->setTime(10, 0));
+
+        $this->assertNull($this->service()->horarioEnCursoDelEstudiante($estudiante));
+    }
+
+    public function test_autorregistrar_marca_presente_dentro_de_la_tolerancia(): void
+    {
+        [$horario, $estudiante, $domingo] = $this->horarioMatriculadoUnDomingo();
+
+        $this->travelTo($domingo->copy()->setTime(18, 5));
+
+        $asistencia = $this->service()->autorregistrar($horario, $estudiante);
+
+        $this->assertSame(EstadoAsistenciaEnum::PRESENTE, $asistencia->estado);
+    }
+
+    public function test_autorregistrar_marca_tardanza_pasada_la_tolerancia(): void
+    {
+        [$horario, $estudiante, $domingo] = $this->horarioMatriculadoUnDomingo();
+
+        $this->travelTo($domingo->copy()->setTime(18, 20));
+
+        $asistencia = $this->service()->autorregistrar($horario, $estudiante);
+
+        $this->assertSame(EstadoAsistenciaEnum::TARDANZA, $asistencia->estado);
+    }
+
+    public function test_autorregistrar_no_sobrescribe_un_registro_ya_hecho_por_el_docente(): void
+    {
+        [$horario, $estudiante, $domingo] = $this->horarioMatriculadoUnDomingo();
+
+        Asistencia::factory()->create([
+            'horario_id' => $horario->id,
+            'estudiante_id' => $estudiante->id,
+            'fecha' => $domingo->format('Y-m-d'),
+            'estado' => EstadoAsistenciaEnum::FALTA,
+        ]);
+
+        $this->travelTo($domingo->copy()->setTime(18, 5));
+
+        $asistencia = $this->service()->autorregistrar($horario, $estudiante);
+
+        $this->assertSame(EstadoAsistenciaEnum::FALTA, $asistencia->estado);
+        $this->assertDatabaseCount('asistencias', 1);
+    }
 }

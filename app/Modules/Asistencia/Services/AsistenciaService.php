@@ -12,11 +12,21 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 
 class AsistenciaService
 {
+    /**
+     * El autorregistro se habilita un poco antes de la hora de inicio (para
+     * quien llega puntual y abre el enlace mientras espera) y se cuenta
+     * como tardanza pasado este margen desde el inicio de la sesión.
+     */
+    private const MINUTOS_ANTES_PARA_INGRESAR = 10;
+
+    private const MINUTOS_DE_TOLERANCIA = 15;
+
     /**
      * Días de la semana (0 = domingo, según Carbon::dayOfWeek) en que cae
      * cada franja horaria. lun_mie y mar_jue dictan clase dos veces por
@@ -200,5 +210,64 @@ class AsistenciaService
             'por_estado' => $porEstado,
             'registros' => $registros,
         ];
+    }
+
+    /**
+     * El horario (entre los cursos del estudiante) cuya sesión está
+     * ocurriendo justo ahora, o null si ninguno coincide con el día y la
+     * hora actuales. Solo considera el horario en sí — no si ya se
+     * autorregistró hoy, eso lo decide autorregistrar().
+     */
+    public function horarioEnCursoDelEstudiante(Estudiante $estudiante): ?Horario
+    {
+        $ahora = now();
+
+        foreach ($this->horariosDelEstudiante($estudiante) as $horario) {
+            if (! in_array($ahora->dayOfWeek, $this->diasDeLaFranja($horario->dia_semana), true)) {
+                continue;
+            }
+
+            $inicio = Carbon::parse($ahora->format('Y-m-d').' '.$horario->hora_inicio)
+                ->subMinutes(self::MINUTOS_ANTES_PARA_INGRESAR);
+            $fin = Carbon::parse($ahora->format('Y-m-d').' '.$horario->hora_fin);
+
+            if ($ahora->between($inicio, $fin)) {
+                return $horario;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * El estudiante se marca a sí mismo en la sesión de hoy de $horario.
+     * Si el docente (o Dirección) ya registró algo para esa fecha, no lo
+     * pisa — el autorregistro solo llena el hueco, nunca corrige por
+     * encima de lo que el staff ya decidió.
+     */
+    public function autorregistrar(Horario $horario, Estudiante $estudiante): Asistencia
+    {
+        $fecha = now()->format('Y-m-d');
+
+        $existente = Asistencia::query()
+            ->where('horario_id', $horario->id)
+            ->where('estudiante_id', $estudiante->id)
+            ->where('fecha', $fecha)
+            ->first();
+
+        if ($existente) {
+            return $existente;
+        }
+
+        $llegoTarde = now()->greaterThan(
+            Carbon::parse($fecha.' '.$horario->hora_inicio)->addMinutes(self::MINUTOS_DE_TOLERANCIA)
+        );
+
+        return Asistencia::query()->create([
+            'horario_id' => $horario->id,
+            'estudiante_id' => $estudiante->id,
+            'fecha' => $fecha,
+            'estado' => $llegoTarde ? EstadoAsistenciaEnum::TARDANZA : EstadoAsistenciaEnum::PRESENTE,
+        ]);
     }
 }

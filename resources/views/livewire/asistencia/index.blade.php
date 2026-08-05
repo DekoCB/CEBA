@@ -51,6 +51,25 @@ new #[Layout('layouts.app')] class extends Component
         </p>
     </x-slot>
 
+    @if ($rol === 'estudiante')
+        <div class="mb-4">
+            <a
+                href="{{ route('asistencia.marcar') }}"
+                wire:navigate
+                class="flex items-center justify-between gap-3 rounded-lg border border-accent/30 bg-accent-soft px-4 py-3 transition hover:border-accent"
+            >
+                <span class="flex items-center gap-3">
+                    <x-heroicon-o-qr-code class="h-6 w-6 shrink-0 text-accent" />
+                    <span>
+                        <span class="block text-sm font-semibold text-accent">Marcar mi asistencia</span>
+                        <span class="block text-xs text-ink-dim">Confirma tu DNI si tienes clase ahora mismo.</span>
+                    </span>
+                </span>
+                <x-heroicon-o-chevron-right class="h-5 w-5 shrink-0 text-accent" />
+            </a>
+        </div>
+    @endif
+
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         @forelse ($horarios as $horario)
             <a
