@@ -68,6 +68,9 @@ class Horario extends Model
         return $this->belongsTo(Aula::class);
     }
 
+    /**
+     * @return BelongsTo<Ciclo, $this>
+     */
     public function ciclo(): BelongsTo
     {
         return $this->belongsTo(Ciclo::class);

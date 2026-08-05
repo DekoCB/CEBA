@@ -203,6 +203,7 @@ new #[Layout('layouts.app')] class extends Component
             'puedeSupervisar' => $puedeSupervisar,
             'estudiantes' => ($puedeRegistrar || $puedeSupervisar) ? $service->estudiantesDelHorario($this->horario) : collect(),
             'fechasRegistradas' => $service->fechasRegistradas($this->horario),
+            'fechasClase' => ($puedeRegistrar || $puedeSupervisar) ? $service->fechasDeClase($this->horario) : collect(),
             'estadosDisponibles' => EstadoAsistenciaEnum::cases(),
             'miResumen' => $miResumen,
             'solicitudesPendientes' => $solicitudesPendientes,
@@ -257,19 +258,21 @@ new #[Layout('layouts.app')] class extends Component
                 <x-date-input wire:model.live="fecha" id="fecha" class="mt-1" />
             </div>
 
-            @if ($fechasRegistradas->isNotEmpty())
+            @if ($fechasClase->isNotEmpty())
                 <div class="flex flex-wrap gap-1 pt-5">
-                    @foreach ($fechasRegistradas->take(8) as $fechaRegistrada)
+                    @foreach ($fechasClase as $fechaClase)
                         <button
                             type="button"
-                            wire:click="$set('fecha', '{{ $fechaRegistrada }}')"
+                            wire:click="$set('fecha', '{{ $fechaClase }}')"
+                            title="{{ $fechasRegistradas->contains($fechaClase) ? 'Ya tiene asistencia registrada' : 'Todavía sin registrar' }}"
                             @class([
                                 'rounded-full px-2.5 py-1 text-xs font-medium transition',
-                                'bg-accent-soft text-accent' => $fecha === $fechaRegistrada,
-                                'bg-surface-2 text-ink-faint hover:text-ink' => $fecha !== $fechaRegistrada,
+                                'bg-accent-soft text-accent' => $fecha === $fechaClase,
+                                'bg-surface-2 text-ink-faint hover:text-ink' => $fecha !== $fechaClase && $fechasRegistradas->contains($fechaClase),
+                                'border border-dashed border-border text-ink-faint hover:text-ink' => $fecha !== $fechaClase && ! $fechasRegistradas->contains($fechaClase),
                             ])
                         >
-                            {{ \Illuminate\Support\Carbon::parse($fechaRegistrada)->format('d/m') }}
+                            {{ \Illuminate\Support\Carbon::parse($fechaClase)->format('d/m') }}
                         </button>
                     @endforeach
                 </div>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Asistencia\Services;
 
+use App\Modules\Academico\Enums\DiaSemanaEnum;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Asistencia\Enums\EstadoAsistenciaEnum;
 use App\Modules\Asistencia\Models\Asistencia;
@@ -16,6 +17,22 @@ use Illuminate\Support\Facades\DB;
 
 class AsistenciaService
 {
+    /**
+     * Días de la semana (0 = domingo, según Carbon::dayOfWeek) en que cae
+     * cada franja horaria. lun_mie y mar_jue dictan clase dos veces por
+     * semana, no una sola.
+     *
+     * @return list<int>
+     */
+    private function diasDeLaFranja(DiaSemanaEnum $franja): array
+    {
+        return match ($franja) {
+            DiaSemanaEnum::DOMINGO => [0],
+            DiaSemanaEnum::LUN_MIE => [1, 3],
+            DiaSemanaEnum::MAR_JUE => [2, 4],
+        };
+    }
+
     /**
      * @return Collection<int, Horario>
      */
@@ -88,6 +105,36 @@ class AsistenciaService
             ->distinct()
             ->orderByDesc('fecha')
             ->pluck('fecha');
+    }
+
+    /**
+     * Últimas fechas en que el horario realmente dicta clase según su
+     * franja (domingo / lun_mie / mar_jue), acotadas al rango del ciclo y
+     * sin pasarse de hoy — para ofrecerlas como acceso rápido al tomar
+     * asistencia, en vez de fechas ya registradas que podían no coincidir
+     * con el día real de clase.
+     *
+     * @return SupportCollection<int, string>
+     */
+    public function fechasDeClase(Horario $horario, int $cantidad = 8): SupportCollection
+    {
+        $diasValidos = $this->diasDeLaFranja($horario->dia_semana);
+
+        $cursor = now()->min($horario->ciclo->fecha_fin)->copy()->startOfDay();
+        $inicio = $horario->ciclo->fecha_inicio->copy()->startOfDay();
+
+        /** @var list<string> $fechas */
+        $fechas = [];
+
+        while ($cursor->gte($inicio) && count($fechas) < $cantidad) {
+            if (in_array($cursor->dayOfWeek, $diasValidos, true)) {
+                $fechas[] = $cursor->format('Y-m-d');
+            }
+
+            $cursor->subDay();
+        }
+
+        return collect($fechas);
     }
 
     /**

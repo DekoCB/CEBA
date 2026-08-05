@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Asistencia;
 
+use App\Modules\Academico\Enums\DiaSemanaEnum;
+use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Asistencia\Enums\EstadoAsistenciaEnum;
 use App\Modules\Asistencia\Models\Asistencia;
@@ -10,6 +12,7 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -164,5 +167,63 @@ class AsistenciaServiceTest extends TestCase
         $fechas = $service->fechasRegistradas($horario);
 
         $this->assertSame(['2026-09-03', '2026-09-01'], $fechas->all());
+    }
+
+    public function test_fechas_de_clase_solo_devuelve_domingos_para_una_franja_de_domingo(): void
+    {
+        $ciclo = Ciclo::factory()->create([
+            'fecha_inicio' => now()->subMonths(2)->format('Y-m-d'),
+            'fecha_fin' => now()->addMonths(2)->format('Y-m-d'),
+        ]);
+        $horario = Horario::factory()->create([
+            'ciclo_id' => $ciclo->id,
+            'dia_semana' => DiaSemanaEnum::DOMINGO,
+        ]);
+
+        $fechas = $this->service()->fechasDeClase($horario, 4);
+
+        $this->assertCount(4, $fechas);
+        foreach ($fechas as $fecha) {
+            $this->assertSame(0, Carbon::parse($fecha)->dayOfWeek);
+        }
+        $this->assertSame($fechas->all(), $fechas->sortDesc()->values()->all());
+    }
+
+    public function test_fechas_de_clase_respeta_los_dos_dias_de_una_franja_lun_mie(): void
+    {
+        $ciclo = Ciclo::factory()->create([
+            'fecha_inicio' => now()->subMonths(2)->format('Y-m-d'),
+            'fecha_fin' => now()->addMonths(2)->format('Y-m-d'),
+        ]);
+        $horario = Horario::factory()->create([
+            'ciclo_id' => $ciclo->id,
+            'dia_semana' => DiaSemanaEnum::LUN_MIE,
+        ]);
+
+        $fechas = $this->service()->fechasDeClase($horario, 6);
+
+        $this->assertCount(6, $fechas);
+        foreach ($fechas as $fecha) {
+            $this->assertContains(Carbon::parse($fecha)->dayOfWeek, [1, 3]);
+        }
+    }
+
+    public function test_fechas_de_clase_no_se_pasa_del_fin_del_ciclo(): void
+    {
+        $ciclo = Ciclo::factory()->create([
+            'fecha_inicio' => now()->subMonths(6)->format('Y-m-d'),
+            'fecha_fin' => now()->subMonths(3)->format('Y-m-d'),
+        ]);
+        $horario = Horario::factory()->create([
+            'ciclo_id' => $ciclo->id,
+            'dia_semana' => DiaSemanaEnum::DOMINGO,
+        ]);
+
+        $fechas = $this->service()->fechasDeClase($horario, 8);
+
+        $this->assertTrue($fechas->isNotEmpty());
+        foreach ($fechas as $fecha) {
+            $this->assertTrue(Carbon::parse($fecha)->lte($ciclo->fecha_fin));
+        }
     }
 }
