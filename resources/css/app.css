@@ -8,6 +8,12 @@
  * pueda componer la opacidad vía rgb(var(--x) / <alpha-value>).
  */
 :root {
+    /* Sin esto, el navegador dibuja los controles nativos (el desplegable
+       abierto de un <select>, checkboxes, scrollbars) con su tema claro de
+       sistema sin importar el CSS de la página — el cuadro cerrado del
+       select se veía oscuro, pero la lista abierta salía blanca. */
+    color-scheme: light;
+
     --color-bg: 245 246 248;
     --color-surface: 255 255 255;
     --color-surface-2: 238 240 243;
@@ -25,6 +31,8 @@
 }
 
 .dark {
+    color-scheme: dark;
+
     --color-bg: 13 16 21;
     --color-surface: 20 25 34;
     --color-surface-2: 27 33 44;
