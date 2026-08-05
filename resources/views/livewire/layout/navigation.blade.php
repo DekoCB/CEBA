@@ -16,7 +16,7 @@ new class extends Component
     }
 }; ?>
 
-<header class="flex h-16 items-center justify-between border-b border-border bg-surface px-4 sm:px-6">
+<header class="shell-chrome flex h-16 items-center justify-between border-b border-border bg-surface px-4 sm:px-6">
     <div class="flex items-center gap-3">
         <button
             @click="sidebarOpen = ! sidebarOpen"

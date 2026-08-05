@@ -15,20 +15,8 @@
 
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
-
-        {{--
-            Estas pantallas (login, recuperar/confirmar contraseña) viven antes
-            de entrar al sistema, así que toman la identidad de la landing
-            pública (fondo casi negro, acento rojo) en vez del acento verde-azul
-            del panel autenticado. Se logra pisando solo estas dos variables —
-            los mismos <x-text-input>/<x-primary-button> que usa el resto de la
-            app no necesitan cambiar.
-        --}}
-        <style>
-            .auth-shell { --color-accent: 220 38 38; --color-accent-soft: 69 10 10; }
-        </style>
     </head>
-    <body class="auth-shell bg-[#0a0a0a] font-sans text-white antialiased">
+    <body class="bg-[#0a0a0a] font-sans text-white antialiased">
         <div class="relative flex min-h-screen flex-col items-center justify-center px-4 py-10">
             <a href="{{ route('landing') }}" wire:navigate class="absolute left-4 top-4 flex items-center gap-1.5 text-sm text-gray-400 transition hover:text-white sm:left-8 sm:top-8">
                 <x-heroicon-o-arrow-left class="h-4 w-4" />

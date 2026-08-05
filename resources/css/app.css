@@ -21,8 +21,8 @@
     --color-text: 27 31 39;
     --color-text-dim: 91 100 114;
     --color-text-faint: 136 145 160;
-    --color-accent: 19 122 108;
-    --color-accent-soft: 225 241 238;
+    --color-accent: 185 28 28;
+    --color-accent-soft: 254 226 226;
     --color-gold: 156 107 20;
     --color-ok: 46 158 98;
     --color-warn: 184 121 26;
@@ -40,13 +40,32 @@
     --color-text: 231 234 240;
     --color-text-dim: 154 163 178;
     --color-text-faint: 98 107 122;
-    --color-accent: 53 205 184;
-    --color-accent-soft: 20 56 51;
+    --color-accent: 220 38 38;
+    --color-accent-soft: 69 10 10;
     --color-gold: 227 162 61;
     --color-ok: 63 193 126;
     --color-warn: 227 162 61;
     --color-danger: 229 103 95;
     --color-info: 91 155 224;
+}
+
+/*
+ * La barra lateral y la barra superior son la "carrocería" fija del panel:
+ * igual que el header de la landing pública, siempre van en azul marino con
+ * acento rojo, sin importar si el usuario tiene el contenido en modo claro
+ * u oscuro. Al pisar los mismos tokens de marca en este solo selector, el
+ * sidebar, sus enlaces, el logo y el menú de cuenta heredan el look correcto
+ * sin tocar ninguno de esos componentes compartidos.
+ */
+.shell-chrome {
+    --color-surface: 15 27 61;
+    --color-surface-2: 30 45 84;
+    --color-border: 35 48 84;
+    --color-text: 255 255 255;
+    --color-text-dim: 203 213 225;
+    --color-text-faint: 148 163 184;
+    --color-accent: 220 38 38;
+    --color-accent-soft: 69 10 10;
 }
 
 @layer base {
