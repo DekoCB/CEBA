@@ -21,6 +21,7 @@ class ModuleRoutesHaveWebMiddlewareTest extends TestCase
     public static function moduleRouteNames(): array
     {
         return [
+            'landing' => ['landing'],
             'dashboard' => ['dashboard'],
             'usuarios.index' => ['usuarios.index'],
             'usuarios.show' => ['usuarios.show'],

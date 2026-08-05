@@ -46,4 +46,33 @@ document.addEventListener('alpine:init', () => {
             this.chart?.destroy();
         },
     }));
+
+    /**
+     * x-reveal: fade-in + slide-up la primera vez que el elemento entra en
+     * viewport (landing pública). Un solo IntersectionObserver compartido
+     * en vez de uno por elemento, para no crear decenas en una página larga.
+     */
+    let observadorReveal = null;
+
+    Alpine.directive('reveal', (el) => {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return;
+        }
+
+        el.classList.add('opacity-0', 'translate-y-4', 'transition', 'duration-700', 'ease-out');
+
+        observadorReveal ??= new IntersectionObserver(
+            (entradas) => {
+                for (const entrada of entradas) {
+                    if (entrada.isIntersecting) {
+                        entrada.target.classList.remove('opacity-0', 'translate-y-4');
+                        observadorReveal.unobserve(entrada.target);
+                    }
+                }
+            },
+            { threshold: 0.15 },
+        );
+
+        observadorReveal.observe(el);
+    });
 });
