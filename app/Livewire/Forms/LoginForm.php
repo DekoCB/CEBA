@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Forms;
 
+use App\Shared\Enums\CategoriaAccesoEnum;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
@@ -30,7 +31,7 @@ class LoginForm extends Form
      *
      * @throws ValidationException
      */
-    public function authenticate(): bool
+    public function authenticate(?CategoriaAccesoEnum $categoria = null): bool
     {
         $this->ensureIsNotRateLimited();
 
@@ -45,6 +46,18 @@ class LoginForm extends Form
         RateLimiter::clear($this->throttleKey());
 
         $user = Auth::user();
+
+        // El usuario eligió una puerta de entrada (Estudiante / Personal) antes
+        // de escribir sus credenciales: aunque email y contraseña sean
+        // correctos, si su rol real no pertenece a esa categoría se rechaza,
+        // para que no entre por la puerta equivocada.
+        if ($categoria !== null && ! $categoria->incluyeA($user)) {
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                'form.email' => 'Estas credenciales no corresponden a ese tipo de acceso.',
+            ]);
+        }
 
         if ($user->two_factor_confirmed_at !== null) {
             Auth::logout();
