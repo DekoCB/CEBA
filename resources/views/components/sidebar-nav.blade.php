@@ -13,9 +13,11 @@
     </a>
 
     @can('matricula.ver')
-        <p class="sidebar-section-title mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
-            Matrícula
-        </p>
+        <div class="mt-4 border-t border-border pt-4">
+            <p class="sidebar-section-title px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                Matrícula
+            </p>
+        </div>
 
         <a
             href="{{ route('matricula.index') }}"
@@ -32,9 +34,11 @@
     @endcan
 
     @canany(['aula_virtual.ver', 'aula_virtual.gestionar_propio', 'aula_virtual.ver_propio'])
-        <p class="sidebar-section-title mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
-            Aula Virtual
-        </p>
+        <div class="mt-4 border-t border-border pt-4">
+            <p class="sidebar-section-title px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                Aula Virtual
+            </p>
+        </div>
 
         <a
             href="{{ route('aula-virtual.index') }}"
@@ -81,9 +85,11 @@
     @endcanany
 
     @canany(['pagos.ver', 'pagos.registrar', 'pagos.gestionar', 'pagos.aprobar', 'pagos.rechazar', 'pagos.ver_propio', 'tesoreria.gestionar'])
-        <p class="sidebar-section-title mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
-            Pagos
-        </p>
+        <div class="mt-4 border-t border-border pt-4">
+            <p class="sidebar-section-title px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                Pagos
+            </p>
+        </div>
 
         @canany(['pagos.ver', 'pagos.registrar', 'pagos.gestionar', 'pagos.aprobar', 'pagos.rechazar'])
             <a
@@ -149,9 +155,11 @@
     @endcanany
 
     @canany(['certificados.ver', 'certificados.emitir', 'certificados.duplicar', 'certificados.solicitar'])
-        <p class="sidebar-section-title mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
-            Certificados
-        </p>
+        <div class="mt-4 border-t border-border pt-4">
+            <p class="sidebar-section-title px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                Certificados
+            </p>
+        </div>
 
         @canany(['certificados.ver', 'certificados.emitir'])
             <a
@@ -187,9 +195,11 @@
     @endcanany
 
     @can('academico.ver')
-        <p class="sidebar-section-title mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
-            Académico
-        </p>
+        <div class="mt-4 border-t border-border pt-4">
+            <p class="sidebar-section-title px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                Académico
+            </p>
+        </div>
 
         @foreach ([
             ['route' => 'academico.grados.index', 'prefix' => 'academico.grados.*', 'label' => 'Grados', 'icon' => 'academic-cap'],
@@ -214,39 +224,45 @@
     @endcan
 
     @canany(['reportes.academicos', 'reportes.matricula', 'reportes.financieros', 'reportes.certificados', 'reportes.operativos', 'reportes.propios'])
-        <a
-            href="{{ route('reportes.index') }}"
-            wire:navigate
-            @class([
-                'mt-4 flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('reportes.*'),
-                'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('reportes.*'),
-            ])
-        >
-            <x-heroicon-o-chart-bar class="h-5 w-5 shrink-0" />
-            <span class="sidebar-label">Reportes</span>
-        </a>
+        <div class="mt-4 border-t border-border pt-4">
+            <a
+                href="{{ route('reportes.index') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('reportes.*'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('reportes.*'),
+                ])
+            >
+                <x-heroicon-o-chart-bar class="h-5 w-5 shrink-0" />
+                <span class="sidebar-label">Reportes</span>
+            </a>
+        </div>
     @endcanany
 
     @canany(['whatsapp.ver', 'whatsapp.enviar'])
-        <a
-            href="{{ route('notificaciones.index') }}"
-            wire:navigate
-            @class([
-                'mt-4 flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('notificaciones.*'),
-                'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('notificaciones.*'),
-            ])
-        >
-            <x-heroicon-o-chat-bubble-left-right class="h-5 w-5 shrink-0" />
-            <span class="sidebar-label">Notificaciones</span>
-        </a>
+        <div class="mt-4 border-t border-border pt-4">
+            <a
+                href="{{ route('notificaciones.index') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-white text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('notificaciones.*'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('notificaciones.*'),
+                ])
+            >
+                <x-heroicon-o-chat-bubble-left-right class="h-5 w-5 shrink-0" />
+                <span class="sidebar-label">Notificaciones</span>
+            </a>
+        </div>
     @endcanany
 
     @canany(['usuarios.ver', 'roles.gestionar', 'auditoria.ver'])
-        <p class="sidebar-section-title mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
-            Administración
-        </p>
+        <div class="mt-4 border-t border-border pt-4">
+            <p class="sidebar-section-title px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                Administración
+            </p>
+        </div>
 
         @can('usuarios.ver')
             <a
@@ -294,7 +310,7 @@
         @endcan
     @endcanany
 
-    <div class="mt-auto pt-4">
+    <div class="mt-auto border-t border-border pt-4">
         <a
             href="{{ route('profile') }}"
             wire:navigate

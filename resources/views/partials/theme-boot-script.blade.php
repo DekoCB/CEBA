@@ -14,7 +14,26 @@
     }
 
     function aplicarSidebarCeba() {
+        // wire:navigate reemplaza el <body> entero: por un instante el
+        // sidebar vuelve a su ancho expandido por defecto antes de que este
+        // script corra y le devuelva la clase 'sidebar-collapsed'. Sin
+        // "sidebar-no-transition" esa corrección se ve como si el sidebar se
+        // desplegara y volviera a colapsar de golpe, porque hereda la misma
+        // transición suave pensada para cuando el usuario hace clic.
+        var aside = document.querySelector('.sidebar-desktop');
+        if (aside) {
+            aside.classList.add('sidebar-no-transition');
+        }
+
         document.documentElement.classList.toggle('sidebar-collapsed', localStorage.getItem('ceba-sidebar-collapsed') === '1');
+
+        if (aside) {
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    aside.classList.remove('sidebar-no-transition');
+                });
+            });
+        }
     }
 
     aplicarTemaCeba();

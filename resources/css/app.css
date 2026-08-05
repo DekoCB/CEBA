@@ -61,6 +61,18 @@
 }
 
 /*
+ * Se aplica solo mientras theme-boot-script corrige el ancho tras un
+ * wire:navigate (ver ese archivo): apaga la transición para que la
+ * corrección sea instantánea en vez de un despliegue-y-colapso visible.
+ */
+.sidebar-desktop.sidebar-no-transition,
+.sidebar-desktop.sidebar-no-transition .sidebar-label,
+.sidebar-desktop.sidebar-no-transition .sidebar-section-title,
+.sidebar-desktop.sidebar-no-transition .sidebar-chevron {
+    transition: none !important;
+}
+
+/*
  * display:none no se puede animar, así que el texto se recoge encogiendo su
  * ancho y opacidad en vez de desaparecer de golpe -- eso es lo que hacía que
  * los íconos "saltaran" al colapsar. overflow:hidden + max-width recorta el
