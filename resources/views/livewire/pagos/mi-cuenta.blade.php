@@ -135,12 +135,12 @@ new #[Layout('layouts.app')] class extends Component
 
                             @if ($cuota->estado->value === 'pendiente')
                                 <form wire:submit="subirComprobante({{ $cuota->id }})" class="mt-2 flex flex-wrap items-center gap-2">
-                                    <select wire:model="metodoPorCuota.{{ $cuota->id }}" class="rounded-md border-border bg-surface text-xs text-ink focus:border-accent focus:ring-accent">
-                                        <option value="">Método…</option>
-                                        @foreach (\App\Modules\Pagos\Enums\MetodoPagoEnum::cases() as $metodoOpcion)
-                                            <option value="{{ $metodoOpcion->value }}">{{ $metodoOpcion->label() }}</option>
-                                        @endforeach
-                                    </select>
+                                    <x-select-input
+                                        wire:model="metodoPorCuota.{{ $cuota->id }}"
+                                        placeholder="Método…"
+                                        class="text-xs"
+                                        :options="collect(\App\Modules\Pagos\Enums\MetodoPagoEnum::cases())->mapWithKeys(fn ($metodoOpcion) => [$metodoOpcion->value => $metodoOpcion->label()])"
+                                    />
                                     <input wire:model="comprobantePorCuota.{{ $cuota->id }}" type="file" class="text-xs text-ink-dim file:mr-2 file:rounded-md file:border-0 file:bg-surface-2 file:px-2 file:py-1 file:text-xs file:text-ink">
                                     <button type="submit" class="text-xs font-medium text-accent hover:underline">Enviar comprobante</button>
                                 </form>

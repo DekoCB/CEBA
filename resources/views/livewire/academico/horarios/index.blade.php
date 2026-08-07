@@ -116,12 +116,12 @@ new #[Layout('layouts.app')] class extends Component
     @endif
 
     <div class="mb-4">
-        <select wire:model.live="cicloFiltro" class="w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent sm:max-w-xs">
-            <option value="">Selecciona un ciclo…</option>
-            @foreach ($ciclos as $ciclo)
-                <option value="{{ $ciclo->id }}">{{ $ciclo->nombre }}</option>
-            @endforeach
-        </select>
+        <x-select-input
+            wire:model.live="cicloFiltro"
+            placeholder="Selecciona un ciclo…"
+            class="w-full sm:max-w-xs"
+            :options="collect($ciclos)->mapWithKeys(fn ($ciclo) => [$ciclo->id => $ciclo->nombre])"
+        />
     </div>
 
     <div class="overflow-hidden rounded-lg border border-border bg-surface">
@@ -181,56 +181,56 @@ new #[Layout('layouts.app')] class extends Component
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <x-input-label for="cicloId" value="Ciclo" />
-                            <select wire:model="cicloId" id="cicloId" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                                <option value="">Selecciona…</option>
-                                @foreach ($ciclos as $ciclo)
-                                    <option value="{{ $ciclo->id }}">{{ $ciclo->nombre }}</option>
-                                @endforeach
-                            </select>
+                            <x-select-input
+                                wire:model="cicloId"
+                                id="cicloId"
+                                class="mt-1 block w-full"
+                                :options="collect($ciclos)->mapWithKeys(fn ($ciclo) => [$ciclo->id => $ciclo->nombre])"
+                            />
                             <x-input-error :messages="$errors->get('cicloId')" class="mt-1" />
                         </div>
                         <div>
                             <x-input-label for="gradoId" value="Grado" />
-                            <select wire:model="gradoId" id="gradoId" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                                <option value="">Selecciona…</option>
-                                @foreach ($grados as $grado)
-                                    <option value="{{ $grado->id }}">{{ $grado->nombre }}</option>
-                                @endforeach
-                            </select>
+                            <x-select-input
+                                wire:model="gradoId"
+                                id="gradoId"
+                                class="mt-1 block w-full"
+                                :options="collect($grados)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])"
+                            />
                             <x-input-error :messages="$errors->get('gradoId')" class="mt-1" />
                         </div>
                     </div>
 
                     <div>
                         <x-input-label for="cursoId" value="Curso" />
-                        <select wire:model="cursoId" id="cursoId" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                            <option value="">Selecciona…</option>
-                            @foreach ($cursos as $curso)
-                                <option value="{{ $curso->id }}">{{ $curso->nombre }} ({{ $curso->codigo }})</option>
-                            @endforeach
-                        </select>
+                        <x-select-input
+                            wire:model="cursoId"
+                            id="cursoId"
+                            class="mt-1 block w-full"
+                            :options="collect($cursos)->mapWithKeys(fn ($curso) => [$curso->id => $curso->nombre.' ('.$curso->codigo.')'])"
+                        />
                         <x-input-error :messages="$errors->get('cursoId')" class="mt-1" />
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <x-input-label for="docenteId" value="Docente" />
-                            <select wire:model="docenteId" id="docenteId" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                                <option value="">Selecciona…</option>
-                                @foreach ($docentes as $docente)
-                                    <option value="{{ $docente->id }}">{{ $docente->name }}</option>
-                                @endforeach
-                            </select>
+                            <x-select-input
+                                wire:model="docenteId"
+                                id="docenteId"
+                                class="mt-1 block w-full"
+                                :options="collect($docentes)->mapWithKeys(fn ($docente) => [$docente->id => $docente->name])"
+                            />
                             <x-input-error :messages="$errors->get('docenteId')" class="mt-1" />
                         </div>
                         <div>
                             <x-input-label for="aulaId" value="Aula" />
-                            <select wire:model="aulaId" id="aulaId" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                                <option value="">Selecciona…</option>
-                                @foreach ($aulas as $aula)
-                                    <option value="{{ $aula->id }}">{{ $aula->nombre }}</option>
-                                @endforeach
-                            </select>
+                            <x-select-input
+                                wire:model="aulaId"
+                                id="aulaId"
+                                class="mt-1 block w-full"
+                                :options="collect($aulas)->mapWithKeys(fn ($aula) => [$aula->id => $aula->nombre])"
+                            />
                             <x-input-error :messages="$errors->get('aulaId')" class="mt-1" />
                         </div>
                     </div>
@@ -238,12 +238,12 @@ new #[Layout('layouts.app')] class extends Component
                     <div class="grid grid-cols-3 gap-4">
                         <div>
                             <x-input-label for="diaSemana" value="Día" />
-                            <select wire:model="diaSemana" id="diaSemana" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                                <option value="">Selecciona…</option>
-                                @foreach ($dias as $dia)
-                                    <option value="{{ $dia->value }}">{{ $dia->label() }}</option>
-                                @endforeach
-                            </select>
+                            <x-select-input
+                                wire:model="diaSemana"
+                                id="diaSemana"
+                                class="mt-1 block w-full"
+                                :options="collect($dias)->mapWithKeys(fn ($dia) => [$dia->value => $dia->label()])"
+                            />
                             <x-input-error :messages="$errors->get('diaSemana')" class="mt-1" />
                         </div>
                         <div>

@@ -150,15 +150,11 @@ new #[Layout('layouts.app')] class extends Component
             placeholder="Buscar por nombre, correo o DNI…"
             class="w-full rounded-md border-border bg-surface text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:ring-accent sm:max-w-xs"
         >
-        <select
+        <x-select-input
             wire:model.live="filtroRol"
-            class="w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent sm:max-w-xs"
-        >
-            <option value="">Todos los roles</option>
-            @foreach ($rolesDisponibles as $rolOpcion)
-                <option value="{{ $rolOpcion->value }}">{{ $rolOpcion->label() }}</option>
-            @endforeach
-        </select>
+            class="w-full sm:max-w-xs"
+            :options="collect($rolesDisponibles)->mapWithKeys(fn ($rolOpcion) => [$rolOpcion->value => $rolOpcion->label()])->prepend('Todos los roles', '')"
+        />
     </div>
 
     <div class="overflow-hidden rounded-lg border border-border bg-surface">
@@ -270,12 +266,13 @@ new #[Layout('layouts.app')] class extends Component
 
                     <div>
                         <x-input-label for="rol" value="Rol" />
-                        <select wire:model="rol" id="rol" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                            <option value="">Selecciona un rol…</option>
-                            @foreach ($rolesDisponibles as $rolOpcion)
-                                <option value="{{ $rolOpcion->value }}">{{ $rolOpcion->label() }}</option>
-                            @endforeach
-                        </select>
+                        <x-select-input
+                            wire:model="rol"
+                            id="rol"
+                            placeholder="Selecciona un rol…"
+                            class="mt-1 block w-full"
+                            :options="collect($rolesDisponibles)->mapWithKeys(fn ($rolOpcion) => [$rolOpcion->value => $rolOpcion->label()])"
+                        />
                         <x-input-error :messages="$errors->get('rol')" class="mt-1" />
                     </div>
 

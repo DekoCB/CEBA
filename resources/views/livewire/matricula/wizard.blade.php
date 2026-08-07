@@ -379,12 +379,12 @@ new class extends Component
                 </div>
                 <div>
                     <x-input-label for="estadoCivil" value="Estado civil (opcional)" />
-                    <select wire:model="estadoCivil" id="estadoCivil" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                        <option value="">Sin especificar</option>
-                        @foreach ($estadosCiviles as $opcion)
-                            <option value="{{ $opcion->value }}">{{ $opcion->label() }}</option>
-                        @endforeach
-                    </select>
+                    <x-select-input
+                        wire:model="estadoCivil"
+                        id="estadoCivil"
+                        class="mt-1 block w-full"
+                        :options="collect($estadosCiviles)->mapWithKeys(fn ($opcion) => [$opcion->value => $opcion->label()])->prepend('Sin especificar', '')"
+                    />
                 </div>
                 <div>
                     <x-input-label for="celular" value="Celular" />
@@ -522,12 +522,12 @@ new class extends Component
                     </div>
                     <div>
                         <x-input-label for="examenGradoAsignadoId" value="Grado asignado" />
-                        <select wire:model="examenGradoAsignadoId" id="examenGradoAsignadoId" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                            <option value="">Sin asignar</option>
-                            @foreach ($todosLosGrados as $grado)
-                                <option value="{{ $grado->id }}">{{ $grado->nombre }}</option>
-                            @endforeach
-                        </select>
+                        <x-select-input
+                            wire:model="examenGradoAsignadoId"
+                            id="examenGradoAsignadoId"
+                            class="mt-1 block w-full"
+                            :options="collect($todosLosGrados)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])->prepend('Sin asignar', '')"
+                        />
                     </div>
                     <div class="sm:col-span-2">
                         <x-input-label for="examenObservaciones" value="Observaciones" />
@@ -543,12 +543,12 @@ new class extends Component
             <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                     <x-input-label for="cicloId" value="Ciclo" />
-                    <select wire:model="cicloId" id="cicloId" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                        <option value="">Selecciona…</option>
-                        @foreach ($ciclosDisponibles as $ciclo)
-                            <option value="{{ $ciclo->id }}">{{ $ciclo->nombre }}</option>
-                        @endforeach
-                    </select>
+                    <x-select-input
+                        wire:model="cicloId"
+                        id="cicloId"
+                        class="mt-1 block w-full"
+                        :options="collect($ciclosDisponibles)->mapWithKeys(fn ($ciclo) => [$ciclo->id => $ciclo->nombre])"
+                    />
                     @if ($ciclosDisponibles->isEmpty())
                         <p class="mt-1 text-xs text-danger">No hay ciclos con periodo de matrícula abierto hoy.</p>
                     @endif
@@ -556,12 +556,12 @@ new class extends Component
                 </div>
                 <div>
                     <x-input-label for="gradoId" value="Grado" />
-                    <select wire:model="gradoId" id="gradoId" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                        <option value="">Selecciona…</option>
-                        @foreach ($gradosCompatibles as $grado)
-                            <option value="{{ $grado->id }}">{{ $grado->nombre }}</option>
-                        @endforeach
-                    </select>
+                    <x-select-input
+                        wire:model="gradoId"
+                        id="gradoId"
+                        class="mt-1 block w-full"
+                        :options="collect($gradosCompatibles)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])"
+                    />
                     <x-input-error :messages="$errors->get('gradoId')" class="mt-1" />
                 </div>
                 <div class="sm:col-span-2">

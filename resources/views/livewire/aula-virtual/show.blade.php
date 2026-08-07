@@ -235,12 +235,12 @@ new #[Layout('layouts.app')] class extends Component
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <x-input-label for="materialTipo" value="Tipo" />
-                            <select wire:model.live="materialTipo" id="materialTipo" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                                <option value="">Selecciona…</option>
-                                @foreach ($tiposMaterial as $tipo)
-                                    <option value="{{ $tipo->value }}">{{ $tipo->label() }}</option>
-                                @endforeach
-                            </select>
+                            <x-select-input
+                                wire:model.live="materialTipo"
+                                id="materialTipo"
+                                class="mt-1 block w-full"
+                                :options="collect($tiposMaterial)->mapWithKeys(fn ($tipo) => [$tipo->value => $tipo->label()])"
+                            />
                             <x-input-error :messages="$errors->get('materialTipo')" class="mt-1" />
                         </div>
                         <div>
@@ -363,12 +363,12 @@ new #[Layout('layouts.app')] class extends Component
                 <form wire:submit="crearPublicacion" class="rounded-lg border border-border bg-surface p-4 space-y-3">
                     <div>
                         <x-input-label for="publicacionTipo" value="Tipo" />
-                        <select wire:model="publicacionTipo" id="publicacionTipo" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                            <option value="">Selecciona…</option>
-                            @foreach ($tiposPublicacion as $tipo)
-                                <option value="{{ $tipo->value }}">{{ $tipo->label() }}</option>
-                            @endforeach
-                        </select>
+                        <x-select-input
+                            wire:model="publicacionTipo"
+                            id="publicacionTipo"
+                            class="mt-1 block w-full"
+                            :options="collect($tiposPublicacion)->mapWithKeys(fn ($tipo) => [$tipo->value => $tipo->label()])"
+                        />
                         <x-input-error :messages="$errors->get('publicacionTipo')" class="mt-1" />
                     </div>
                     <div>

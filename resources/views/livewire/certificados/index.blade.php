@@ -253,12 +253,12 @@ new #[Layout('layouts.app')] class extends Component
             @if ($estudianteSeleccionadoId)
                 <div>
                     <x-input-label for="matriculaId" value="Matrícula (opcional)" />
-                    <select wire:model="matriculaId" id="matriculaId" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                        <option value="">Sin vincular a una matrícula específica</option>
-                        @foreach ($matriculasDelEstudiante as $matricula)
-                            <option value="{{ $matricula->id }}">{{ $matricula->grado->nombre }} · {{ $matricula->ciclo->nombre }}</option>
-                        @endforeach
-                    </select>
+                    <x-select-input
+                        wire:model="matriculaId"
+                        id="matriculaId"
+                        class="mt-1 block w-full"
+                        :options="collect($matriculasDelEstudiante)->mapWithKeys(fn ($matricula) => [$matricula->id => $matricula->grado->nombre.' · '.$matricula->ciclo->nombre])->prepend('Sin vincular a una matrícula específica', '')"
+                    />
                     <x-input-error :messages="$errors->get('matriculaId')" class="mt-1" />
                 </div>
             @endif

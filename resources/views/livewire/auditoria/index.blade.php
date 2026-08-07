@@ -45,19 +45,22 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     <div class="mb-4 flex flex-col gap-3 sm:flex-row">
-        <select wire:model.live="evento" class="w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent sm:max-w-xs">
-            <option value="">Todos los eventos</option>
-            <option value="created">Creaciones</option>
-            <option value="updated">Actualizaciones</option>
-            <option value="deleted">Eliminaciones</option>
-        </select>
+        <x-select-input
+            wire:model.live="evento"
+            class="w-full sm:max-w-xs"
+            :options="[
+                '' => 'Todos los eventos',
+                'created' => 'Creaciones',
+                'updated' => 'Actualizaciones',
+                'deleted' => 'Eliminaciones',
+            ]"
+        />
 
-        <select wire:model.live="tipoModelo" class="w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent sm:max-w-xs">
-            <option value="">Todos los modelos</option>
-            @foreach ($tiposModelo as $tipo)
-                <option value="{{ $tipo }}">{{ class_basename($tipo) }}</option>
-            @endforeach
-        </select>
+        <x-select-input
+            wire:model.live="tipoModelo"
+            class="w-full sm:max-w-xs"
+            :options="collect($tiposModelo)->mapWithKeys(fn ($tipo) => [$tipo => class_basename($tipo)])->prepend('Todos los modelos', '')"
+        />
     </div>
 
     <div class="overflow-hidden rounded-lg border border-border bg-surface">

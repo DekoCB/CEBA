@@ -94,12 +94,11 @@ new #[Layout('layouts.app')] class extends Component
             placeholder="Buscar por nombre, apellido o DNI…"
             class="w-full rounded-md border-border bg-surface text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:ring-accent sm:max-w-xs"
         >
-        <select wire:model.live="estadoFiltro" class="w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent sm:max-w-xs">
-            <option value="">Todos los estados</option>
-            @foreach ($estados as $estado)
-                <option value="{{ $estado->value }}">{{ $estado->label() }}</option>
-            @endforeach
-        </select>
+        <x-select-input
+            wire:model.live="estadoFiltro"
+            class="w-full sm:max-w-xs"
+            :options="collect($estados)->mapWithKeys(fn ($estado) => [$estado->value => $estado->label()])->prepend('Todos los estados', '')"
+        />
     </div>
 
     <div class="overflow-hidden rounded-lg border border-border bg-surface">

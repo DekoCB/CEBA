@@ -156,11 +156,13 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
                 <div>
                     <x-input-label for="estado" value="Estado" />
-                    <select wire:model="estado" id="estado" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent" @disabled(Gate::denies('usuarios.editar', $usuario))>
-                        @foreach (\App\Shared\Enums\EstadoUsuarioEnum::cases() as $estadoOpcion)
-                            <option value="{{ $estadoOpcion->value }}">{{ $estadoOpcion->label() }}</option>
-                        @endforeach
-                    </select>
+                    <x-select-input
+                        wire:model="estado"
+                        id="estado"
+                        class="mt-1 block w-full"
+                        :disabled="Gate::denies('usuarios.editar', $usuario)"
+                        :options="collect(\App\Shared\Enums\EstadoUsuarioEnum::cases())->mapWithKeys(fn ($estadoOpcion) => [$estadoOpcion->value => $estadoOpcion->label()])"
+                    />
                 </div>
             </div>
 
@@ -177,11 +179,11 @@ new #[Layout('layouts.app')] class extends Component
             <h2 class="text-sm font-semibold text-ink">Rol institucional</h2>
             <form wire:submit="cambiarRol" class="mt-4 flex items-end gap-3">
                 <div class="flex-1">
-                    <select wire:model="rol" class="block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                        @foreach ($rolesDisponibles as $rolOpcion)
-                            <option value="{{ $rolOpcion->value }}">{{ $rolOpcion->label() }}</option>
-                        @endforeach
-                    </select>
+                    <x-select-input
+                        wire:model="rol"
+                        class="block w-full"
+                        :options="collect($rolesDisponibles)->mapWithKeys(fn ($rolOpcion) => [$rolOpcion->value => $rolOpcion->label()])"
+                    />
                 </div>
                 <x-primary-button type="submit">Actualizar rol</x-primary-button>
             </form>

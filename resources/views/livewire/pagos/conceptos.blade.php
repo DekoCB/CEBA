@@ -159,12 +159,12 @@ new #[Layout('layouts.app')] class extends Component
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <x-input-label for="tipo" value="Tipo" />
-                            <select wire:model="tipo" id="tipo" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                                <option value="">Selecciona…</option>
-                                @foreach ($tipos as $tipoOpcion)
-                                    <option value="{{ $tipoOpcion->value }}">{{ $tipoOpcion->label() }}</option>
-                                @endforeach
-                            </select>
+                            <x-select-input
+                                wire:model="tipo"
+                                id="tipo"
+                                class="mt-1 block w-full"
+                                :options="collect($tipos)->mapWithKeys(fn ($tipoOpcion) => [$tipoOpcion->value => $tipoOpcion->label()])"
+                            />
                             <x-input-error :messages="$errors->get('tipo')" class="mt-1" />
                         </div>
                         <div>

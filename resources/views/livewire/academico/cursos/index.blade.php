@@ -201,12 +201,12 @@ new #[Layout('layouts.app')] class extends Component
 
                     <div>
                         <x-input-label for="gradoId" value="Grado" />
-                        <select wire:model="gradoId" id="gradoId" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                            <option value="">Selecciona…</option>
-                            @foreach ($grados as $grado)
-                                <option value="{{ $grado->id }}">{{ $grado->nombre }}</option>
-                            @endforeach
-                        </select>
+                        <x-select-input
+                            wire:model="gradoId"
+                            id="gradoId"
+                            class="mt-1 block w-full"
+                            :options="collect($grados)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])"
+                        />
                         <x-input-error :messages="$errors->get('gradoId')" class="mt-1" />
                     </div>
 

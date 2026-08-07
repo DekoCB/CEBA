@@ -145,12 +145,12 @@ new #[Layout('layouts.app')] class extends Component
 
             <div>
                 <x-input-label for="plantillaId" value="Plantilla" />
-                <select wire:model="plantillaId" id="plantillaId" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                    <option value="">Selecciona…</option>
-                    @foreach ($plantillasActivas as $plantilla)
-                        <option value="{{ $plantilla->id }}">{{ $plantilla->nombre }}</option>
-                    @endforeach
-                </select>
+                <x-select-input
+                    wire:model="plantillaId"
+                    id="plantillaId"
+                    class="mt-1 block w-full"
+                    :options="collect($plantillasActivas)->mapWithKeys(fn ($plantilla) => [$plantilla->id => $plantilla->nombre])"
+                />
                 <x-input-error :messages="$errors->get('plantillaId')" class="mt-1" />
                 @if ($plantillasActivas->isEmpty())
                     <p class="mt-1 text-xs text-warn">No hay plantillas activas. <a href="{{ route('notificaciones.plantillas') }}" wire:navigate class="underline">Crea una primero</a>.</p>
@@ -160,21 +160,21 @@ new #[Layout('layouts.app')] class extends Component
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <x-input-label for="gradoId" value="Grado (opcional)" />
-                    <select wire:model.live="gradoId" id="gradoId" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                        <option value="">Todos los grados</option>
-                        @foreach ($grados as $grado)
-                            <option value="{{ $grado->id }}">{{ $grado->nombre }}</option>
-                        @endforeach
-                    </select>
+                    <x-select-input
+                        wire:model.live="gradoId"
+                        id="gradoId"
+                        class="mt-1 block w-full"
+                        :options="collect($grados)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])->prepend('Todos los grados', '')"
+                    />
                 </div>
                 <div>
                     <x-input-label for="cicloId" value="Ciclo (opcional)" />
-                    <select wire:model.live="cicloId" id="cicloId" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                        <option value="">Todos los ciclos</option>
-                        @foreach ($ciclos as $ciclo)
-                            <option value="{{ $ciclo->id }}">{{ $ciclo->nombre }}</option>
-                        @endforeach
-                    </select>
+                    <x-select-input
+                        wire:model.live="cicloId"
+                        id="cicloId"
+                        class="mt-1 block w-full"
+                        :options="collect($ciclos)->mapWithKeys(fn ($ciclo) => [$ciclo->id => $ciclo->nombre])->prepend('Todos los ciclos', '')"
+                    />
                 </div>
             </div>
 
@@ -231,19 +231,17 @@ new #[Layout('layouts.app')] class extends Component
     @if ($tab === 'mensajes')
         <div class="space-y-4">
             <div class="flex flex-col gap-3 sm:flex-row">
-                <select wire:model.live="filtroTipo" class="w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent sm:max-w-xs">
-                    <option value="">Todos los tipos</option>
-                    @foreach ($tipos as $tipoOpcion)
-                        <option value="{{ $tipoOpcion->value }}">{{ $tipoOpcion->label() }}</option>
-                    @endforeach
-                </select>
+                <x-select-input
+                    wire:model.live="filtroTipo"
+                    class="w-full sm:max-w-xs"
+                    :options="collect($tipos)->mapWithKeys(fn ($tipoOpcion) => [$tipoOpcion->value => $tipoOpcion->label()])->prepend('Todos los tipos', '')"
+                />
 
-                <select wire:model.live="filtroEstado" class="w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent sm:max-w-xs">
-                    <option value="">Todos los estados</option>
-                    @foreach ($estados as $estadoOpcion)
-                        <option value="{{ $estadoOpcion->value }}">{{ $estadoOpcion->label() }}</option>
-                    @endforeach
-                </select>
+                <x-select-input
+                    wire:model.live="filtroEstado"
+                    class="w-full sm:max-w-xs"
+                    :options="collect($estados)->mapWithKeys(fn ($estadoOpcion) => [$estadoOpcion->value => $estadoOpcion->label()])->prepend('Todos los estados', '')"
+                />
             </div>
 
             <div class="overflow-hidden rounded-lg border border-border bg-surface">

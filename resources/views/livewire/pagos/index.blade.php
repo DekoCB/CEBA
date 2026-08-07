@@ -303,12 +303,12 @@ new #[Layout('layouts.app')] class extends Component
 
             <div>
                 <x-input-label for="conceptoId" value="Concepto" />
-                <select wire:model="conceptoId" id="conceptoId" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                    <option value="">Selecciona…</option>
-                    @foreach ($conceptosActivos as $concepto)
-                        <option value="{{ $concepto->id }}">{{ $concepto->nombre }} (S/ {{ number_format((float) $concepto->monto_base, 2) }})</option>
-                    @endforeach
-                </select>
+                <x-select-input
+                    wire:model="conceptoId"
+                    id="conceptoId"
+                    class="mt-1 block w-full"
+                    :options="collect($conceptosActivos)->mapWithKeys(fn ($concepto) => [$concepto->id => $concepto->nombre.' (S/ '.number_format((float) $concepto->monto_base, 2).')'])"
+                />
                 <x-input-error :messages="$errors->get('conceptoId')" class="mt-1" />
             </div>
 
@@ -320,12 +320,12 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
                 <div>
                     <x-input-label for="metodo" value="Método" />
-                    <select wire:model="metodo" id="metodo" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                        <option value="">Selecciona…</option>
-                        @foreach ($metodosPago as $metodoOpcion)
-                            <option value="{{ $metodoOpcion->value }}">{{ $metodoOpcion->label() }}</option>
-                        @endforeach
-                    </select>
+                    <x-select-input
+                        wire:model="metodo"
+                        id="metodo"
+                        class="mt-1 block w-full"
+                        :options="collect($metodosPago)->mapWithKeys(fn ($metodoOpcion) => [$metodoOpcion->value => $metodoOpcion->label()])"
+                    />
                     <x-input-error :messages="$errors->get('metodo')" class="mt-1" />
                 </div>
             </div>
@@ -355,11 +355,11 @@ new #[Layout('layouts.app')] class extends Component
                         </div>
                         <form wire:submit="crearPlan({{ $matricula->id }})" class="flex items-start gap-2">
                             <div>
-                                <select wire:model="numeroCuotasPorMatricula.{{ $matricula->id }}" class="rounded-md border-border bg-surface text-xs text-ink focus:border-accent focus:ring-accent">
-                                    @foreach ($numerosCuotas as $opcion)
-                                        <option value="{{ $opcion->value }}">{{ $opcion->label() }}</option>
-                                    @endforeach
-                                </select>
+                                <x-select-input
+                                    wire:model="numeroCuotasPorMatricula.{{ $matricula->id }}"
+                                    class="text-xs"
+                                    :options="collect($numerosCuotas)->mapWithKeys(fn ($opcion) => [$opcion->value => $opcion->label()])"
+                                />
                             </div>
                             <div>
                                 <input
@@ -387,12 +387,16 @@ new #[Layout('layouts.app')] class extends Component
     {{-- Historial --}}
     @if ($tab === 'historial' && $puedeVerHistorial)
         <div class="space-y-4">
-            <select wire:model.live="filtroEstado" class="w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent sm:max-w-xs">
-                <option value="">Todos los estados</option>
-                <option value="pendiente">Pendiente</option>
-                <option value="aprobado">Aprobado</option>
-                <option value="rechazado">Rechazado</option>
-            </select>
+            <x-select-input
+                wire:model.live="filtroEstado"
+                class="w-full sm:max-w-xs"
+                :options="[
+                    '' => 'Todos los estados',
+                    'pendiente' => 'Pendiente',
+                    'aprobado' => 'Aprobado',
+                    'rechazado' => 'Rechazado',
+                ]"
+            />
 
             <div class="divide-y divide-border rounded-lg border border-border bg-surface">
                 @forelse ($historial as $pago)

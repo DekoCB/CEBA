@@ -123,11 +123,12 @@ new #[Layout('layouts.app')] class extends Component
         <div class="flex flex-wrap items-end gap-4 rounded-lg border border-border bg-surface p-4">
             <div>
                 <x-input-label for="tipo" value="Tipo de reporte" />
-                <select wire:model.live="tipo" id="tipo" class="mt-1 block w-56 rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                    @foreach ($tiposDisponibles as $opcion)
-                        <option value="{{ $opcion['value'] }}">{{ $opcion['label'] }}</option>
-                    @endforeach
-                </select>
+                <x-select-input
+                    wire:model.live="tipo"
+                    id="tipo"
+                    class="mt-1 block w-56"
+                    :options="collect($tiposDisponibles)->mapWithKeys(fn ($opcion) => [$opcion['value'] => $opcion['label']])"
+                />
             </div>
             <div>
                 <x-input-label for="desde" value="Desde" />
