@@ -13,8 +13,8 @@ use App\Models\User;
  */
 enum CategoriaAccesoEnum: string
 {
-    case ESTUDIANTE = 'estudiante';
     case PERSONAL = 'personal';
+    case ESTUDIANTE = 'estudiante';
 
     public function label(): string
     {
