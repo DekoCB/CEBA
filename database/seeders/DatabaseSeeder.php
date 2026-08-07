@@ -60,6 +60,14 @@ class DatabaseSeeder extends Seeder
         ]);
         $tesoreria->assignRole(RolEnum::TESORERIA->value);
 
+        $administrativo = User::factory()->create([
+            'name' => 'Administrativo Demo',
+            'email' => 'administrativo@ceba.test',
+            'dni' => '00000006',
+            'estado' => EstadoUsuarioEnum::ACTIVO,
+        ]);
+        $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
+
         $this->call(AcademicoDemoSeeder::class);
         $this->call(MatriculaDemoSeeder::class);
         $this->call(AulaVirtualDemoSeeder::class);
