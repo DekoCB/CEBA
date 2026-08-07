@@ -305,10 +305,29 @@ new class extends Component
 }; ?>
 
 <div
+    x-data="{ mostrar: false }"
+    x-init="$nextTick(() => mostrar = true)"
+    x-show="mostrar"
+    x-cloak
     class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/40 px-4 py-8"
-    wire:click.self="cancelar"
+    x-on:click.self="mostrar = false; setTimeout(() => $wire.cancelar(), 200)"
+    x-transition:enter="ease-out duration-300"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="ease-in duration-200"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
 >
-    <div class="w-full max-w-3xl rounded-lg border border-border bg-surface p-6 shadow-lg">
+    <div
+        x-show="mostrar"
+        class="w-full max-w-3xl rounded-lg border border-border bg-surface p-6 shadow-lg"
+        x-transition:enter="ease-out duration-300"
+        x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+        x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+        x-transition:leave="ease-in duration-200"
+        x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+        x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+    >
         <div class="flex items-start justify-between gap-4">
             <div>
                 <h1 class="font-display text-2xl text-ink">Nueva matrícula</h1>
@@ -316,7 +335,7 @@ new class extends Component
             </div>
             <button
                 type="button"
-                wire:click="cancelar"
+                x-on:click="mostrar = false; setTimeout(() => $wire.cancelar(), 200)"
                 class="rounded-md p-1 text-ink-faint hover:bg-surface-2 hover:text-ink"
                 aria-label="Cerrar"
             >

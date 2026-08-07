@@ -125,9 +125,28 @@ new #[Layout('layouts.app')] class extends Component
         </table>
     </div>
 
-    @if ($mostrarModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" wire:click.self="$set('mostrarModal', false)">
-            <div class="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-lg">
+    <div
+        x-show="$wire.mostrarModal"
+        x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4"
+        wire:click.self="$set('mostrarModal', false)"
+        x-transition:enter="ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+    >
+        <div
+            x-show="$wire.mostrarModal"
+            class="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-lg"
+            x-transition:enter="ease-out duration-300"
+            x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+            x-transition:leave="ease-in duration-200"
+            x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+            x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+        >
                 <h2 class="font-display text-lg text-ink">{{ $editandoId ? 'Editar concepto' : 'Nuevo concepto' }}</h2>
 
                 <form wire:submit="guardar" class="mt-4 space-y-4">
@@ -169,5 +188,5 @@ new #[Layout('layouts.app')] class extends Component
                 </form>
             </div>
         </div>
-    @endif
+    </div>
 </div>

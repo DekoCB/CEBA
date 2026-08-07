@@ -129,55 +129,73 @@ new #[Layout('layouts.app')] class extends Component
 
     <div class="mt-4">{{ $ciclos->links() }}</div>
 
-    @if ($mostrarModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" wire:click.self="$set('mostrarModal', false)">
-            <div class="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-lg">
-                <h2 class="font-display text-lg text-ink">Nuevo ciclo</h2>
+    <div
+        x-show="$wire.mostrarModal"
+        x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4"
+        wire:click.self="$set('mostrarModal', false)"
+        x-transition:enter="ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+    >
+        <div
+            x-show="$wire.mostrarModal"
+            class="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-lg"
+            x-transition:enter="ease-out duration-300"
+            x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+            x-transition:leave="ease-in duration-200"
+            x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+            x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+        >
+            <h2 class="font-display text-lg text-ink">Nuevo ciclo</h2>
 
-                <form wire:submit="guardar" class="mt-4 space-y-4">
+            <form wire:submit="guardar" class="mt-4 space-y-4">
+                <div>
+                    <x-input-label for="nombre" value="Nombre" />
+                    <x-text-input wire:model="nombre" id="nombre" class="mt-1 block w-full" placeholder="Ej. Enero - Junio 2027" />
+                    <x-input-error :messages="$errors->get('nombre')" class="mt-1" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <x-input-label for="nombre" value="Nombre" />
-                        <x-text-input wire:model="nombre" id="nombre" class="mt-1 block w-full" placeholder="Ej. Enero - Junio 2027" />
-                        <x-input-error :messages="$errors->get('nombre')" class="mt-1" />
+                        <x-input-label for="tipo" value="Tipo" />
+                        <select wire:model="tipo" id="tipo" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
+                            <option value="">Selecciona…</option>
+                            @foreach ($tipos as $tipoOpcion)
+                                <option value="{{ $tipoOpcion->value }}">{{ $tipoOpcion->label() }} ({{ $tipoOpcion->publico()->label() }})</option>
+                            @endforeach
+                        </select>
+                        <x-input-error :messages="$errors->get('tipo')" class="mt-1" />
                     </div>
+                    <div>
+                        <x-input-label for="anio" value="Año" />
+                        <x-text-input wire:model="anio" id="anio" type="number" class="mt-1 block w-full" />
+                        <x-input-error :messages="$errors->get('anio')" class="mt-1" />
+                    </div>
+                </div>
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <x-input-label for="tipo" value="Tipo" />
-                            <select wire:model="tipo" id="tipo" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
-                                <option value="">Selecciona…</option>
-                                @foreach ($tipos as $tipoOpcion)
-                                    <option value="{{ $tipoOpcion->value }}">{{ $tipoOpcion->label() }} ({{ $tipoOpcion->publico()->label() }})</option>
-                                @endforeach
-                            </select>
-                            <x-input-error :messages="$errors->get('tipo')" class="mt-1" />
-                        </div>
-                        <div>
-                            <x-input-label for="anio" value="Año" />
-                            <x-text-input wire:model="anio" id="anio" type="number" class="mt-1 block w-full" />
-                            <x-input-error :messages="$errors->get('anio')" class="mt-1" />
-                        </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <x-input-label for="fechaInicio" value="Fecha inicio" />
+                        <x-date-input wire:model="fechaInicio" id="fechaInicio" class="mt-1 block w-full" />
+                        <x-input-error :messages="$errors->get('fechaInicio')" class="mt-1" />
                     </div>
+                    <div>
+                        <x-input-label for="fechaFin" value="Fecha fin" />
+                        <x-date-input wire:model="fechaFin" id="fechaFin" class="mt-1 block w-full" />
+                        <x-input-error :messages="$errors->get('fechaFin')" class="mt-1" />
+                    </div>
+                </div>
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <x-input-label for="fechaInicio" value="Fecha inicio" />
-                            <x-date-input wire:model="fechaInicio" id="fechaInicio" class="mt-1 block w-full" />
-                            <x-input-error :messages="$errors->get('fechaInicio')" class="mt-1" />
-                        </div>
-                        <div>
-                            <x-input-label for="fechaFin" value="Fecha fin" />
-                            <x-date-input wire:model="fechaFin" id="fechaFin" class="mt-1 block w-full" />
-                            <x-input-error :messages="$errors->get('fechaFin')" class="mt-1" />
-                        </div>
-                    </div>
-
-                    <div class="flex justify-end gap-3 pt-2">
-                        <x-secondary-button type="button" wire:click="$set('mostrarModal', false)">Cancelar</x-secondary-button>
-                        <x-primary-button type="submit">Crear ciclo</x-primary-button>
-                    </div>
-                </form>
-            </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <x-secondary-button type="button" wire:click="$set('mostrarModal', false)">Cancelar</x-secondary-button>
+                    <x-primary-button type="submit">Crear ciclo</x-primary-button>
+                </div>
+            </form>
         </div>
-    @endif
+    </div>
 </div>
