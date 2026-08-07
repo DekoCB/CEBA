@@ -209,6 +209,29 @@ class DashboardTest extends TestCase
             ->assertSee('pago');
     }
 
+    public function test_administrativo_ve_el_grafico_de_ingresos(): void
+    {
+        $administrativo = User::factory()->create();
+        $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
+        Pago::factory()->create(['estado' => 'aprobado', 'monto' => 250, 'fecha_aprobacion' => now()]);
+
+        $this->actingAs($administrativo)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Ingresos aprobados');
+    }
+
+    public function test_administrativo_no_ve_la_cola_de_aprobacion_de_tesoreria(): void
+    {
+        $administrativo = User::factory()->create();
+        $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $this->actingAs($administrativo)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('Pagos por aprobar');
+    }
+
     public function test_coordinador_sin_alertas_ve_notificaciones_vacias(): void
     {
         $coordinador = User::factory()->create();

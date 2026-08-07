@@ -90,6 +90,8 @@ new #[Layout('layouts.app')] class extends Component
 
     public bool $esTesoreria = false;
 
+    public bool $esAdministrativo = false;
+
     public int $pagosPendientesAprobacion = 0;
 
     public float $ingresosDelMes = 0.0;
@@ -188,7 +190,9 @@ new #[Layout('layouts.app')] class extends Component
             $this->cuentasBancariasActivas = CuentaBancaria::query()->where('activa', true)->count();
         }
 
-        if ($this->esCoordinador || $this->esTesoreria) {
+        $this->esAdministrativo = Gate::allows('pagos.registrar');
+
+        if ($this->esCoordinador || $this->esTesoreria || $this->esAdministrativo) {
             [$this->ingresosSemanasLabels, $this->ingresosSemanasDatos] = $this->calcularIngresosPorSemana();
         }
 
@@ -396,7 +400,7 @@ new #[Layout('layouts.app')] class extends Component
 
         @endif
 
-        @if ($esCoordinador || $esTesoreria)
+        @if ($esCoordinador || $esTesoreria || $esAdministrativo)
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <div class="rounded-lg border border-border bg-surface p-4 lg:col-span-2">
                     <h2 class="mb-3 text-sm font-semibold text-ink">Ingresos aprobados — últimas 8 semanas</h2>
@@ -606,7 +610,7 @@ new #[Layout('layouts.app')] class extends Component
             </div>
         @endif
 
-        @unless ($puedeVerUsuarios || $puedeVerAuditoria || $esDocente || $esEstudianteConFicha || $esCoordinador || $esTesoreria)
+        @unless ($puedeVerUsuarios || $puedeVerAuditoria || $esDocente || $esEstudianteConFicha || $esCoordinador || $esTesoreria || $esAdministrativo)
             <div class="rounded-lg border border-border bg-surface p-6">
                 <h2 class="font-display text-lg text-ink">Bienvenido a CEBA</h2>
                 <p class="mt-2 max-w-prose text-sm text-ink-dim">
