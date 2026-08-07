@@ -71,7 +71,7 @@ new #[Layout('layouts.guest')] class extends Component
                         @if ($opcion === CategoriaAccesoEnum::ESTUDIANTE)
                             Matrícula, notas y asistencia
                         @else
-                            Docentes, coordinación, dirección y tesorería
+                            Docentes, coordinación, dirección, tesorería y administrativo
                         @endif
                     </span>
                 </button>
