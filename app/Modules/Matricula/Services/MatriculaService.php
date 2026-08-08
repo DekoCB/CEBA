@@ -11,6 +11,7 @@ use App\Modules\Academico\Models\PeriodoMatricula;
 use App\Modules\Matricula\DTOs\RegistrarApoderadoData;
 use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
 use App\Modules\Matricula\DTOs\RegistrarMatriculaData;
+use App\Modules\Matricula\Enums\EstadoCivilEnum;
 use App\Modules\Matricula\Enums\EstadoEstudianteEnum;
 use App\Modules\Matricula\Enums\EstadoMatriculaEnum;
 use App\Modules\Matricula\Events\EstudianteMatriculado;
@@ -20,10 +21,17 @@ use App\Modules\Matricula\Models\InstitucionProcedencia;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Repositories\Contracts\EstudianteRepositoryInterface;
 use App\Modules\Matricula\Repositories\Contracts\MatriculaRepositoryInterface;
+use App\Shared\ValueObjects\Dni;
+use App\Shared\ValueObjects\Telefono;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
+use PhpOffice\PhpSpreadsheet\Shared\Date as FechaExcel;
+use Throwable;
 
 class MatriculaService
 {
@@ -150,5 +158,187 @@ class MatriculaService
                 'ciclo' => "No hay un periodo de matrícula abierto hoy para el ciclo «{$ciclo->nombre}».",
             ]);
         }
+    }
+
+    /**
+     * Crea estudiantes (y su apoderado si son menores de edad) a partir de
+     * las filas de un Excel. Cada fila se procesa en su propia transacción:
+     * una fila inválida no afecta a las demás, y su error se reporta con el
+     * número de fila tal como aparece en el archivo (encabezado = fila 1).
+     *
+     * @param  Collection<int, Collection<string, mixed>>  $filas
+     * @return array{exitosos: int, errores: list<array{fila: int, mensaje: string}>}
+     */
+    public function registrarEstudiantesDesdeFilas(Collection $filas): array
+    {
+        $exitosos = 0;
+        $errores = [];
+
+        foreach ($filas as $indice => $fila) {
+            try {
+                DB::transaction(function () use ($fila): void {
+                    $nombres = $this->celdaObligatoria($fila, 'nombres');
+                    $apellidos = $this->celdaObligatoria($fila, 'apellidos');
+                    $dniTexto = $this->celdaObligatoria($fila, 'dni');
+                    $fechaNacimientoValor = $fila->get('fecha_nacimiento');
+
+                    if ($fechaNacimientoValor === null || trim((string) $fechaNacimientoValor) === '') {
+                        throw new InvalidArgumentException('La fecha de nacimiento es obligatoria.');
+                    }
+
+                    if (! $this->dniDisponible($dniTexto)) {
+                        throw new InvalidArgumentException("Ya existe un estudiante registrado con el DNI {$dniTexto}.");
+                    }
+
+                    $estadoCivilTexto = $this->celdaOpcional($fila, 'estado_civil');
+                    $estadoCivil = null;
+                    if ($estadoCivilTexto !== null) {
+                        $estadoCivil = EstadoCivilEnum::tryFrom(Str::lower($estadoCivilTexto));
+                        if ($estadoCivil === null) {
+                            throw new InvalidArgumentException("Estado civil «{$estadoCivilTexto}» no reconocido (usa: soltero, casado, conviviente, divorciado, viudo).");
+                        }
+                    }
+
+                    $celularTexto = $this->celdaOpcional($fila, 'celular');
+
+                    $estudiante = $this->registrarEstudiante(new RegistrarEstudianteData(
+                        nombres: $nombres,
+                        apellidos: $apellidos,
+                        dni: new Dni($dniTexto),
+                        fechaNacimiento: $this->parsearFecha($fechaNacimientoValor),
+                        estadoCivil: $estadoCivil,
+                        direccion: $this->celdaOpcional($fila, 'direccion'),
+                        celular: $celularTexto !== null ? new Telefono($celularTexto) : null,
+                        email: $this->celdaOpcional($fila, 'email'),
+                        observaciones: $this->celdaOpcional($fila, 'observaciones'),
+                    ));
+
+                    if ($estudiante->es_menor_edad) {
+                        $this->registrarApoderado($estudiante, new RegistrarApoderadoData(
+                            nombres: $this->celdaObligatoria($fila, 'apoderado_nombres', 'El estudiante es menor de edad: el nombre del apoderado es obligatorio.'),
+                            dni: new Dni($this->celdaObligatoria($fila, 'apoderado_dni', 'El estudiante es menor de edad: el DNI del apoderado es obligatorio.')),
+                            celular: new Telefono($this->celdaObligatoria($fila, 'apoderado_celular', 'El estudiante es menor de edad: el celular del apoderado es obligatorio.')),
+                            correo: $this->celdaOpcional($fila, 'apoderado_correo'),
+                            direccion: $this->celdaOpcional($fila, 'apoderado_direccion'),
+                            parentesco: $this->celdaObligatoria($fila, 'apoderado_parentesco', 'El estudiante es menor de edad: el parentesco del apoderado es obligatorio.'),
+                        ));
+                    }
+                });
+
+                $exitosos++;
+            } catch (Throwable $e) {
+                $errores[] = ['fila' => $indice + 2, 'mensaje' => $this->mensajeDeError($e)];
+            }
+        }
+
+        return ['exitosos' => $exitosos, 'errores' => $errores];
+    }
+
+    /**
+     * Matricula estudiantes ya existentes (identificados por DNI) en un
+     * mismo ciclo, cada uno en el grado indicado en su fila. Reutiliza
+     * matricular(), así que cada fila respeta las mismas validaciones que
+     * una matrícula individual (grado coherente con la edad, periodo de
+     * matrícula abierto, sin duplicados).
+     *
+     * @param  Collection<int, Collection<string, mixed>>  $filas
+     * @return array{exitosos: int, errores: list<array{fila: int, mensaje: string}>}
+     */
+    public function matricularDesdeFilas(int $cicloId, Collection $filas, ?int $registradoPor): array
+    {
+        $exitosos = 0;
+        $errores = [];
+
+        foreach ($filas as $indice => $fila) {
+            try {
+                $dniTexto = (new Dni($this->celdaObligatoria($fila, 'dni')))->valor();
+                $nombreGrado = $this->celdaObligatoria($fila, 'grado');
+
+                $estudiante = Estudiante::query()->where('dni', $dniTexto)->first();
+                if (! $estudiante) {
+                    throw new InvalidArgumentException("No existe ningún estudiante registrado con el DNI {$dniTexto}.");
+                }
+
+                $grado = Grado::query()->where('nombre', $nombreGrado)->first();
+                if (! $grado) {
+                    throw new InvalidArgumentException("No existe el grado «{$nombreGrado}».");
+                }
+
+                $this->matricular($estudiante, new RegistrarMatriculaData(
+                    cicloId: $cicloId,
+                    gradoId: $grado->id,
+                    observaciones: $this->celdaOpcional($fila, 'observaciones'),
+                    registradoPor: $registradoPor,
+                ));
+
+                $exitosos++;
+            } catch (Throwable $e) {
+                $errores[] = ['fila' => $indice + 2, 'mensaje' => $this->mensajeDeError($e)];
+            }
+        }
+
+        return ['exitosos' => $exitosos, 'errores' => $errores];
+    }
+
+    /**
+     * @param  Collection<string, mixed>  $fila
+     */
+    private function celdaOpcional(Collection $fila, string $clave): ?string
+    {
+        $valor = $fila->get($clave);
+
+        if ($valor === null) {
+            return null;
+        }
+
+        $valor = trim((string) $valor);
+
+        return $valor === '' ? null : $valor;
+    }
+
+    /**
+     * @param  Collection<string, mixed>  $fila
+     */
+    private function celdaObligatoria(Collection $fila, string $clave, ?string $mensaje = null): string
+    {
+        $valor = $this->celdaOpcional($fila, $clave);
+
+        if ($valor === null) {
+            throw new InvalidArgumentException($mensaje ?? "La columna «{$clave}» es obligatoria.");
+        }
+
+        return $valor;
+    }
+
+    private function parsearFecha(mixed $valor): string
+    {
+        if ($valor instanceof \DateTimeInterface) {
+            return Carbon::instance($valor)->format('Y-m-d');
+        }
+
+        if (is_numeric($valor)) {
+            return Carbon::instance(FechaExcel::excelToDateTimeObject((float) $valor))->format('Y-m-d');
+        }
+
+        $texto = trim((string) $valor);
+
+        foreach (['d/m/Y', 'Y-m-d', 'd-m-Y'] as $formato) {
+            try {
+                return Carbon::createFromFormat($formato, $texto)->format('Y-m-d');
+            } catch (Throwable) {
+                continue;
+            }
+        }
+
+        throw new InvalidArgumentException("La fecha «{$texto}» no tiene un formato reconocible (usa dd/mm/aaaa).");
+    }
+
+    private function mensajeDeError(Throwable $e): string
+    {
+        if ($e instanceof ValidationException) {
+            return $e->validator->errors()->first();
+        }
+
+        return $e->getMessage();
     }
 }

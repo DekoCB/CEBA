@@ -34,6 +34,8 @@ class ModuleRoutesHaveWebMiddlewareTest extends TestCase
             'academico.ciclos.show' => ['academico.ciclos.show'],
             'academico.horarios.index' => ['academico.horarios.index'],
             'matricula.index' => ['matricula.index'],
+            'matricula.carga-masiva-estudiantes' => ['matricula.carga-masiva-estudiantes'],
+            'matricula.carga-masiva' => ['matricula.carga-masiva'],
             'matricula.show' => ['matricula.show'],
             'aula-virtual.index' => ['aula-virtual.index'],
             'aula-virtual.show' => ['aula-virtual.show'],
