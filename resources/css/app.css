@@ -200,3 +200,53 @@
         animation: none;
     }
 }
+
+/*
+ * Carrusel infinito de "Áreas de especialización" / "Enfoque pedagógico": la
+ * lista se duplica una vez en el HTML y la pista se traslada -50% (el ancho
+ * exacto de una sola copia), así que al llegar al final el salto de vuelta
+ * al inicio es invisible. Una fila va a la izquierda, la otra a la derecha
+ * -- misma animación, sentido invertido.
+ */
+.marquee-track {
+    display: flex;
+    width: max-content;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+}
+
+.marquee-left {
+    animation-name: marquee-left;
+}
+
+.marquee-right {
+    animation-name: marquee-right;
+}
+
+.marquee-row:hover .marquee-track {
+    animation-play-state: paused;
+}
+
+@keyframes marquee-left {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(-50%);
+    }
+}
+
+@keyframes marquee-right {
+    from {
+        transform: translateX(-50%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .marquee-track {
+        animation: none;
+    }
+}

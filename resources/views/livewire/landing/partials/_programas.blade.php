@@ -69,40 +69,54 @@
             </div>
         </div>
 
-        <div class="mt-20">
+        @php
+            $areasEspecializacion = [
+                ['icon' => 'calculator', 'color' => 'blue', 'label' => 'Matemática y Ciencias'],
+                ['icon' => 'pencil-square', 'color' => 'red', 'label' => 'Comunicación y Lenguaje'],
+                ['icon' => 'globe-alt', 'color' => 'green', 'label' => 'Ciencias Sociales'],
+                ['icon' => 'briefcase', 'color' => 'amber', 'label' => 'Educación para el Trabajo'],
+                ['icon' => 'language', 'color' => 'pink', 'label' => 'Inglés'],
+                ['icon' => 'heart', 'color' => 'blue', 'label' => 'Psicología Educativa'],
+            ];
+
+            $enfoquePedagogico = [
+                ['icon' => 'academic-cap', 'color' => 'red', 'label' => 'Docentes titulados'],
+                ['icon' => 'user-group', 'color' => 'blue', 'label' => 'Experiencia en educación de adultos'],
+                ['icon' => 'puzzle-piece', 'color' => 'green', 'label' => 'Metodología flexible'],
+                ['icon' => 'computer-desktop', 'color' => 'amber', 'label' => 'Tecnología educativa'],
+                ['icon' => 'heart', 'color' => 'pink', 'label' => 'Acompañamiento continuo'],
+            ];
+        @endphp
+
+        <div x-data x-reveal class="mt-20">
             <h3 class="text-center font-sans text-xl font-bold text-white">Áreas de Especialización</h3>
-            <div class="mx-auto mt-8 grid max-w-5xl grid-cols-2 gap-4 sm:grid-cols-3">
-                @foreach ([
-                    ['icon' => 'calculator', 'color' => 'blue', 'label' => 'Matemática y Ciencias'],
-                    ['icon' => 'pencil-square', 'color' => 'red', 'label' => 'Comunicación y Lenguaje'],
-                    ['icon' => 'globe-alt', 'color' => 'green', 'label' => 'Ciencias Sociales'],
-                    ['icon' => 'briefcase', 'color' => 'amber', 'label' => 'Educación para el Trabajo'],
-                    ['icon' => 'language', 'color' => 'pink', 'label' => 'Inglés'],
-                    ['icon' => 'heart', 'color' => 'blue', 'label' => 'Psicología Educativa'],
-                ] as $area)
-                    <div x-data x-reveal class="flex flex-col items-center gap-3 rounded-2xl border border-white/5 bg-[#1a1a1c] p-5 text-center">
-                        <x-landing.icon-circle :icon="$area['icon']" :color="$area['color']" size="sm" />
-                        <p class="text-xs font-semibold text-white">{{ $area['label'] }}</p>
-                    </div>
-                @endforeach
+            <div class="marquee-row mt-8 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_5%,black_95%,transparent)]">
+                <div class="marquee-track marquee-left gap-4" style="animation-duration: {{ count($areasEspecializacion) * 4.5 }}s">
+                    @foreach ([false, true] as $duplicado)
+                        @foreach ($areasEspecializacion as $area)
+                            <div @if ($duplicado) aria-hidden="true" @endif class="flex w-40 shrink-0 flex-col items-center gap-3 rounded-2xl border border-white/5 bg-[#1a1a1c] p-5 text-center">
+                                <x-landing.icon-circle :icon="$area['icon']" :color="$area['color']" size="sm" />
+                                <p class="text-xs font-semibold text-white">{{ $area['label'] }}</p>
+                            </div>
+                        @endforeach
+                    @endforeach
+                </div>
             </div>
         </div>
 
-        <div class="mt-20">
+        <div x-data x-reveal class="mt-20">
             <h3 class="text-center font-sans text-xl font-bold text-white">Nuestro Enfoque Pedagógico</h3>
-            <div class="mx-auto mt-8 grid max-w-5xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                @foreach ([
-                    ['icon' => 'academic-cap', 'color' => 'red', 'label' => 'Docentes titulados'],
-                    ['icon' => 'user-group', 'color' => 'blue', 'label' => 'Experiencia en educación de adultos'],
-                    ['icon' => 'puzzle-piece', 'color' => 'green', 'label' => 'Metodología flexible'],
-                    ['icon' => 'computer-desktop', 'color' => 'amber', 'label' => 'Tecnología educativa'],
-                    ['icon' => 'heart', 'color' => 'pink', 'label' => 'Acompañamiento continuo'],
-                ] as $enfoque)
-                    <div x-data x-reveal class="flex flex-col items-center rounded-2xl border border-white/5 bg-[#1a1a1c] p-5 text-center">
-                        <x-landing.icon-circle :icon="$enfoque['icon']" :color="$enfoque['color']" size="sm" />
-                        <p class="mt-3 text-xs font-semibold text-white">{{ $enfoque['label'] }}</p>
-                    </div>
-                @endforeach
+            <div class="marquee-row mt-8 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_5%,black_95%,transparent)]">
+                <div class="marquee-track marquee-right gap-4" style="animation-duration: {{ count($enfoquePedagogico) * 4.5 }}s">
+                    @foreach ([false, true] as $duplicado)
+                        @foreach ($enfoquePedagogico as $enfoque)
+                            <div @if ($duplicado) aria-hidden="true" @endif class="flex w-44 shrink-0 flex-col items-center rounded-2xl border border-white/5 bg-[#1a1a1c] p-5 text-center">
+                                <x-landing.icon-circle :icon="$enfoque['icon']" :color="$enfoque['color']" size="sm" />
+                                <p class="mt-3 text-xs font-semibold text-white">{{ $enfoque['label'] }}</p>
+                            </div>
+                        @endforeach
+                    @endforeach
+                </div>
             </div>
         </div>
     </div>
