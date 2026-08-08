@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -44,6 +46,59 @@ class ProfileTest extends TestCase
 
         $this->assertSame('Test User', $user->name);
         $this->assertSame('test@example.com', $user->email);
+    }
+
+    public function test_user_can_upload_a_profile_photo(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+
+        $this->actingAs($user);
+
+        Volt::test('profile.update-profile-information-form')
+            ->set('name', $user->name)
+            ->set('email', $user->email)
+            ->set('foto', UploadedFile::fake()->image('foto.jpg'))
+            ->call('updateProfileInformation')
+            ->assertHasNoErrors();
+
+        $this->assertTrue($user->fresh()->hasMedia('avatar'));
+    }
+
+    public function test_la_foto_de_perfil_debe_ser_una_imagen(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+
+        $this->actingAs($user);
+
+        Volt::test('profile.update-profile-information-form')
+            ->set('name', $user->name)
+            ->set('email', $user->email)
+            ->set('foto', UploadedFile::fake()->create('documento.pdf', 100))
+            ->call('updateProfileInformation')
+            ->assertHasErrors('foto');
+
+        $this->assertFalse($user->fresh()->hasMedia('avatar'));
+    }
+
+    public function test_el_usuario_puede_quitar_su_foto_de_perfil(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        $user->addMediaFromString('contenido-de-prueba')
+            ->usingFileName('foto.jpg')
+            ->toMediaCollection('avatar');
+
+        $this->assertTrue($user->fresh()->hasMedia('avatar'));
+
+        $this->actingAs($user);
+
+        Volt::test('profile.update-profile-information-form')
+            ->call('quitarFoto')
+            ->assertHasNoErrors();
+
+        $this->assertFalse($user->fresh()->hasMedia('avatar'));
     }
 
     public function test_user_can_delete_their_account(): void

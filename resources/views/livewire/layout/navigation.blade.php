@@ -16,6 +16,11 @@ new class extends Component
     }
 }; ?>
 
+@php
+    $mediaAvatar = auth()->user()->getFirstMedia('avatar');
+    $avatarUrlInicial = $mediaAvatar ? $mediaAvatar->getUrl().'?v='.$mediaAvatar->updated_at->timestamp : null;
+@endphp
+
 <header class="flex h-16 items-center justify-between border-b border-border bg-surface px-4 sm:px-6">
     <div class="flex items-center gap-3">
         <button
@@ -40,8 +45,20 @@ new class extends Component
 
         <x-dropdown align="right" width="48">
             <x-slot name="trigger">
-                <button class="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-ink-dim transition hover:bg-surface-2 hover:text-ink focus:outline-none">
-                    <span x-data="{{ json_encode(['name' => auth()->user()->name]) }}" x-text="name" x-on:profile-updated.window="name = $event.detail.name"></span>
+                <button
+                    x-data="{
+                        name: @js(auth()->user()->name),
+                        avatarUrl: @js($avatarUrlInicial),
+                        iniciales() {
+                            return this.name.trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
+                        },
+                    }"
+                    x-on:profile-updated.window="name = $event.detail.name; avatarUrl = $event.detail.avatarUrl"
+                    class="inline-flex items-center gap-2 rounded-md py-1.5 pl-1.5 pr-3 text-sm font-medium text-ink-dim transition hover:bg-surface-2 hover:text-ink focus:outline-none"
+                >
+                    <img x-show="avatarUrl" :src="avatarUrl" alt="" class="h-7 w-7 shrink-0 rounded-full object-cover">
+                    <span x-show="! avatarUrl" x-text="iniciales()" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent"></span>
+                    <span x-text="name"></span>
                     <x-heroicon-o-chevron-down class="h-4 w-4" />
                 </button>
             </x-slot>

@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\Permission\Traits\HasRoles;
 
 /**
@@ -20,10 +22,10 @@ use Spatie\Permission\Traits\HasRoles;
  * @property array<int, string>|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
  */
-class User extends Authenticatable
+class User extends Authenticatable implements HasMedia
 {
     /** @use HasFactory<UserFactory> */
-    use Auditable, HasFactory, HasRoles, Notifiable;
+    use Auditable, HasFactory, HasRoles, InteractsWithMedia, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -73,6 +75,11 @@ class User extends Authenticatable
     public function estaActivo(): bool
     {
         return $this->estado === EstadoUsuarioEnum::ACTIVO;
+    }
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection('avatar')->singleFile();
     }
 
     /**
