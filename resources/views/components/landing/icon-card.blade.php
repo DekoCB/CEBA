@@ -13,7 +13,7 @@
     $tamanoIcono = $compact ? 'h-9 w-9' : 'h-12 w-12';
 @endphp
 
-<div {{ $attributes->merge(['class' => "group rounded-2xl border border-white/5 bg-[#1a1a1c] {$relleno} transition duration-300 hover:-translate-y-1 hover:border-white/10 hover:shadow-xl hover:shadow-black/30"]) }}>
+<div {{ $attributes->merge(['class' => "group h-full rounded-2xl border border-white/5 bg-[#1a1a1c] {$relleno} transition duration-300 hover:-translate-y-1 hover:border-white/10 hover:shadow-xl hover:shadow-black/30"]) }}>
     <div @class(['flex shrink-0 items-center justify-center rounded-full transition-transform duration-300 group-hover:scale-110', $tamanoIcono, $tono])>
         <x-dynamic-component :component="'heroicon-o-'.$icon" @class([$compact ? 'h-5 w-5' : 'h-6 w-6']) />
     </div>
