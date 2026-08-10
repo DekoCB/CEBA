@@ -45,7 +45,9 @@
 
         <div class="mt-20">
             <h3 class="text-center font-sans text-xl font-bold text-white">Proceso de Inscripción</h3>
-            <div class="mx-auto mt-10 grid max-w-5xl grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-5 lg:gap-4">
+
+            {{-- Menos de lg: la misma lista de pasos que antes, en columnas. --}}
+            <div class="mx-auto mt-10 grid max-w-5xl grid-cols-1 gap-8 sm:grid-cols-2 lg:hidden">
                 <div x-data x-reveal>
                     <x-landing.step-number number="1" icon="chat-bubble-left-right" color="red" title="Contacto Inicial">
                         Escríbenos por WhatsApp o llena el formulario de contacto.
@@ -70,6 +72,84 @@
                     <x-landing.step-number number="5" icon="academic-cap" color="pink" title="Inicio de Clases">
                         Comienzas tus clases y tu acompañamiento docente.
                     </x-landing.step-number>
+                </div>
+            </div>
+
+            {{--
+                Desde lg: rueda circular -- el círculo central muestra el paso
+                activo, y los otros 4 quedan como píldoras alrededor. Un
+                diagrama radial no se puede leer bien en una pantalla angosta,
+                por eso solo se usa desde este punto de quiebre; en móvil
+                sigue la lista de arriba.
+            --}}
+            <div x-data x-reveal class="hidden lg:block">
+                <div
+                    x-data="{
+                        activo: 0,
+                        siguiente() { this.activo = (this.activo + 1) % 5 },
+                        anterior() { this.activo = (this.activo + 4) % 5 },
+                    }"
+                    class="relative mx-auto mt-10 h-[480px] max-w-2xl"
+                >
+                    <button
+                        type="button"
+                        @click="anterior()"
+                        class="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/10 bg-[#1a1a1c] p-2 text-gray-400 transition hover:border-white/20 hover:text-white"
+                        aria-label="Paso anterior"
+                    >
+                        <x-heroicon-o-chevron-left class="h-5 w-5" />
+                    </button>
+                    <button
+                        type="button"
+                        @click="siguiente()"
+                        class="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/10 bg-[#1a1a1c] p-2 text-gray-400 transition hover:border-white/20 hover:text-white"
+                        aria-label="Paso siguiente"
+                    >
+                        <x-heroicon-o-chevron-right class="h-5 w-5" />
+                    </button>
+
+                    @foreach ([
+                        ['icon' => 'chat-bubble-left-right', 'color' => 'red', 'titulo' => 'Contacto Inicial', 'descripcion' => 'Escríbenos por WhatsApp o llena el formulario de contacto.', 'x' => 0, 'y' => -210],
+                        ['icon' => 'light-bulb', 'color' => 'blue', 'titulo' => 'Información y Orientación', 'descripcion' => 'Te explicamos el programa, horarios y costos sin compromiso.', 'x' => 200, 'y' => -65],
+                        ['icon' => 'document-check', 'color' => 'amber', 'titulo' => 'Presentación de Documentos', 'descripcion' => 'Nos envías o acercas tus documentos para validar tu ingreso.', 'x' => 123, 'y' => 170],
+                        ['icon' => 'pencil-square', 'color' => 'green', 'titulo' => 'Matrícula', 'descripcion' => 'Completamos tu matrícula, totalmente gratuita.', 'x' => -123, 'y' => 170],
+                        ['icon' => 'academic-cap', 'color' => 'pink', 'titulo' => 'Inicio de Clases', 'descripcion' => 'Comienzas tus clases y tu acompañamiento docente.', 'x' => -200, 'y' => -65],
+                    ] as $indice => $paso)
+                        @php
+                            $colorActivo = [
+                                'red' => 'bg-red-600 border-red-600 text-white',
+                                'blue' => 'bg-blue-600 border-blue-600 text-white',
+                                'amber' => 'bg-amber-500 border-amber-500 text-white',
+                                'green' => 'bg-emerald-600 border-emerald-600 text-white',
+                                'pink' => 'bg-fuchsia-600 border-fuchsia-600 text-white',
+                            ][$paso['color']];
+                        @endphp
+                        <button
+                            type="button"
+                            @click="activo = {{ $indice }}"
+                            :class="activo === {{ $indice }} ? '{{ $colorActivo }}' : 'border-white/10 bg-[#1a1a1c] text-gray-300 hover:border-white/20'"
+                            class="absolute left-1/2 top-1/2 w-36 -translate-x-1/2 -translate-y-1/2 rounded-2xl border px-4 py-2.5 text-center text-xs font-semibold leading-tight transition"
+                            style="margin-left: {{ $paso['x'] }}px; margin-top: {{ $paso['y'] }}px;"
+                        >
+                            {{ $indice + 1 }}. {{ $paso['titulo'] }}
+                        </button>
+                    @endforeach
+
+                    <div class="absolute left-1/2 top-1/2 flex h-56 w-56 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-white/10 bg-[#121214] p-8 text-center shadow-2xl shadow-black/50">
+                        @foreach ([
+                            ['icon' => 'chat-bubble-left-right', 'color' => 'red', 'titulo' => 'Contacto Inicial', 'descripcion' => 'Escríbenos por WhatsApp o llena el formulario de contacto.'],
+                            ['icon' => 'light-bulb', 'color' => 'blue', 'titulo' => 'Información y Orientación', 'descripcion' => 'Te explicamos el programa, horarios y costos sin compromiso.'],
+                            ['icon' => 'document-check', 'color' => 'amber', 'titulo' => 'Presentación de Documentos', 'descripcion' => 'Nos envías o acercas tus documentos para validar tu ingreso.'],
+                            ['icon' => 'pencil-square', 'color' => 'green', 'titulo' => 'Matrícula', 'descripcion' => 'Completamos tu matrícula, totalmente gratuita.'],
+                            ['icon' => 'academic-cap', 'color' => 'pink', 'titulo' => 'Inicio de Clases', 'descripcion' => 'Comienzas tus clases y tu acompañamiento docente.'],
+                        ] as $indice => $paso)
+                            <div x-show="activo === {{ $indice }}" x-cloak>
+                                <x-landing.icon-circle :icon="$paso['icon']" :color="$paso['color']" size="sm" />
+                                <p class="mt-3 font-sans text-sm font-bold text-white">{{ $indice + 1 }}. {{ $paso['titulo'] }}</p>
+                                <p class="mt-1.5 text-xs leading-relaxed text-gray-400">{{ $paso['descripcion'] }}</p>
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
             </div>
         </div>
