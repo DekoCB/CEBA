@@ -90,7 +90,7 @@
 
         <div x-data x-reveal class="mt-20">
             <h3 class="text-center font-sans text-xl font-bold text-white">Áreas de Especialización</h3>
-            <div class="marquee-row mt-8 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_5%,black_95%,transparent)]">
+            <div class="marquee-row mt-8 overflow-hidden">
                 <div class="marquee-track marquee-left gap-4" style="animation-duration: {{ count($areasEspecializacion) * 4.5 }}s">
                     @foreach ([false, true] as $duplicado)
                         @foreach ($areasEspecializacion as $area)
@@ -106,7 +106,7 @@
 
         <div x-data x-reveal class="mt-20">
             <h3 class="text-center font-sans text-xl font-bold text-white">Nuestro Enfoque Pedagógico</h3>
-            <div class="marquee-row mt-8 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_5%,black_95%,transparent)]">
+            <div class="marquee-row mt-8 overflow-hidden">
                 <div class="marquee-track marquee-right gap-4" style="animation-duration: {{ count($enfoquePedagogico) * 4.5 }}s">
                     @foreach ([false, true] as $duplicado)
                         @foreach ($enfoquePedagogico as $enfoque)

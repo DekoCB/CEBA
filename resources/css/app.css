@@ -215,6 +215,18 @@
     animation-iteration-count: infinite;
 }
 
+/*
+ * El difuminado de los bordes vivía como clase arbitraria de Tailwind
+ * (`[mask-image:...]`) directamente en el HTML, pero esa sintaxis solo
+ * emite la propiedad SIN prefijo -- muchas versiones de Chrome/Edge
+ * todavía necesitan `-webkit-mask-image`, así que sin ella la máscara no
+ * se aplicaba y el carrusel se veía cortado en seco en vez de desvanecerse.
+ */
+.marquee-row {
+    -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+    mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+}
+
 .marquee-left {
     animation-name: marquee-left;
 }
