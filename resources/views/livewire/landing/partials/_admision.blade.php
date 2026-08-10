@@ -109,6 +109,12 @@
                     @mouseleave="iniciarAutoplay()"
                     class="relative mx-auto mt-10 h-[480px] max-w-2xl"
                 >
+                    {{-- Pista circular decorativa: ancla visualmente el conjunto como una rueda real. --}}
+                    <div class="pointer-events-none absolute left-1/2 top-1/2 h-[430px] w-[430px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-white/10"></div>
+
+                    {{-- Marcador fijo: señala dónde "cae" el paso activo cada vez que la rueda gira. --}}
+                    <div class="pointer-events-none absolute left-1/2 top-[8px] h-0 w-0 -translate-x-1/2 border-x-8 border-t-[12px] border-x-transparent border-t-white/60"></div>
+
                     <button
                         type="button"
                         @click="retrocederYReiniciar()"
@@ -126,32 +132,44 @@
                         <x-heroicon-o-chevron-right class="h-5 w-5" />
                     </button>
 
-                    @foreach ([
-                        ['icon' => 'chat-bubble-left-right', 'color' => 'red', 'titulo' => 'Contacto Inicial', 'descripcion' => 'Escríbenos por WhatsApp o llena el formulario de contacto.', 'x' => 0, 'y' => -210],
-                        ['icon' => 'light-bulb', 'color' => 'blue', 'titulo' => 'Información y Orientación', 'descripcion' => 'Te explicamos el programa, horarios y costos sin compromiso.', 'x' => 200, 'y' => -65],
-                        ['icon' => 'document-check', 'color' => 'amber', 'titulo' => 'Presentación de Documentos', 'descripcion' => 'Nos envías o acercas tus documentos para validar tu ingreso.', 'x' => 123, 'y' => 170],
-                        ['icon' => 'pencil-square', 'color' => 'green', 'titulo' => 'Matrícula', 'descripcion' => 'Completamos tu matrícula, totalmente gratuita.', 'x' => -123, 'y' => 170],
-                        ['icon' => 'academic-cap', 'color' => 'pink', 'titulo' => 'Inicio de Clases', 'descripcion' => 'Comienzas tus clases y tu acompañamiento docente.', 'x' => -200, 'y' => -65],
-                    ] as $indice => $paso)
-                        @php
-                            $colorActivo = [
-                                'red' => 'bg-red-600 border-red-600 text-white shadow-lg shadow-red-600/30',
-                                'blue' => 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/30',
-                                'amber' => 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/30',
-                                'green' => 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/30',
-                                'pink' => 'bg-fuchsia-600 border-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/30',
-                            ][$paso['color']];
-                        @endphp
-                        <button
-                            type="button"
-                            @click="ir({{ $indice }})"
-                            :class="activo === {{ $indice }} ? '{{ $colorActivo }} scale-105' : 'border-white/10 bg-[#1a1a1c] text-gray-300 hover:-translate-y-0.5 hover:border-white/20 hover:text-white'"
-                            class="absolute left-1/2 top-1/2 w-36 -translate-x-1/2 -translate-y-1/2 rounded-2xl border px-4 py-2.5 text-center text-xs font-semibold leading-tight transition duration-300"
-                            style="margin-left: {{ $paso['x'] }}px; margin-top: {{ $paso['y'] }}px;"
-                        >
-                            {{ $indice + 1 }}. {{ $paso['titulo'] }}
-                        </button>
-                    @endforeach
+                    {{--
+                        Anillo giratorio: al cambiar "activo" rota para que ese paso quede
+                        siempre bajo el marcador superior. Cada píldora contrarrota en la
+                        misma duración/curva que el anillo (vía --tw-rotate) para que su
+                        texto se mantenga en posición vertical mientras orbita.
+                    --}}
+                    <div
+                        class="absolute inset-0 transition-transform duration-700 ease-out"
+                        :style="`transform: rotate(${activo * -72}deg)`"
+                    >
+                        @foreach ([
+                            ['icon' => 'chat-bubble-left-right', 'color' => 'red', 'titulo' => 'Contacto Inicial', 'descripcion' => 'Escríbenos por WhatsApp o llena el formulario de contacto.', 'x' => 0, 'y' => -210],
+                            ['icon' => 'light-bulb', 'color' => 'blue', 'titulo' => 'Información y Orientación', 'descripcion' => 'Te explicamos el programa, horarios y costos sin compromiso.', 'x' => 200, 'y' => -65],
+                            ['icon' => 'document-check', 'color' => 'amber', 'titulo' => 'Presentación de Documentos', 'descripcion' => 'Nos envías o acercas tus documentos para validar tu ingreso.', 'x' => 123, 'y' => 170],
+                            ['icon' => 'pencil-square', 'color' => 'green', 'titulo' => 'Matrícula', 'descripcion' => 'Completamos tu matrícula, totalmente gratuita.', 'x' => -123, 'y' => 170],
+                            ['icon' => 'academic-cap', 'color' => 'pink', 'titulo' => 'Inicio de Clases', 'descripcion' => 'Comienzas tus clases y tu acompañamiento docente.', 'x' => -200, 'y' => -65],
+                        ] as $indice => $paso)
+                            @php
+                                $colorActivo = [
+                                    'red' => 'bg-red-600 border-red-600 text-white shadow-lg shadow-red-600/30',
+                                    'blue' => 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/30',
+                                    'amber' => 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/30',
+                                    'green' => 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/30',
+                                    'pink' => 'bg-fuchsia-600 border-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/30',
+                                ][$paso['color']];
+                            @endphp
+                            <button
+                                type="button"
+                                @click="ir({{ $indice }})"
+                                :class="activo === {{ $indice }} ? '{{ $colorActivo }} scale-105' : 'border-white/10 bg-[#1a1a1c] text-gray-300 hover:[--tw-translate-y:calc(-50%-4px)] hover:border-white/20 hover:text-white'"
+                                :style="{ '--tw-rotate': (activo * 72) + 'deg' }"
+                                class="absolute left-1/2 top-1/2 w-36 -translate-x-1/2 -translate-y-1/2 rounded-2xl border px-4 py-2.5 text-center text-xs font-semibold leading-tight transition duration-700 ease-out"
+                                style="margin-left: {{ $paso['x'] }}px; margin-top: {{ $paso['y'] }}px;"
+                            >
+                                {{ $indice + 1 }}. {{ $paso['titulo'] }}
+                            </button>
+                        @endforeach
+                    </div>
 
                     <div class="absolute left-1/2 top-1/2 h-56 w-56 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-[#121214] shadow-2xl shadow-black/50">
                         @foreach ([
