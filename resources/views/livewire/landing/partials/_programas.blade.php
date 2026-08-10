@@ -102,7 +102,7 @@
                     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
                     const radio = 320;
-                    const escalaMaxima = 0.32;
+                    const escalaMaxima = 0.2;
                     this.escalas = [...this.$el.querySelectorAll('[data-tarjeta-magnetica]')].map((el) => {
                         const caja = el.getBoundingClientRect();
                         const centro = caja.left + caja.width / 2;
@@ -121,7 +121,7 @@
             class="mt-20"
         >
             <h3 class="text-center font-sans text-xl font-bold text-white">Áreas de Especialización</h3>
-            <div class="mt-10 flex items-end justify-center gap-6 overflow-x-auto px-4 pb-4 pt-8">
+            <div class="mt-10 flex items-end justify-center gap-6 overflow-x-auto px-4 pb-4 pt-10">
                 @foreach ($areasEspecializacion as $indice => $area)
                     <div
                         data-tarjeta-magnetica
@@ -142,7 +142,7 @@
                     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
                     const radio = 320;
-                    const escalaMaxima = 0.32;
+                    const escalaMaxima = 0.2;
                     this.escalas = [...this.$el.querySelectorAll('[data-tarjeta-magnetica]')].map((el) => {
                         const caja = el.getBoundingClientRect();
                         const centro = caja.left + caja.width / 2;
@@ -161,7 +161,7 @@
             class="mt-20"
         >
             <h3 class="text-center font-sans text-xl font-bold text-white">Nuestro Enfoque Pedagógico</h3>
-            <div class="mt-10 flex items-end justify-center gap-6 overflow-x-auto px-4 pb-4 pt-8">
+            <div class="mt-10 flex items-end justify-center gap-6 overflow-x-auto px-4 pb-4 pt-10">
                 @foreach ($enfoquePedagogico as $indice => $enfoque)
                     <div
                         data-tarjeta-magnetica
