@@ -102,7 +102,7 @@
                     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
                     const radio = 320;
-                    const escalaMaxima = 0.45;
+                    const escalaMaxima = 0.32;
                     this.escalas = [...this.$el.querySelectorAll('[data-tarjeta-magnetica]')].map((el) => {
                         const caja = el.getBoundingClientRect();
                         const centro = caja.left + caja.width / 2;
@@ -121,7 +121,7 @@
             class="mt-20"
         >
             <h3 class="text-center font-sans text-xl font-bold text-white">Áreas de Especialización</h3>
-            <div class="mt-10 flex items-end justify-center gap-4 overflow-x-auto px-4 pb-4 pt-8">
+            <div class="mt-10 flex items-end justify-center gap-6 overflow-x-auto px-4 pb-4 pt-8">
                 @foreach ($areasEspecializacion as $indice => $area)
                     <div
                         data-tarjeta-magnetica
@@ -135,19 +135,43 @@
             </div>
         </div>
 
-        <div x-data x-reveal class="mt-20">
+        <div
+            x-data="{
+                escalas: @js(array_fill(0, count($enfoquePedagogico), 1)),
+                actualizar(evento) {
+                    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+                    const radio = 320;
+                    const escalaMaxima = 0.32;
+                    this.escalas = [...this.$el.querySelectorAll('[data-tarjeta-magnetica]')].map((el) => {
+                        const caja = el.getBoundingClientRect();
+                        const centro = caja.left + caja.width / 2;
+                        const distancia = Math.abs(evento.clientX - centro);
+                        const influencia = Math.max(0, 1 - distancia / radio);
+                        return 1 + escalaMaxima * influencia;
+                    });
+                },
+                reiniciar() {
+                    this.escalas = this.escalas.map(() => 1);
+                },
+            }"
+            @mousemove="actualizar($event)"
+            @mouseleave="reiniciar()"
+            x-reveal
+            class="mt-20"
+        >
             <h3 class="text-center font-sans text-xl font-bold text-white">Nuestro Enfoque Pedagógico</h3>
-            <div class="marquee-row mt-8 overflow-hidden">
-                <div class="marquee-track marquee-right gap-4" style="animation-duration: {{ count($enfoquePedagogico) * 4.5 }}s">
-                    @foreach ([false, true] as $duplicado)
-                        @foreach ($enfoquePedagogico as $enfoque)
-                            <div @if ($duplicado) aria-hidden="true" @endif class="flex w-44 shrink-0 flex-col items-center rounded-2xl border border-white/5 bg-[#1a1a1c] p-5 text-center">
-                                <x-landing.icon-circle :icon="$enfoque['icon']" :color="$enfoque['color']" size="sm" />
-                                <p class="mt-3 text-xs font-semibold text-white">{{ $enfoque['label'] }}</p>
-                            </div>
-                        @endforeach
-                    @endforeach
-                </div>
+            <div class="mt-10 flex items-end justify-center gap-6 overflow-x-auto px-4 pb-4 pt-8">
+                @foreach ($enfoquePedagogico as $indice => $enfoque)
+                    <div
+                        data-tarjeta-magnetica
+                        :style="`transform: translateY(${(escalas[{{ $indice }}] - 1) * -46}px) scale(${escalas[{{ $indice }}]}); z-index: ${escalas[{{ $indice }}] > 1.02 ? 10 : 1};`"
+                        class="flex h-40 w-44 shrink-0 origin-bottom flex-col items-center justify-center gap-3 rounded-2xl border border-white/5 bg-[#1a1a1c] p-5 text-center transition-transform duration-150 ease-out"
+                    >
+                        <x-landing.icon-circle :icon="$enfoque['icon']" :color="$enfoque['color']" size="sm" />
+                        <p class="text-xs font-semibold text-white">{{ $enfoque['label'] }}</p>
+                    </div>
+                @endforeach
             </div>
         </div>
     </div>
