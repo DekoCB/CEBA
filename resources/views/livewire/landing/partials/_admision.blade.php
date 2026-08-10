@@ -5,7 +5,7 @@
         </x-landing.section-title>
 
         <div class="mx-auto grid max-w-4xl grid-cols-1 gap-6 sm:grid-cols-2">
-            <div x-data x-reveal class="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-8">
+            <div x-data x-reveal class="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-8 transition duration-300 hover:-translate-y-1 hover:border-amber-500/40 hover:shadow-xl hover:shadow-black/30">
                 <x-landing.icon-circle icon="document-check" color="amber" />
                 <h3 class="mt-4 font-sans text-lg font-bold text-white">Requisitos de Matrícula</h3>
                 <div class="mt-4 space-y-2.5">
@@ -24,7 +24,7 @@
                 </div>
             </div>
 
-            <div x-data x-reveal class="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-8">
+            <div x-data x-reveal class="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-8 transition duration-300 hover:-translate-y-1 hover:border-blue-500/40 hover:shadow-xl hover:shadow-black/30">
                 <x-landing.icon-circle icon="calendar-days" color="blue" />
                 <h3 class="mt-4 font-sans text-lg font-bold text-white">Fechas Importantes</h3>
                 <div class="mt-4 space-y-2.5">

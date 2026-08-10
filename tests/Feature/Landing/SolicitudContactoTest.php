@@ -56,7 +56,6 @@ class SolicitudContactoTest extends TestCase
         Volt::test('landing.index')
             ->assertSee('nuevo ciclo de secundaria')
             ->assertSee('Taller de orientación')
-            ->assertSee('Todos')
             ->assertSee('Admisión')
             ->assertSee('Taller');
     }

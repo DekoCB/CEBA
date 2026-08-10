@@ -6,7 +6,7 @@
         ['categoria' => 'motivacional', 'etiqueta' => 'Motivacional', 'fecha' => 'Agosto 2026', 'titulo' => 'Volver a estudiar sí se puede: historias de nuestros egresados', 'color' => 'green'],
     ]);
 
-    $categorias = ['todos' => 'Todos'] + $noticias->pluck('etiqueta', 'categoria')->all();
+    $categorias = $noticias->pluck('etiqueta', 'categoria')->all();
 
     // Primer índice de cada categoría dentro de $noticias -- el botón de
     // filtro simplemente hace girar el carrusel hasta esa tarjeta.
@@ -85,8 +85,8 @@
                 @foreach ($categorias as $valor => $etiqueta)
                     <button
                         type="button"
-                        @click="{{ $valor === 'todos' ? 'reiniciarAutoplay()' : 'ir('.$indicePorCategoria[$valor].')' }}"
-                        :class="{{ $valor === 'todos' ? 'false' : 'activo === '.$indicePorCategoria[$valor] }} ? 'bg-red-600 text-white' : 'bg-[#1a1a1c] text-gray-400 hover:text-white'"
+                        @click="ir({{ $indicePorCategoria[$valor] }})"
+                        :class="activo === {{ $indicePorCategoria[$valor] }} ? 'bg-red-600 text-white' : 'bg-[#1a1a1c] text-gray-400 hover:text-white'"
                         class="rounded-full px-4 py-2 text-sm font-semibold transition"
                     >
                         {{ $etiqueta }}
