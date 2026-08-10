@@ -549,3 +549,47 @@
         animation: none;
     }
 }
+
+/*
+ * Carrusel 3D "coverflow" de "Noticias y Avisos": cada tarjeta anima su
+ * propia posición según qué tan lejos esté de la activa (ver
+ * estiloTarjeta() en _noticias.blade.php) -- no hay un anillo que gire
+ * como conjunto, porque con solo 4 tarjetas espaciarlas en un círculo
+ * completo (360°/4 = 90°) las deja exactamente de canto y desaparecen.
+ * backface-visibility:hidden es una red de seguridad por si algún ángulo
+ * futuro las empuja más allá de 90°, para no mostrar texto espejado.
+ */
+.noticias-carousel-viewport {
+    perspective: 1400px;
+    padding: 2.5rem 0;
+}
+
+.noticias-carousel-ring {
+    position: relative;
+    width: 280px;
+    height: 300px;
+    transform-style: preserve-3d;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.noticias-carousel-item {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    padding: 0;
+    background: none;
+    border: 0;
+    font: inherit;
+    text-align: inherit;
+    cursor: pointer;
+    backface-visibility: hidden;
+    transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.6s ease, filter 0.6s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .noticias-carousel-item {
+        transition: none;
+    }
+}
