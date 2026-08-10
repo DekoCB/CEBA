@@ -1,73 +1,176 @@
-<section id="inicio" class="relative overflow-hidden bg-[#0a0a0a] pt-16 sm:pt-20">
-    <div class="hero-glow pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(220,38,38,0.12),transparent_45%),radial-gradient(circle_at_80%_0%,rgba(15,27,61,0.6),transparent_40%)]"></div>
+@php
+    $mensajeWhatsapp = $whatsappHref('Hola, quiero información sobre la matrícula en '.$nombreInstitucion.'.');
 
-    <div class="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:px-8 lg:py-24">
-        <div>
-            <div x-data x-reveal>
-                <span class="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-4 py-1.5 text-xs font-bold text-emerald-400">
-                    <x-heroicon-o-check-circle class="h-4 w-4" />
-                    Acreditado por el MINEDU
-                </span>
-            </div>
+    $tituloLineas = [
+        ['texto' => 'Termina tu Secundaria', 'acento' => false],
+        ['texto' => 'en Corto Tiempo', 'acento' => true],
+    ];
 
-            <div x-data x-reveal.75>
-                <h1 class="mt-6 font-sans text-4xl font-extrabold leading-tight text-white sm:text-5xl">
-                    Termina tu Secundaria
-                    <span class="block text-red-500">en Corto Tiempo</span>
-                </h1>
-            </div>
+    $letrasWordmark = str_split('CEBA');
+@endphp
 
-            <div x-data x-reveal.150>
-                <p class="mt-6 max-w-lg text-lg text-gray-400">
-                    En {{ $nombreInstitucion }} acompañamos a jóvenes y adultos a culminar su educación secundaria con
-                    horarios flexibles, pensados para quienes trabajan o tienen otras responsabilidades.
-                </p>
-            </div>
+{{--
+    Hero "portada" adaptado del concepto Loopstack: titular serif que se
+    revela palabra por palabra desde una máscara borrosa, wordmark gigante
+    que se revela letra por letra, y un cursor personalizado (anillo +
+    píldora "glass") que sigue al puntero. A diferencia del original -- una
+    sola pantalla fija sin scroll -- aquí todo vive en flujo normal dentro
+    de un min-h-screen, para que el resto de la landing (Nosotros,
+    Programas, Admisión...) siga debajo con scroll normal.
+--}}
+<section
+    id="inicio"
+    x-data="{
+        activo: false,
+        sobreBoton: false,
+        mouseX: 0, mouseY: 0,
+        pildoraX: 0, pildoraY: 0,
+        anilloX: 0, anilloY: 0,
+        escala: 0, escalaObjetivo: 0,
+        primerMovimiento: true,
+        iniciarCursor() {
+            if (! window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+                return;
+            }
 
-            <div x-data x-reveal.225 class="mt-8 grid grid-cols-2 gap-3 sm:max-w-md">
-                <x-landing.icon-card icon="clock" color="blue" title="2 grados en 1 año" compact />
-                <x-landing.icon-card icon="document-check" color="green" title="Certificado Oficial" compact />
-                <x-landing.icon-card icon="computer-desktop" color="amber" title="Virtual y Presencial" compact />
-                <x-landing.icon-card icon="banknotes" color="pink" title="S/ 80 Mensual" compact />
-            </div>
+            const anillo = this.$refs.anilloCursor;
+            const pildora = this.$refs.pildoraCursor;
+            const boton = this.$refs.botonCta;
 
-            <div x-data x-reveal.300 class="mt-8 flex flex-wrap gap-4">
-                <x-landing.cta-button :href="$whatsappHref('Hola, quiero información sobre la matrícula en CEBA Peruano Británico.')" target="_blank" variant="whatsapp" icon="chat-bubble-left-right">
-                    Contáctanos por WhatsApp
-                </x-landing.cta-button>
-                <x-landing.cta-button href="#contacto" variant="secondary" icon="pencil-square">
-                    Llenar formulario
-                </x-landing.cta-button>
-            </div>
+            this.$el.addEventListener('mousemove', (evento) => {
+                this.mouseX = evento.clientX;
+                this.mouseY = evento.clientY;
+
+                if (this.primerMovimiento) {
+                    this.pildoraX = this.mouseX; this.pildoraY = this.mouseY;
+                    this.anilloX = this.mouseX; this.anilloY = this.mouseY;
+                    this.primerMovimiento = false;
+                    anillo.classList.add('is-active');
+                    pildora.classList.add('is-active');
+                }
+
+                if (! this.sobreBoton) this.escalaObjetivo = 1;
+            });
+
+            this.$el.addEventListener('mouseleave', () => { this.escalaObjetivo = 0; });
+            this.$el.addEventListener('mouseenter', () => { if (! this.sobreBoton) this.escalaObjetivo = 1; });
+
+            boton.addEventListener('mouseenter', () => {
+                this.sobreBoton = true;
+                this.escalaObjetivo = 0;
+                anillo.classList.add('is-expanded');
+            });
+            boton.addEventListener('mouseleave', () => {
+                this.sobreBoton = false;
+                this.escalaObjetivo = 1;
+                anillo.classList.remove('is-expanded');
+            });
+
+            const actualizarFisica = () => {
+                // La píldora se retrasa detrás del puntero (LERP); el anillo lo sigue al instante.
+                this.pildoraX += (this.mouseX - this.pildoraX) * 0.08;
+                this.pildoraY += (this.mouseY - this.pildoraY) * 0.08;
+                this.anilloX = this.mouseX;
+                this.anilloY = this.mouseY;
+                this.escala += (this.escalaObjetivo - this.escala) * 0.15;
+
+                const escalaAnillo = anillo.classList.contains('is-expanded') ? 1.6 * this.escala : this.escala;
+
+                pildora.style.transform = `translate3d(${this.pildoraX}px, ${this.pildoraY}px, 0) translate(-50%, -50%) scale(${this.escala})`;
+                anillo.style.transform = `translate3d(${this.anilloX}px, ${this.anilloY}px, 0) translate(-50%, -50%) scale(${escalaAnillo})`;
+
+                requestAnimationFrame(actualizarFisica);
+            };
+            actualizarFisica();
+        },
+    }"
+    x-init="iniciarCursor()"
+    class="relative flex min-h-screen flex-col overflow-hidden bg-[#0a0a0a] pt-16"
+>
+    {{-- Fondo: resplandor de respaldo + video institucional (ver nota abajo) + degradado que funde ambos bordes hacia el negro. --}}
+    <div class="absolute inset-0 z-0">
+        <div class="hero-glow absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(220,38,38,0.16),transparent_45%),radial-gradient(circle_at_80%_10%,rgba(15,27,61,0.65),transparent_45%)]"></div>
+
+        {{--
+            TODO: coloca el video institucional en public/videos/hero-fondo.mp4
+            (o ajusta la ruta de abajo). El <source> ya está listo; mientras el
+            archivo no exista, el navegador simplemente no reproduce nada y
+            queda visible el resplandor de arriba, así que la sección nunca se
+            ve "rota" sin el video.
+        --}}
+        <video class="absolute inset-0 h-full w-full object-cover opacity-60" autoplay muted loop playsinline>
+            <source src="{{ asset('videos/hero-fondo.mp4') }}" type="video/mp4">
+        </video>
+
+        <div class="hero-loop-fade absolute inset-0"></div>
+    </div>
+
+    <div class="relative z-[2] mx-auto flex w-full max-w-4xl flex-1 flex-col items-center px-4 pb-10 pt-14 text-center sm:px-6 lg:pt-20">
+        <div x-data x-reveal class="mb-6">
+            <span class="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-4 py-1.5 text-xs font-bold text-emerald-400">
+                <x-heroicon-o-check-circle class="h-4 w-4" />
+                Acreditado por el MINEDU
+            </span>
         </div>
 
-        <div x-data x-reveal.150 class="relative">
-            <div class="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#0f1b3d] via-[#12142a] to-[#1a1a1c] p-8 shadow-2xl shadow-black/50">
-                <x-heroicon-o-academic-cap class="h-14 w-14 text-red-500" />
-                <p class="mt-4 font-sans text-2xl font-extrabold text-white">Tu segunda oportunidad<br>empieza aquí.</p>
+        <h1 class="hero-loop-title">
+            @foreach ($tituloLineas as $indiceLinea => $linea)
+                @php $abrirAcento = $linea['acento']; @endphp
+                @if ($abrirAcento)<span class="text-red-500">@endif
+                @foreach (explode(' ', $linea['texto']) as $indicePalabra => $palabra)
+                    @php $retraso = ($indiceLinea * 2 + $indicePalabra) * 0.1; @endphp
+                    <span class="hero-loop-word-mask"><span class="hero-loop-word-inner" style="animation-delay: {{ $retraso }}s">{{ $palabra }}</span></span>{{ $loop->last ? '' : ' ' }}
+                @endforeach
+                @if ($abrirAcento)</span>@endif
+                @if (! $loop->last)<br>@endif
+            @endforeach
+        </h1>
 
-                <div class="mt-6 flex flex-wrap gap-2">
-                    <span class="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">Matrícula gratis</span>
-                    <span class="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">Solo S/ 80 al mes</span>
-                    <span class="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">Modalidad EBA</span>
-                </div>
+        <a x-ref="botonCta" href="{{ $mensajeWhatsapp }}" target="_blank" rel="noopener" class="hero-loop-btn">
+            <span>Contáctanos por WhatsApp</span>
+            <span class="hero-loop-dot"></span>
+        </a>
+    </div>
 
-                <div class="mt-8 space-y-3 border-t border-white/10 pt-6">
-                    <p class="flex items-center gap-2 text-sm text-gray-300">
-                        <x-heroicon-o-phone class="h-4 w-4 text-red-500" />
-                        {{ $whatsappNumeroVisible }}
-                    </p>
-                    <p class="flex items-center gap-2 text-sm text-gray-300">
-                        <x-heroicon-o-envelope class="h-4 w-4 text-red-500" />
-                        {{ $emailContacto }}
-                    </p>
-                </div>
-
-                <div class="mt-6 flex items-center gap-2 rounded-xl bg-black/30 px-4 py-3">
-                    <x-heroicon-o-shield-check class="h-5 w-5 shrink-0 text-emerald-400" />
-                    <p class="text-xs text-gray-300">Institución educativa acreditada por el Ministerio de Educación del Perú.</p>
-                </div>
-            </div>
+    {{-- Bloque inferior decorativo (no es el <footer> real del sitio, que sigue más abajo en la página). --}}
+    <div class="relative z-[2] mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6 lg:px-8">
+        <div class="flex flex-col items-center gap-2 text-center sm:flex-row sm:items-end sm:justify-between sm:text-left">
+            <h2 class="hero-loop-tagline-title">Conversemos</h2>
+            <h2 class="hero-loop-tagline-title">Aprende. Crece. Gradúate.</h2>
         </div>
+
+        <hr class="hero-loop-divider">
+
+        <div class="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-1 items-center justify-center gap-5 sm:justify-start">
+                <a href="{{ $mensajeWhatsapp }}" target="_blank" rel="noopener" aria-label="WhatsApp" class="hero-loop-social">
+                    <x-heroicon-o-chat-bubble-left-right class="h-5 w-5" />
+                </a>
+                <a href="tel:+{{ $whatsappNumero }}" aria-label="Llamar" class="hero-loop-social">
+                    <x-heroicon-o-phone class="h-[18px] w-[18px]" />
+                </a>
+                <a href="mailto:{{ $emailContacto }}" aria-label="Correo" class="hero-loop-social">
+                    <x-heroicon-o-envelope class="h-5 w-5" />
+                </a>
+            </div>
+
+            <nav class="flex flex-[2] flex-wrap items-center justify-center gap-x-7 gap-y-2">
+                <a href="#nosotros" class="hero-loop-link">Nosotros</a>
+                <a href="#programas" class="hero-loop-link">Programas</a>
+                <a href="#admision" class="hero-loop-link">Admisión</a>
+                <a href="#contacto" class="hero-loop-link">Contacto</a>
+            </nav>
+
+            <div class="flex-1 text-center text-sm text-white/45 sm:text-right">© {{ now()->year }} {{ $nombreInstitucion }}</div>
+        </div>
+    </div>
+
+    <div class="relative z-[2] flex w-full justify-center overflow-hidden pb-4" aria-hidden="true">
+        <h2 class="hero-loop-wordmark">@foreach ($letrasWordmark as $indice => $letra)<span class="hero-loop-letter-mask"><span class="hero-loop-letter-inner" style="animation-delay: {{ $indice * 0.09 }}s">{{ $letra }}</span></span>@endforeach</h2>
+    </div>
+
+    <div x-ref="anilloCursor" class="hero-loop-ring"></div>
+    <div x-ref="pildoraCursor" class="hero-loop-pill">
+        <span class="hero-loop-pill-text"><span class="is-white">Matricúlate</span> Ahora</span>
     </div>
 </section>
