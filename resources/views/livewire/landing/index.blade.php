@@ -26,8 +26,6 @@ new #[Layout('layouts.landing')] class extends Component
 
     public bool $enviado = false;
 
-    public string $filtroNoticias = 'todos';
-
     public function enviarMensaje(SolicitudContactoService $service): void
     {
         $validado = $this->validate([

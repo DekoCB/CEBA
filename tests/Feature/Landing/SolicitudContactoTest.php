@@ -47,14 +47,18 @@ class SolicitudContactoTest extends TestCase
         $this->assertDatabaseCount('solicitudes_contacto', 0);
     }
 
-    public function test_el_filtro_de_noticias_reduce_el_listado_visible(): void
+    public function test_la_seccion_de_noticias_muestra_todas_las_categorias_para_filtrar_en_el_cliente(): void
     {
+        // El filtro de noticias es client-side (Alpine): el servidor siempre
+        // renderiza todas las tarjetas y el filtrado ocurre en el navegador,
+        // así que el test solo verifica que el contenido y los botones de
+        // categoría estén presentes en el HTML.
         Volt::test('landing.index')
             ->assertSee('nuevo ciclo de secundaria')
             ->assertSee('Taller de orientación')
-            ->set('filtroNoticias', 'taller')
-            ->assertSee('Taller de orientación')
-            ->assertDontSee('nuevo ciclo de secundaria');
+            ->assertSee('Todos')
+            ->assertSee('Admisión')
+            ->assertSee('Taller');
     }
 
     public function test_registrar_crea_la_solicitud_en_base_de_datos(): void

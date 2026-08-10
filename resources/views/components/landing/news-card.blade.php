@@ -11,14 +11,14 @@
     [$badge, $gradiente] = $tonos[$color] ?? $tonos['red'];
 @endphp
 
-<article class="overflow-hidden rounded-2xl border border-white/5 bg-[#1a1a1c]">
-    <div @class(['relative flex h-36 items-center justify-center bg-gradient-to-br to-[#111113]', $gradiente])>
+<article class="flex h-full flex-col overflow-hidden rounded-2xl border border-white/5 bg-[#1a1a1c]">
+    <div @class(['relative flex h-36 shrink-0 items-center justify-center bg-gradient-to-br to-[#111113]', $gradiente])>
         <x-heroicon-o-megaphone class="h-10 w-10 text-white/20" />
         <span @class(['absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-bold text-white', $badge])>
             {{ $categoria }}
         </span>
     </div>
-    <div class="p-5">
+    <div class="flex flex-1 flex-col p-5">
         <p class="flex items-center gap-1.5 text-xs text-gray-500">
             <x-heroicon-o-calendar-days class="h-4 w-4" />
             {{ $fecha }}
