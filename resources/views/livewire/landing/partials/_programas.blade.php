@@ -88,19 +88,50 @@
             ];
         @endphp
 
-        <div x-data x-reveal class="mt-20">
+        {{--
+            Carrusel "magnético" estilo dock de macOS: las tarjetas cercanas
+            al cursor se agrandan y se elevan, con una caída suave según la
+            distancia -- nada de scroll automático aquí, la interacción es
+            puramente del cursor. Se desactiva si el usuario prefiere menos
+            movimiento (queda como una fila estática).
+        --}}
+        <div
+            x-data="{
+                escalas: @js(array_fill(0, count($areasEspecializacion), 1)),
+                actualizar(evento) {
+                    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+                    const radio = 320;
+                    const escalaMaxima = 0.45;
+                    this.escalas = [...this.$el.querySelectorAll('[data-tarjeta-magnetica]')].map((el) => {
+                        const caja = el.getBoundingClientRect();
+                        const centro = caja.left + caja.width / 2;
+                        const distancia = Math.abs(evento.clientX - centro);
+                        const influencia = Math.max(0, 1 - distancia / radio);
+                        return 1 + escalaMaxima * influencia;
+                    });
+                },
+                reiniciar() {
+                    this.escalas = this.escalas.map(() => 1);
+                },
+            }"
+            @mousemove="actualizar($event)"
+            @mouseleave="reiniciar()"
+            x-reveal
+            class="mt-20"
+        >
             <h3 class="text-center font-sans text-xl font-bold text-white">Áreas de Especialización</h3>
-            <div class="marquee-row mt-8 overflow-hidden">
-                <div class="marquee-track marquee-left gap-4" style="animation-duration: {{ count($areasEspecializacion) * 4.5 }}s">
-                    @foreach ([false, true] as $duplicado)
-                        @foreach ($areasEspecializacion as $area)
-                            <div @if ($duplicado) aria-hidden="true" @endif class="flex w-40 shrink-0 flex-col items-center gap-3 rounded-2xl border border-white/5 bg-[#1a1a1c] p-5 text-center">
-                                <x-landing.icon-circle :icon="$area['icon']" :color="$area['color']" size="sm" />
-                                <p class="text-xs font-semibold text-white">{{ $area['label'] }}</p>
-                            </div>
-                        @endforeach
-                    @endforeach
-                </div>
+            <div class="mt-10 flex items-end justify-center gap-4 overflow-x-auto px-4 pb-4 pt-8">
+                @foreach ($areasEspecializacion as $indice => $area)
+                    <div
+                        data-tarjeta-magnetica
+                        :style="`transform: translateY(${(escalas[{{ $indice }}] - 1) * -46}px) scale(${escalas[{{ $indice }}]}); z-index: ${escalas[{{ $indice }}] > 1.02 ? 10 : 1};`"
+                        class="flex w-40 shrink-0 origin-bottom flex-col items-center gap-3 rounded-2xl border border-white/5 bg-[#1a1a1c] p-5 text-center transition-transform duration-150 ease-out"
+                    >
+                        <x-landing.icon-circle :icon="$area['icon']" :color="$area['color']" size="sm" />
+                        <p class="text-xs font-semibold text-white">{{ $area['label'] }}</p>
+                    </div>
+                @endforeach
             </div>
         </div>
 
