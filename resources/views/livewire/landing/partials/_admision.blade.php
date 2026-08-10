@@ -200,8 +200,79 @@
             </div>
         </div>
 
-        <div x-data x-reveal class="mt-20 overflow-hidden rounded-3xl bg-red-600">
-            <div class="flex flex-col items-center gap-6 px-6 py-12 text-center sm:px-12">
+        {{--
+            Fondo "pixel drift": motas de luz que derivan lentamente hacia
+            arriba sobre el banner rojo, como polvo ambiental. Se dibuja en
+            canvas (no como docenas de <div> animados) por rendimiento, y no
+            arranca si el usuario prefiere menos movimiento.
+        --}}
+        <div
+            x-data="{
+                iniciarParticulas() {
+                    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+                    const canvas = this.$refs.lienzo;
+                    const ctx = canvas.getContext('2d');
+                    const contenedor = this.$el;
+                    const dpr = window.devicePixelRatio || 1;
+                    let particulas = [];
+
+                    const crearParticulas = (ancho, alto) => {
+                        const cantidad = Math.round((ancho * alto) / 9000);
+                        particulas = Array.from({ length: cantidad }, () => ({
+                            x: Math.random() * ancho,
+                            y: Math.random() * alto,
+                            tamano: 1.5 + Math.random() * 2.5,
+                            velocidadX: (Math.random() - 0.5) * 0.15,
+                            velocidadY: -0.1 - Math.random() * 0.25,
+                            opacidadBase: 0.25 + Math.random() * 0.5,
+                            fase: Math.random() * Math.PI * 2,
+                        }));
+                    };
+
+                    const dimensionar = () => {
+                        const caja = contenedor.getBoundingClientRect();
+                        canvas.width = caja.width * dpr;
+                        canvas.height = caja.height * dpr;
+                        canvas.style.width = `${caja.width}px`;
+                        canvas.style.height = `${caja.height}px`;
+                        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                        crearParticulas(caja.width, caja.height);
+                    };
+
+                    const dibujar = () => {
+                        const caja = contenedor.getBoundingClientRect();
+                        ctx.clearRect(0, 0, caja.width, caja.height);
+
+                        for (const p of particulas) {
+                            p.x += p.velocidadX;
+                            p.y += p.velocidadY;
+                            p.fase += 0.02;
+
+                            if (p.y < -4) p.y = caja.height + 4;
+                            if (p.x < -4) p.x = caja.width + 4;
+                            if (p.x > caja.width + 4) p.x = -4;
+
+                            const opacidad = p.opacidadBase * (0.6 + 0.4 * Math.sin(p.fase));
+                            ctx.fillStyle = `rgba(255, 255, 255, ${opacidad})`;
+                            ctx.fillRect(p.x, p.y, p.tamano, p.tamano);
+                        }
+
+                        requestAnimationFrame(dibujar);
+                    };
+
+                    dimensionar();
+                    window.addEventListener('resize', dimensionar);
+                    dibujar();
+                },
+            }"
+            x-init="iniciarParticulas()"
+            x-reveal
+            class="relative mt-20 overflow-hidden rounded-3xl bg-red-600"
+        >
+            <canvas x-ref="lienzo" class="pointer-events-none absolute inset-0"></canvas>
+
+            <div class="relative z-[1] flex flex-col items-center gap-6 px-6 py-12 text-center sm:px-12">
                 <h3 class="font-sans text-3xl font-extrabold text-white">¡Matrícula GRATIS!</h3>
                 <p class="max-w-xl text-red-100">
                     Solo pagas S/ 80 de pensión mensual. Escríbenos hoy mismo y asegura tu vacante.
