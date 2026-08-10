@@ -126,7 +126,7 @@
                     <div
                         data-tarjeta-magnetica
                         :style="`transform: translateY(${(escalas[{{ $indice }}] - 1) * -46}px) scale(${escalas[{{ $indice }}]}); z-index: ${escalas[{{ $indice }}] > 1.02 ? 10 : 1};`"
-                        class="flex w-40 shrink-0 origin-bottom flex-col items-center gap-3 rounded-2xl border border-white/5 bg-[#1a1a1c] p-5 text-center transition-transform duration-150 ease-out"
+                        class="flex h-40 w-40 shrink-0 origin-bottom flex-col items-center justify-center gap-3 rounded-2xl border border-white/5 bg-[#1a1a1c] p-5 text-center transition-transform duration-150 ease-out"
                     >
                         <x-landing.icon-circle :icon="$area['icon']" :color="$area['color']" size="sm" />
                         <p class="text-xs font-semibold text-white">{{ $area['label'] }}</p>
