@@ -39,8 +39,6 @@ new class extends Component
 
     public string $celular = '';
 
-    public string $email = '';
-
     public string $observacionesEstudiante = '';
 
     public $foto = null;
@@ -119,7 +117,6 @@ new class extends Component
                 'estadoCivil' => 'nullable|string|in:'.implode(',', array_column(EstadoCivilEnum::cases(), 'value')),
                 'direccion' => 'nullable|string|max:150',
                 'celular' => 'nullable|string',
-                'email' => 'nullable|email|max:150',
             ]);
 
             if (! $service->dniDisponible($this->dni)) {
@@ -215,7 +212,6 @@ new class extends Component
             estadoCivil: $this->estadoCivil !== '' ? EstadoCivilEnum::from($this->estadoCivil) : null,
             direccion: $this->direccion ?: null,
             celular: $this->celular !== '' ? new Telefono($this->celular) : null,
-            email: $this->email ?: null,
             observaciones: $this->observacionesEstudiante ?: null,
         ));
 
@@ -366,7 +362,7 @@ new class extends Component
                 </div>
                 <div>
                     <x-input-label for="dni" value="DNI" />
-                    <x-text-input wire:model="dni" id="dni" class="mt-1 block w-full" />
+                    <x-text-input wire:model.live="dni" id="dni" class="mt-1 block w-full" />
                     <x-input-error :messages="$errors->get('dni')" class="mt-1" />
                 </div>
                 <div>
@@ -397,9 +393,11 @@ new class extends Component
                     <x-input-error :messages="$errors->get('direccion')" class="mt-1" />
                 </div>
                 <div class="sm:col-span-2">
-                    <x-input-label for="email" value="Correo (opcional)" />
-                    <x-text-input wire:model="email" id="email" type="email" class="mt-1 block w-full" />
-                    <x-input-error :messages="$errors->get('email')" class="mt-1" />
+                    <x-input-label value="Correo" />
+                    <div class="mt-1 rounded-md border border-border bg-surface-2 px-3 py-2 font-mono text-sm text-ink-dim">
+                        {{ trim($dni) !== '' ? strtolower(trim($dni)).'@ceba.test' : '—' }}
+                    </div>
+                    <p class="mt-1 text-xs text-ink-faint">Se asigna automáticamente a partir del DNI, junto con su cuenta de acceso al sistema.</p>
                 </div>
                 <div class="sm:col-span-2">
                     <x-input-label for="foto" value="Fotografía (opcional)" />

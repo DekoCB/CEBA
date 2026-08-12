@@ -18,7 +18,6 @@ final readonly class RegistrarEstudianteData
         public ?EstadoCivilEnum $estadoCivil,
         public ?string $direccion,
         public ?Telefono $celular,
-        public ?string $email,
         public ?string $observaciones,
     ) {}
 }

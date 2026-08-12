@@ -41,7 +41,6 @@ class MatriculaDemoSeeder extends Seeder
                 estadoCivil: null,
                 direccion: 'Jr. Los Álamos 234, Lima',
                 celular: new Telefono('987654321'),
-                email: 'rosa.quispe@example.com',
                 observaciones: null,
             ));
 
@@ -71,7 +70,6 @@ class MatriculaDemoSeeder extends Seeder
                 estadoCivil: null,
                 direccion: 'Av. Las Flores 512, Lima',
                 celular: null,
-                email: null,
                 observaciones: null,
             ));
 

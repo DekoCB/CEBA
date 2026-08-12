@@ -24,9 +24,6 @@ new #[Layout('layouts.app')] class extends Component
     #[Validate('required|string|max:150')]
     public string $name = '';
 
-    #[Validate('required|email|max:150')]
-    public string $email = '';
-
     #[Validate('required|string|min:8|max:12')]
     public string $dni = '';
 
@@ -58,7 +55,7 @@ new #[Layout('layouts.app')] class extends Component
     {
         Gate::authorize('usuarios.crear');
 
-        $this->reset(['name', 'email', 'dni', 'phone', 'password', 'rol']);
+        $this->reset(['name', 'dni', 'phone', 'password', 'rol']);
         $this->resetValidation();
         $this->mostrarModal = true;
     }
@@ -69,18 +66,11 @@ new #[Layout('layouts.app')] class extends Component
 
         $this->validate([
             'name' => 'required|string|max:150',
-            'email' => 'required|email|max:150',
             'dni' => 'required|string|min:8|max:12',
             'phone' => 'nullable|string',
             'password' => 'required|string|min:8',
             'rol' => 'required|string|in:'.implode(',', array_column($this->rolesCreables(), 'value')),
         ]);
-
-        if (! $service->emailDisponible($this->email)) {
-            $this->addError('email', 'Ya existe un usuario con este correo.');
-
-            return;
-        }
 
         if (! $service->dniDisponible($this->dni)) {
             $this->addError('dni', 'Ya existe un usuario con este documento.');
@@ -88,10 +78,19 @@ new #[Layout('layouts.app')] class extends Component
             return;
         }
 
+        $dni = new Dni($this->dni);
+        $email = $dni->correoInstitucional();
+
+        if (! $service->emailDisponible($email)) {
+            $this->addError('dni', 'Ya existe un usuario con el correo institucional de este documento.');
+
+            return;
+        }
+
         $service->crear(new CrearUsuarioData(
             name: $this->name,
-            email: $this->email,
-            dni: new Dni($this->dni),
+            email: $email,
+            dni: $dni,
             phone: $this->phone !== '' ? new Telefono($this->phone) : null,
             password: $this->password,
             rol: RolEnum::from($this->rol),
@@ -239,16 +238,10 @@ new #[Layout('layouts.app')] class extends Component
                         <x-input-error :messages="$errors->get('name')" class="mt-1" />
                     </div>
 
-                    <div>
-                        <x-input-label for="email" value="Correo" />
-                        <x-text-input wire:model="email" id="email" type="email" class="mt-1 block w-full" />
-                        <x-input-error :messages="$errors->get('email')" class="mt-1" />
-                    </div>
-
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <x-input-label for="dni" value="DNI" />
-                            <x-text-input wire:model="dni" id="dni" class="mt-1 block w-full" />
+                            <x-text-input wire:model.live="dni" id="dni" class="mt-1 block w-full" />
                             <x-input-error :messages="$errors->get('dni')" class="mt-1" />
                         </div>
                         <div>
@@ -256,6 +249,14 @@ new #[Layout('layouts.app')] class extends Component
                             <x-text-input wire:model="phone" id="phone" class="mt-1 block w-full" />
                             <x-input-error :messages="$errors->get('phone')" class="mt-1" />
                         </div>
+                    </div>
+
+                    <div>
+                        <x-input-label value="Correo" />
+                        <div class="mt-1 rounded-md border border-border bg-surface-2 px-3 py-2 font-mono text-sm text-ink-dim">
+                            {{ trim($dni) !== '' ? strtolower(trim($dni)).'@ceba.test' : '—' }}
+                        </div>
+                        <p class="mt-1 text-xs text-ink-faint">Se asigna automáticamente a partir del DNI.</p>
                     </div>
 
                     <div>

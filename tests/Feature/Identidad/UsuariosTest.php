@@ -50,7 +50,6 @@ class UsuariosTest extends TestCase
 
         Volt::test('usuarios.index')
             ->set('name', 'Nueva Docente')
-            ->set('email', 'nueva.docente@ceba.test')
             ->set('dni', '87654321')
             ->set('phone', '987654321')
             ->set('password', 'password123')
@@ -58,29 +57,28 @@ class UsuariosTest extends TestCase
             ->call('crear')
             ->assertHasNoErrors();
 
-        $creado = User::query()->where('email', 'nueva.docente@ceba.test')->first();
+        $creado = User::query()->where('email', '87654321@ceba.test')->first();
 
         $this->assertNotNull($creado);
         $this->assertTrue($creado->hasRole(RolEnum::DOCENTE->value));
     }
 
-    public function test_no_permite_crear_usuario_con_email_duplicado(): void
+    public function test_no_permite_crear_dos_usuarios_con_el_mismo_dni(): void
     {
         $direccion = User::factory()->create();
         $direccion->assignRole(RolEnum::DIRECCION->value);
 
-        User::factory()->create(['email' => 'existente@ceba.test']);
+        User::factory()->create(['dni' => '11223344']);
 
         $this->actingAs($direccion);
 
         Volt::test('usuarios.index')
             ->set('name', 'Otro Usuario')
-            ->set('email', 'existente@ceba.test')
             ->set('dni', '11223344')
             ->set('password', 'password123')
             ->set('rol', RolEnum::DOCENTE->value)
             ->call('crear')
-            ->assertHasErrors('email');
+            ->assertHasErrors('dni');
     }
 
     public function test_los_estudiantes_no_aparecen_en_el_listado_de_usuarios(): void
@@ -120,7 +118,6 @@ class UsuariosTest extends TestCase
 
         Volt::test('usuarios.index')
             ->set('name', 'Intento Estudiante')
-            ->set('email', 'intento.estudiante@ceba.test')
             ->set('dni', '99887766')
             ->set('password', 'password123')
             ->set('rol', RolEnum::ESTUDIANTE->value)

@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Modules\Matricula\Services;
 
+use App\Models\User;
 use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\PeriodoMatricula;
+use App\Modules\Identidad\DTOs\CrearUsuarioData;
+use App\Modules\Identidad\Services\UserManagementService;
 use App\Modules\Matricula\DTOs\RegistrarApoderadoData;
 use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
 use App\Modules\Matricula\DTOs\RegistrarMatriculaData;
@@ -21,6 +24,7 @@ use App\Modules\Matricula\Models\InstitucionProcedencia;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Repositories\Contracts\EstudianteRepositoryInterface;
 use App\Modules\Matricula\Repositories\Contracts\MatriculaRepositoryInterface;
+use App\Shared\Enums\RolEnum;
 use App\Shared\ValueObjects\Dni;
 use App\Shared\ValueObjects\Telefono;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -38,6 +42,7 @@ class MatriculaService
     public function __construct(
         private readonly EstudianteRepositoryInterface $estudiantes,
         private readonly MatriculaRepositoryInterface $matriculas,
+        private readonly UserManagementService $usuarios,
     ) {}
 
     public function listarEstudiantes(?string $termino, ?string $estado, int $perPage = 15): LengthAwarePaginator
@@ -55,21 +60,50 @@ class MatriculaService
         return Carbon::parse($fechaNacimiento)->age < 18;
     }
 
+    /**
+     * Además de la ficha del estudiante, esto le crea (o reutiliza, si ya
+     * existe una con el mismo DNI) su cuenta de acceso al sistema: correo
+     * {dni}@ceba.test y contraseña inicial igual a su DNI -- el estudiante
+     * puede cambiarla después desde su perfil. No hay ningún paso de
+     * formulario para esto: se calcula siempre a partir del DNI.
+     */
     public function registrarEstudiante(RegistrarEstudianteData $data): Estudiante
     {
-        return $this->estudiantes->create([
-            'nombres' => $data->nombres,
-            'apellidos' => $data->apellidos,
-            'dni' => $data->dni->valor(),
-            'fecha_nacimiento' => $data->fechaNacimiento,
-            'es_menor_edad' => self::esMenorDeEdad($data->fechaNacimiento),
-            'estado_civil' => $data->estadoCivil,
-            'direccion' => $data->direccion,
-            'celular' => $data->celular?->numero(),
-            'email' => $data->email,
-            'observaciones' => $data->observaciones,
-            'estado' => EstadoEstudianteEnum::ACTIVO,
-        ]);
+        return DB::transaction(function () use ($data) {
+            $email = $data->dni->correoInstitucional();
+
+            $usuario = User::query()->where('dni', $data->dni->valor())->first();
+
+            if ($usuario) {
+                if (! $usuario->hasRole(RolEnum::ESTUDIANTE->value)) {
+                    $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+                }
+            } else {
+                $usuario = $this->usuarios->crear(new CrearUsuarioData(
+                    name: "{$data->nombres} {$data->apellidos}",
+                    email: $email,
+                    dni: $data->dni,
+                    phone: $data->celular,
+                    password: $data->dni->valor(),
+                    rol: RolEnum::ESTUDIANTE,
+                ));
+            }
+
+            return $this->estudiantes->create([
+                'user_id' => $usuario->id,
+                'nombres' => $data->nombres,
+                'apellidos' => $data->apellidos,
+                'dni' => $data->dni->valor(),
+                'fecha_nacimiento' => $data->fechaNacimiento,
+                'es_menor_edad' => self::esMenorDeEdad($data->fechaNacimiento),
+                'estado_civil' => $data->estadoCivil,
+                'direccion' => $data->direccion,
+                'celular' => $data->celular?->numero(),
+                'email' => $email,
+                'observaciones' => $data->observaciones,
+                'estado' => EstadoEstudianteEnum::ACTIVO,
+            ]);
+        });
     }
 
     public function registrarApoderado(Estudiante $estudiante, RegistrarApoderadoData $data): Apoderado
@@ -209,7 +243,6 @@ class MatriculaService
                         estadoCivil: $estadoCivil,
                         direccion: $this->celdaOpcional($fila, 'direccion'),
                         celular: $celularTexto !== null ? new Telefono($celularTexto) : null,
-                        email: $this->celdaOpcional($fila, 'email'),
                         observaciones: $this->celdaOpcional($fila, 'observaciones'),
                     ));
 

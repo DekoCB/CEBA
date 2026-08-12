@@ -47,6 +47,16 @@ final readonly class Dni implements Stringable
         return $this->valor;
     }
 
+    /**
+     * Correo institucional autoasignado: siempre {dni}@ceba.test, en vez de
+     * requerir que se ingrese uno manualmente al crear un usuario o
+     * matricular un estudiante.
+     */
+    public function correoInstitucional(): string
+    {
+        return strtolower($this->valor).'@ceba.test';
+    }
+
     public function __toString(): string
     {
         return $this->valor;

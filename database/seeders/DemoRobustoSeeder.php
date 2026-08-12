@@ -288,7 +288,6 @@ class DemoRobustoSeeder extends Seeder
                     estadoCivil: $esMenor ? null : Arr::random(EstadoCivilEnum::cases()),
                     direccion: $this->direccionAleatoria(),
                     celular: new Telefono($this->siguienteCelular()),
-                    email: null,
                     observaciones: null,
                 ));
 

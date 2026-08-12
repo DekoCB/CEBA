@@ -2,24 +2,35 @@
 
 namespace Tests\Feature\Matricula;
 
+use App\Models\User;
 use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
+use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\DTOs\RegistrarApoderadoData;
 use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
 use App\Modules\Matricula\DTOs\RegistrarMatriculaData;
 use App\Modules\Matricula\Events\EstudianteMatriculado;
 use App\Modules\Matricula\Services\MatriculaService;
+use App\Shared\Enums\RolEnum;
 use App\Shared\ValueObjects\Dni;
 use App\Shared\ValueObjects\Telefono;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class MatriculaServiceTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(RolesAndPermissionsSeeder::class);
+    }
 
     private function service(): MatriculaService
     {
@@ -36,7 +47,6 @@ class MatriculaServiceTest extends TestCase
             estadoCivil: null,
             direccion: 'Av. Siempre Viva 123',
             celular: new Telefono('987654321'),
-            email: 'ana@example.com',
             observaciones: null,
         );
     }
@@ -68,6 +78,30 @@ class MatriculaServiceTest extends TestCase
 
         $this->assertDatabaseHas('estudiantes', ['dni' => '12345678', 'es_menor_edad' => false]);
         $this->assertSame('Ana García Pérez', $estudiante->nombreCompleto());
+    }
+
+    public function test_registrar_estudiante_le_crea_su_cuenta_de_acceso_con_correo_y_password_autoasignados(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+
+        $this->assertSame('12345678@ceba.test', $estudiante->email);
+        $this->assertNotNull($estudiante->user_id);
+
+        $usuario = $estudiante->user;
+        $this->assertSame('12345678@ceba.test', $usuario->email);
+        $this->assertSame('12345678', $usuario->dni);
+        $this->assertTrue($usuario->hasRole(RolEnum::ESTUDIANTE->value));
+        $this->assertTrue(Hash::check('12345678', $usuario->password));
+    }
+
+    public function test_registrar_estudiante_reutiliza_una_cuenta_existente_con_el_mismo_dni(): void
+    {
+        $usuarioExistente = User::factory()->create(['dni' => '12345678']);
+
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+
+        $this->assertSame($usuarioExistente->id, $estudiante->user_id);
+        $this->assertTrue($usuarioExistente->fresh()->hasRole(RolEnum::ESTUDIANTE->value));
     }
 
     public function test_no_permite_registrar_apoderado_para_estudiante_mayor_de_edad(): void
