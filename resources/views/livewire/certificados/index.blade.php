@@ -1,7 +1,7 @@
 <?php
 
-use App\Models\User;
 use App\Modules\Certificados\Models\Certificado;
+use App\Modules\Certificados\Models\PlantillaCertificado;
 use App\Modules\Certificados\Models\SolicitudCertificado;
 use App\Modules\Certificados\Services\CertificadoService;
 use App\Modules\Matricula\Models\Estudiante;
@@ -33,13 +33,91 @@ new #[Layout('layouts.app')] class extends Component
     /** @var array<int, string> */
     public array $observacionesDuplicado = [];
 
-    public function mount(): void
+    // Plantilla del certificado
+    public string $plantillaInstitucion = '';
+
+    public string $plantillaTitulo = '';
+
+    public string $plantillaCuerpo = '';
+
+    public string $plantillaPieNota = '';
+
+    public string $plantillaColorAcento = '#137A6C';
+
+    public function mount(CertificadoService $service): void
     {
         $user = Auth::user();
 
         abort_unless($user->hasAnyPermission(['certificados.ver', 'certificados.emitir']), 403);
 
         $this->tab = $user->hasPermissionTo('certificados.emitir') ? 'solicitudes' : 'historial';
+
+        if ($user->hasPermissionTo('certificados.gestionar_plantilla')) {
+            $this->cargarPlantilla($service);
+        }
+    }
+
+    private function cargarPlantilla(CertificadoService $service): void
+    {
+        $plantilla = $service->plantillaActual();
+
+        $this->plantillaInstitucion = $plantilla->institucion;
+        $this->plantillaTitulo = $plantilla->titulo;
+        $this->plantillaCuerpo = $plantilla->cuerpo;
+        $this->plantillaPieNota = (string) $plantilla->pie_nota;
+        $this->plantillaColorAcento = $plantilla->color_acento;
+    }
+
+    public function guardarPlantilla(CertificadoService $service): void
+    {
+        abort_unless(Auth::user()->hasPermissionTo('certificados.gestionar_plantilla'), 403);
+
+        $this->validate([
+            'plantillaInstitucion' => 'required|string|max:150',
+            'plantillaTitulo' => 'required|string|max:100',
+            'plantillaCuerpo' => 'required|string|max:2000',
+            'plantillaPieNota' => 'nullable|string|max:500',
+            'plantillaColorAcento' => 'required|string|regex:/^#[0-9A-Fa-f]{6}$/',
+        ]);
+
+        $service->guardarPlantilla([
+            'institucion' => $this->plantillaInstitucion,
+            'titulo' => $this->plantillaTitulo,
+            'cuerpo' => $this->plantillaCuerpo,
+            'pie_nota' => $this->plantillaPieNota ?: null,
+            'color_acento' => $this->plantillaColorAcento,
+        ]);
+
+        session()->flash('status', 'Plantilla del certificado actualizada.');
+    }
+
+    public function previsualizarPlantilla(CertificadoService $service)
+    {
+        abort_unless(Auth::user()->hasPermissionTo('certificados.gestionar_plantilla'), 403);
+
+        $this->validate([
+            'plantillaInstitucion' => 'required|string|max:150',
+            'plantillaTitulo' => 'required|string|max:100',
+            'plantillaCuerpo' => 'required|string|max:2000',
+            'plantillaPieNota' => 'nullable|string|max:500',
+            'plantillaColorAcento' => 'required|string|regex:/^#[0-9A-Fa-f]{6}$/',
+        ]);
+
+        $plantilla = new PlantillaCertificado([
+            'institucion' => $this->plantillaInstitucion,
+            'titulo' => $this->plantillaTitulo,
+            'cuerpo' => $this->plantillaCuerpo,
+            'pie_nota' => $this->plantillaPieNota ?: null,
+            'color_acento' => $this->plantillaColorAcento,
+        ]);
+
+        $pdf = $service->previsualizarPlantilla($plantilla);
+
+        return response()->streamDownload(
+            fn () => print ($pdf),
+            'vista-previa-certificado.pdf',
+            ['Content-Type' => 'application/pdf'],
+        );
     }
 
     public function seleccionarEstudiante(int $estudianteId, string $nombre): void
@@ -115,6 +193,7 @@ new #[Layout('layouts.app')] class extends Component
         $puedeEmitir = $user->hasPermissionTo('certificados.emitir');
         $puedeDuplicar = $user->hasPermissionTo('certificados.duplicar');
         $puedeVerHistorial = $user->hasAnyPermission(['certificados.ver', 'certificados.emitir']);
+        $puedeGestionarPlantilla = $user->hasPermissionTo('certificados.gestionar_plantilla');
 
         $resultadosBusqueda = collect();
         $matriculasDelEstudiante = collect();
@@ -144,6 +223,7 @@ new #[Layout('layouts.app')] class extends Component
             'puedeEmitir' => $puedeEmitir,
             'puedeDuplicar' => $puedeDuplicar,
             'puedeVerHistorial' => $puedeVerHistorial,
+            'puedeGestionarPlantilla' => $puedeGestionarPlantilla,
             'solicitudesPendientes' => $puedeEmitir ? $certificados->solicitudesPendientes() : collect(),
             'historial' => $puedeVerHistorial ? $certificados->todos() : collect(),
             'resultadosBusqueda' => $resultadosBusqueda,
@@ -179,6 +259,11 @@ new #[Layout('layouts.app')] class extends Component
         @if ($puedeVerHistorial)
             <button wire:click="$set('tab', 'historial')" @class(['border-b-2 px-4 py-2 text-sm font-medium transition', 'border-accent text-accent' => $tab === 'historial', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'historial'])>
                 Historial
+            </button>
+        @endif
+        @if ($puedeGestionarPlantilla)
+            <button wire:click="$set('tab', 'plantilla')" @class(['border-b-2 px-4 py-2 text-sm font-medium transition', 'border-accent text-accent' => $tab === 'plantilla', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'plantilla'])>
+                Plantilla
             </button>
         @endif
     </div>
@@ -309,6 +394,55 @@ new #[Layout('layouts.app')] class extends Component
             @empty
                 <p class="px-4 py-8 text-center text-sm text-ink-faint">No hay certificados emitidos.</p>
             @endforelse
+        </div>
+    @endif
+
+    {{-- Plantilla del certificado --}}
+    @if ($tab === 'plantilla' && $puedeGestionarPlantilla)
+        <div class="max-w-2xl space-y-4 rounded-lg border border-border bg-surface p-6">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                    <x-input-label for="plantillaInstitucion" value="Institución" />
+                    <x-text-input wire:model="plantillaInstitucion" id="plantillaInstitucion" class="mt-1 block w-full" />
+                    <x-input-error :messages="$errors->get('plantillaInstitucion')" class="mt-1" />
+                </div>
+                <div>
+                    <x-input-label for="plantillaTitulo" value="Título" />
+                    <x-text-input wire:model="plantillaTitulo" id="plantillaTitulo" class="mt-1 block w-full" />
+                    <x-input-error :messages="$errors->get('plantillaTitulo')" class="mt-1" />
+                </div>
+            </div>
+
+            <div>
+                <x-input-label for="plantillaCuerpo" value="Cuerpo del certificado" />
+                <textarea wire:model="plantillaCuerpo" id="plantillaCuerpo" rows="5" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent"></textarea>
+                <p class="mt-1 text-xs text-ink-faint">
+                    Puedes usar: <code class="rounded bg-surface-2 px-1">@{{estudiante}}</code>
+                    <code class="rounded bg-surface-2 px-1">@{{dni}}</code>
+                    <code class="rounded bg-surface-2 px-1">@{{detalle_matricula}}</code>
+                    <code class="rounded bg-surface-2 px-1">@{{numero}}</code>
+                    <code class="rounded bg-surface-2 px-1">@{{fecha_emision}}</code>
+                    <code class="rounded bg-surface-2 px-1">@{{codigo_verificacion}}</code>
+                </p>
+                <x-input-error :messages="$errors->get('plantillaCuerpo')" class="mt-1" />
+            </div>
+
+            <div>
+                <x-input-label for="plantillaPieNota" value="Nota al pie (opcional)" />
+                <textarea wire:model="plantillaPieNota" id="plantillaPieNota" rows="2" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent"></textarea>
+                <x-input-error :messages="$errors->get('plantillaPieNota')" class="mt-1" />
+            </div>
+
+            <div>
+                <x-input-label for="plantillaColorAcento" value="Color del formato" />
+                <input type="color" wire:model="plantillaColorAcento" id="plantillaColorAcento" class="mt-1 block h-10 w-20 rounded-md border-border bg-surface">
+                <x-input-error :messages="$errors->get('plantillaColorAcento')" class="mt-1" />
+            </div>
+
+            <div class="flex justify-end gap-3 border-t border-border pt-4">
+                <x-secondary-button type="button" wire:click="previsualizarPlantilla">Descargar vista previa</x-secondary-button>
+                <x-primary-button type="button" wire:click="guardarPlantilla">Guardar plantilla</x-primary-button>
+            </div>
         </div>
     @endif
 </div>

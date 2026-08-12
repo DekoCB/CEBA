@@ -7,6 +7,7 @@ namespace App\Modules\Certificados\Services;
 use App\Models\User;
 use App\Modules\Certificados\Enums\EstadoSolicitudCertificadoEnum;
 use App\Modules\Certificados\Models\Certificado;
+use App\Modules\Certificados\Models\PlantillaCertificado;
 use App\Modules\Certificados\Models\SolicitudCertificado;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
@@ -95,6 +96,46 @@ class CertificadoService
         ]);
     }
 
+    public function plantillaActual(): PlantillaCertificado
+    {
+        return PlantillaCertificado::actual();
+    }
+
+    /**
+     * @param  array{institucion: string, titulo: string, cuerpo: string, pie_nota: ?string, color_acento: string}  $datos
+     */
+    public function guardarPlantilla(array $datos): PlantillaCertificado
+    {
+        $plantilla = PlantillaCertificado::actual();
+        $plantilla->update($datos);
+
+        return $plantilla->fresh();
+    }
+
+    /**
+     * PDF de muestra con datos ficticios, para que quien edita la plantilla
+     * vea el resultado real (mismo pipeline de renderizado que un
+     * certificado de verdad) sin tener que emitir uno.
+     */
+    public function previsualizarPlantilla(PlantillaCertificado $plantilla): string
+    {
+        $certificado = new Certificado([
+            'numero' => '000000-'.now()->format('Y'),
+            'codigo_verificacion' => 'MUESTRAMUES',
+            'es_duplicado' => false,
+            'fecha_emision' => now(),
+        ]);
+
+        $certificado->setRelation('estudiante', new Estudiante([
+            'nombres' => 'Estudiante',
+            'apellidos' => 'De Ejemplo',
+            'dni' => '00000000',
+        ]));
+        $certificado->setRelation('matricula', null);
+
+        return $this->renderizarPdf($certificado, $plantilla)->output();
+    }
+
     public function verificar(string $codigo): ?Certificado
     {
         return Certificado::query()
@@ -155,11 +196,50 @@ class CertificadoService
     {
         $certificado->load(['estudiante', 'matricula.grado', 'matricula.ciclo']);
 
-        $pdf = Pdf::loadView('pdf.certificado', ['certificado' => $certificado]);
+        $pdf = $this->renderizarPdf($certificado);
 
         $certificado->addMediaFromString($pdf->output())
             ->usingFileName("certificado-{$certificado->numero}.pdf")
             ->toMediaCollection('pdf');
+    }
+
+    /**
+     * @return \Barryvdh\DomPDF\PDF
+     */
+    private function renderizarPdf(Certificado $certificado, ?PlantillaCertificado $plantilla = null)
+    {
+        $plantilla ??= PlantillaCertificado::actual();
+
+        return Pdf::loadView('pdf.certificado', [
+            'certificado' => $certificado,
+            'plantilla' => $plantilla,
+            'cuerpo' => $plantilla->renderizarCuerpo($this->variablesDePlantilla($certificado)),
+        ]);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function variablesDePlantilla(Certificado $certificado): array
+    {
+        $detalleMatricula = $certificado->matricula
+            ? sprintf(
+                'cursó estudios en el grado %s durante el ciclo %s (%s al %s),',
+                $certificado->matricula->grado->nombre,
+                $certificado->matricula->ciclo->nombre,
+                $certificado->matricula->ciclo->fecha_inicio->format('d/m/Y'),
+                $certificado->matricula->ciclo->fecha_fin->format('d/m/Y'),
+            )
+            : 'se encuentra registrado(a) en esta institución,';
+
+        return [
+            'estudiante' => $certificado->estudiante->nombreCompleto(),
+            'dni' => $certificado->estudiante->dni,
+            'detalle_matricula' => $detalleMatricula,
+            'numero' => $certificado->numero,
+            'fecha_emision' => $certificado->fecha_emision->format('d/m/Y'),
+            'codigo_verificacion' => $certificado->codigo_verificacion,
+        ];
     }
 
     private function siguienteNumero(): string

@@ -64,6 +64,32 @@ class CertificadosPermisosTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_coordinador_puede_editar_la_plantilla_y_un_docente_no_ve_esa_pestana(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $this->actingAs($coordinador);
+        Volt::test('certificados.index')
+            ->assertSee('Plantilla')
+            ->set('tab', 'plantilla')
+            ->set('plantillaInstitucion', 'CEBA Actualizado')
+            ->set('plantillaTitulo', 'Certificado Actualizado')
+            ->set('plantillaCuerpo', 'Cuerpo actualizado para {{estudiante}}.')
+            ->set('plantillaColorAcento', '#123456')
+            ->call('guardarPlantilla')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('plantilla_certificados', ['institucion' => 'CEBA Actualizado']);
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $docente->givePermissionTo('certificados.ver');
+
+        $this->actingAs($docente);
+        Volt::test('certificados.index')->assertDontSee('Plantilla');
+    }
+
     public function test_la_verificacion_de_certificados_es_publica(): void
     {
         $estudiante = Estudiante::factory()->create();
