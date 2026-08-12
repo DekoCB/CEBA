@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Reportes;
 
+use App\Models\User;
+use App\Modules\Academico\Models\Horario;
+use App\Modules\Asistencia\Models\Asistencia;
 use App\Modules\Evaluaciones\Models\Calificacion;
 use App\Modules\Evaluaciones\Models\Evaluacion;
 use App\Modules\Matricula\Models\Estudiante;
@@ -63,5 +66,47 @@ class ReporteServiceTest extends TestCase
         $reporte = app(ReporteService::class)->certificados(null, null);
 
         $this->assertSame([], $reporte['filas']);
+    }
+
+    public function test_reporte_academico_filtra_por_horario(): void
+    {
+        $horarioA = Horario::factory()->create();
+        $horarioB = Horario::factory()->create();
+        Calificacion::factory()->create(['evaluacion_id' => Evaluacion::factory()->create(['horario_id' => $horarioA->id])->id]);
+        Calificacion::factory()->create(['evaluacion_id' => Evaluacion::factory()->create(['horario_id' => $horarioB->id])->id]);
+
+        $reporte = app(ReporteService::class)->academico(null, null, $horarioA->id);
+
+        $this->assertCount(1, $reporte['filas']);
+    }
+
+    public function test_reporte_operativo_filtra_por_horario(): void
+    {
+        $horarioA = Horario::factory()->create();
+        $horarioB = Horario::factory()->create();
+        Asistencia::factory()->create(['horario_id' => $horarioA->id]);
+        Asistencia::factory()->create(['horario_id' => $horarioB->id]);
+
+        $reporte = app(ReporteService::class)->operativo(null, null, $horarioA->id);
+
+        $this->assertCount(1, $reporte['filas']);
+    }
+
+    public function test_reporte_propio_solo_incluye_horarios_del_docente_aunque_se_filtre_por_otro(): void
+    {
+        $docente = User::factory()->create();
+        $horarioPropio = Horario::factory()->create(['docente_id' => $docente->id]);
+        $horarioAjeno = Horario::factory()->create();
+        Evaluacion::factory()->create(['horario_id' => $horarioPropio->id]);
+        Evaluacion::factory()->create(['horario_id' => $horarioAjeno->id]);
+
+        $reporteSinFiltro = app(ReporteService::class)->propio($docente, null, null);
+        $this->assertCount(1, $reporteSinFiltro['filas']);
+
+        $reporteConHorarioAjeno = app(ReporteService::class)->propio($docente, null, null, $horarioAjeno->id);
+        $this->assertCount(0, $reporteConHorarioAjeno['filas']);
+
+        $reporteConHorarioPropio = app(ReporteService::class)->propio($docente, null, null, $horarioPropio->id);
+        $this->assertCount(1, $reporteConHorarioPropio['filas']);
     }
 }

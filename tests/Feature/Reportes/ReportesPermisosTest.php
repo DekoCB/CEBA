@@ -3,6 +3,8 @@
 namespace Tests\Feature\Reportes;
 
 use App\Models\User;
+use App\Modules\Academico\Models\Curso;
+use App\Modules\Academico\Models\Horario;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -75,5 +77,49 @@ class ReportesPermisosTest extends TestCase
         // como valor de retorno normal.
         $this->assertArrayHasKey('download', $testable->effects);
         $this->assertSame('application/pdf', $testable->effects['download']['contentType']);
+    }
+
+    public function test_coordinador_ve_todos_los_horarios_en_el_filtro_y_docente_solo_los_suyos(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        Horario::factory()->create([
+            'docente_id' => $docente->id,
+            'curso_id' => Curso::factory()->create(['nombre' => 'Curso Del Docente']),
+        ]);
+        Horario::factory()->create([
+            'curso_id' => Curso::factory()->create(['nombre' => 'Curso Ajeno']),
+        ]);
+
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $this->actingAs($coordinador);
+        Volt::test('reportes.index')
+            ->set('tipo', 'academico')
+            ->assertSee('Curso Del Docente')
+            ->assertSee('Curso Ajeno');
+
+        $this->actingAs($docente);
+        Volt::test('reportes.index')
+            ->set('tipo', 'propio')
+            ->assertSee('Curso Del Docente')
+            ->assertDontSee('Curso Ajeno');
+    }
+
+    public function test_cambiar_el_tipo_de_reporte_reinicia_el_filtro_de_horario(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $horario = Horario::factory()->create();
+
+        $this->actingAs($coordinador);
+
+        Volt::test('reportes.index')
+            ->set('tipo', 'academico')
+            ->set('horarioId', (string) $horario->id)
+            ->assertSet('horarioId', (string) $horario->id)
+            ->set('tipo', 'financiero')
+            ->assertSet('horarioId', '');
     }
 }

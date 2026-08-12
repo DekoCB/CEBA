@@ -1,9 +1,12 @@
 <?php
 
+use App\Modules\Academico\Models\Horario;
 use App\Modules\Reportes\Exports\ReporteExport;
 use App\Modules\Reportes\Services\ReporteService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 use Maatwebsite\Excel\Excel as ExcelFormat;
@@ -23,11 +26,22 @@ new #[Layout('layouts.app')] class extends Component
         'propio' => ['permiso' => 'reportes.propios', 'label' => 'Mis evaluaciones'],
     ];
 
+    /**
+     * Tipos de reporte cuyos datos se originan en un Horario (clase
+     * recurrente: curso + docente + día + hora) y por lo tanto admiten
+     * filtrarse por uno en concreto, además del rango de fechas.
+     *
+     * @var list<string>
+     */
+    private const TIPOS_CON_HORARIO = ['academico', 'operativo', 'propio'];
+
     public string $tipo = '';
 
     public string $desde = '';
 
     public string $hasta = '';
+
+    public string $horarioId = '';
 
     public function mount(): void
     {
@@ -38,6 +52,11 @@ new #[Layout('layouts.app')] class extends Component
         $this->tipo = collect(self::TIPOS)
             ->keys()
             ->first(fn (string $tipo) => $user->hasPermissionTo(self::TIPOS[$tipo]['permiso'])) ?? '';
+    }
+
+    public function updatingTipo(): void
+    {
+        $this->horarioId = '';
     }
 
     public function exportarExcel(ReporteService $reportes)
@@ -91,16 +110,52 @@ new #[Layout('layouts.app')] class extends Component
     {
         $desde = $this->desde ?: null;
         $hasta = $this->hasta ?: null;
+        $horarioId = $this->horarioId !== '' ? (int) $this->horarioId : null;
 
         return match ($this->tipo) {
             'matricula' => $reportes->matricula($desde, $hasta),
-            'academico' => $reportes->academico($desde, $hasta),
+            'academico' => $reportes->academico($desde, $hasta, $horarioId),
             'financiero' => $reportes->financiero($desde, $hasta),
             'certificados' => $reportes->certificados($desde, $hasta),
-            'operativo' => $reportes->operativo($desde, $hasta),
-            'propio' => $reportes->propio(Auth::user(), $desde, $hasta),
+            'operativo' => $reportes->operativo($desde, $hasta, $horarioId),
+            'propio' => $reportes->propio(Auth::user(), $desde, $hasta, $horarioId),
             default => ['columnas' => [], 'filas' => []],
         };
+    }
+
+    /**
+     * Horarios que puede elegir en el filtro: un docente (reporte "propio")
+     * solo ve los suyos; coordinación/dirección (reportes académico y
+     * operativo) ven todos.
+     *
+     * @return Collection<int, array{value: int, label: string}>
+     */
+    private function horariosDisponibles(): Collection
+    {
+        if (! in_array($this->tipo, self::TIPOS_CON_HORARIO, true)) {
+            return collect();
+        }
+
+        return Horario::query()
+            ->with(['curso', 'grado', 'docente'])
+            ->when(
+                $this->tipo === 'propio',
+                fn ($query) => $query->where('docente_id', Auth::id()),
+            )
+            ->get()
+            ->map(fn (Horario $horario) => [
+                'value' => $horario->id,
+                'label' => trim(sprintf(
+                    '%s · %s · %s %s–%s%s',
+                    $horario->curso->nombre,
+                    $horario->grado->nombre,
+                    $horario->dia_semana->label(),
+                    Str::substr((string) $horario->hora_inicio, 0, 5),
+                    Str::substr((string) $horario->hora_fin, 0, 5),
+                    $this->tipo === 'propio' ? '' : " · {$horario->docente->name}",
+                )),
+            ])
+            ->values();
     }
 
     public function with(ReporteService $reportes): array
@@ -120,6 +175,7 @@ new #[Layout('layouts.app')] class extends Component
             'tiposDisponibles' => $tiposDisponibles,
             'reporte' => $reporte,
             'puedeExportar' => $user->hasPermissionTo('reportes.exportar'),
+            'horariosDisponibles' => $this->horariosDisponibles(),
         ];
     }
 }; ?>
@@ -149,6 +205,18 @@ new #[Layout('layouts.app')] class extends Component
                 <x-input-label for="hasta" value="Hasta" />
                 <x-date-input wire:model.live="hasta" id="hasta" class="mt-1 block" />
             </div>
+
+            @if ($horariosDisponibles->isNotEmpty())
+                <div>
+                    <x-input-label for="horarioId" value="Horario (opcional)" />
+                    <x-select-input
+                        wire:model.live="horarioId"
+                        id="horarioId"
+                        class="mt-1 block w-64"
+                        :options="collect($horariosDisponibles)->mapWithKeys(fn ($opcion) => [$opcion['value'] => $opcion['label']])->prepend('Todos los horarios', '')"
+                    />
+                </div>
+            @endif
 
             @if ($puedeExportar)
                 <div class="ml-auto flex gap-2">
