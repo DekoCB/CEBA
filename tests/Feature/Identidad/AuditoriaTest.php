@@ -48,6 +48,27 @@ class AuditoriaTest extends TestCase
         $this->assertSame('Nombre actualizado', $entrada->new_values['name'] ?? null);
     }
 
+    public function test_actualizar_la_contrasena_no_deja_el_hash_expuesto_en_la_auditoria(): void
+    {
+        $usuario = User::factory()->create();
+        $hashOriginal = $usuario->password;
+
+        $usuario->update(['password' => bcrypt('nueva-contrasena-segura')]);
+
+        $entrada = AuditLog::query()
+            ->where('auditable_type', $usuario->getMorphClass())
+            ->where('auditable_id', $usuario->id)
+            ->where('event', 'updated')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($entrada);
+        $this->assertSame('[oculto]', $entrada->new_values['password'] ?? null);
+        $this->assertSame('[oculto]', $entrada->old_values['password'] ?? null);
+        $this->assertStringNotContainsString($hashOriginal, json_encode($entrada->old_values));
+        $this->assertStringNotContainsString($hashOriginal, json_encode($entrada->new_values));
+    }
+
     public function test_administrativo_puede_ver_la_auditoria_y_docente_no(): void
     {
         $administrativo = User::factory()->create();

@@ -308,6 +308,21 @@
                 <span class="sidebar-label">Auditoría</span>
             </a>
         @endcan
+
+        @can('auditoria.ver')
+            <a
+                href="{{ route('historial-contrasenas.index') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('historial-contrasenas.*'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('historial-contrasenas.*'),
+                ])
+            >
+                <x-heroicon-o-key class="h-5 w-5 shrink-0" />
+                <span class="sidebar-label">Historial de Contraseñas</span>
+            </a>
+        @endcan
     @endcanany
 
     <div class="mt-auto border-t border-border pt-4">

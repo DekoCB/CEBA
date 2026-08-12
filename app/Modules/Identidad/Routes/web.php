@@ -21,4 +21,8 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('auditoria', 'auditoria.index')
         ->middleware('can:auditoria.ver')
         ->name('auditoria.index');
+
+    Volt::route('historial-contrasenas', 'historial-contrasenas.index')
+        ->middleware('can:auditoria.ver')
+        ->name('historial-contrasenas.index');
 });
