@@ -65,11 +65,22 @@ new #[Layout('layouts.app')] class extends Component
         return match ($formato) {
             'excel' => Excel::download(new ReporteExport($columnas, $filas), "{$nombreArchivo}.xlsx"),
             'csv' => Excel::download(new ReporteExport($columnas, $filas), "{$nombreArchivo}.csv", ExcelFormat::CSV),
-            'pdf' => Pdf::loadView('pdf.reporte', [
-                'titulo' => self::TIPOS[$this->tipo]['label'] ?? 'Reporte',
-                'columnas' => $columnas,
-                'filas' => $filas,
-            ])->download("{$nombreArchivo}.pdf"),
+            // No se puede usar Pdf::loadView(...)->download() aquí: eso devuelve un
+            // Illuminate\Http\Response plano, que Livewire no reconoce como descarga
+            // de archivo (solo detecta StreamedResponse/BinaryFileResponse). Sin ese
+            // reconocimiento, intenta serializar los bytes binarios del PDF como si
+            // fueran el valor de retorno normal de la acción, y el json_encode()
+            // interno truena con "Malformed UTF-8 characters". streamDownload()
+            // devuelve un StreamedResponse, que sí reconoce.
+            'pdf' => response()->streamDownload(
+                fn () => print (Pdf::loadView('pdf.reporte', [
+                    'titulo' => self::TIPOS[$this->tipo]['label'] ?? 'Reporte',
+                    'columnas' => $columnas,
+                    'filas' => $filas,
+                ])->output()),
+                "{$nombreArchivo}.pdf",
+                ['Content-Type' => 'application/pdf'],
+            ),
         };
     }
 
