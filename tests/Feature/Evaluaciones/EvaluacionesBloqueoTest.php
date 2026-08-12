@@ -14,6 +14,7 @@ use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Pagos\Services\BloqueoAccesoService;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 class EvaluacionesBloqueoTest extends TestCase
@@ -142,6 +143,48 @@ class EvaluacionesBloqueoTest extends TestCase
             ->get(route('evaluaciones.libreta', ['estudiante' => $estudiante, 'ciclo' => $horario->ciclo]))
             ->assertOk()
             ->assertSee('libreta no está disponible');
+    }
+
+    public function test_un_estudiante_bloqueado_no_ve_el_enlace_externo_de_una_evaluacion(): void
+    {
+        [$usuario, , $horario] = $this->estudianteBloqueado();
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario->update(['docente_id' => $docente->id]);
+
+        $this->actingAs($docente);
+        Volt::test('evaluaciones.show', ['horario' => $horario])
+            ->set('nuevoNombre', 'Evaluación mensual')
+            ->set('nuevaFecha', now()->format('Y-m-d'))
+            ->set('nuevoEnlace', 'https://forms.test/examen')
+            ->call('crear');
+
+        $this->actingAs($usuario);
+        Volt::test('evaluaciones.show', ['horario' => $horario])
+            ->assertDontSee('Evaluaciones para rendir')
+            ->assertDontSee('https://forms.test/examen');
+    }
+
+    public function test_una_sola_cuota_vencida_del_ciclo_actual_bloquea_ver_el_enlace_externo(): void
+    {
+        [$usuario, , $horario] = $this->estudianteConUnaCuotaVencidaEnCicloActivo();
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario->update(['docente_id' => $docente->id]);
+
+        $this->actingAs($docente);
+        Volt::test('evaluaciones.show', ['horario' => $horario])
+            ->set('nuevoNombre', 'Evaluación mensual')
+            ->set('nuevaFecha', now()->format('Y-m-d'))
+            ->set('nuevoEnlace', 'https://forms.test/examen')
+            ->call('crear');
+
+        $this->actingAs($usuario);
+        Volt::test('evaluaciones.show', ['horario' => $horario])
+            ->assertDontSee('Evaluaciones para rendir')
+            ->assertDontSee('https://forms.test/examen');
     }
 
     public function test_una_cuota_vencida_de_un_ciclo_distinto_al_actual_no_bloquea_las_notas(): void

@@ -19,7 +19,11 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $nuevaFecha = '';
 
+    public string $nuevoEnlace = '';
+
     public bool $mostrarFormNueva = false;
+
+    public string $enlaceEditar = '';
 
     /** @var array<int, string> */
     public array $notas = [];
@@ -44,11 +48,12 @@ new #[Layout('layouts.app')] class extends Component
         $this->validate([
             'nuevoNombre' => 'required|string|max:150',
             'nuevaFecha' => 'required|date',
+            'nuevoEnlace' => 'nullable|url|max:500',
         ]);
 
-        $evaluacion = $service->crear($this->horario, $this->nuevoNombre, $this->nuevaFecha);
+        $evaluacion = $service->crear($this->horario, $this->nuevoNombre, $this->nuevaFecha, $this->nuevoEnlace ?: null);
 
-        $this->reset(['nuevoNombre', 'mostrarFormNueva']);
+        $this->reset(['nuevoNombre', 'nuevoEnlace', 'mostrarFormNueva']);
         $this->nuevaFecha = now()->format('Y-m-d');
         $this->evaluacionId = $evaluacion->id;
     }
@@ -79,12 +84,24 @@ new #[Layout('layouts.app')] class extends Component
 
         $this->notas = [];
         $this->observaciones = [];
+        $this->enlaceEditar = (string) $evaluacion->enlace_externo;
 
         foreach ($estudiantes as $estudiante) {
             $calificacion = $existentes->get($estudiante->id);
             $this->notas[$estudiante->id] = $calificacion ? (string) $calificacion->nota_numerica : '';
             $this->observaciones[$estudiante->id] = $calificacion?->observaciones ?? '';
         }
+    }
+
+    public function actualizarEnlace(EvaluacionService $service): void
+    {
+        Gate::authorize('evaluaciones.registrar-horario', $this->horario);
+
+        $this->validate(['enlaceEditar' => 'nullable|url|max:500']);
+
+        $evaluacion = Evaluacion::query()->where('horario_id', $this->horario->id)->findOrFail($this->evaluacionId);
+
+        $service->actualizarEnlace($evaluacion, $this->enlaceEditar ?: null);
     }
 
     public function guardarNotas(EvaluacionService $service): void
@@ -156,11 +173,13 @@ new #[Layout('layouts.app')] class extends Component
                 'evaluacionSeleccionada' => $evaluacionSeleccionada,
                 'misCalificaciones' => collect(),
                 'promedio' => null,
+                'evaluacionesConEnlace' => collect(),
             ];
         }
 
         $misCalificaciones = collect();
         $promedio = null;
+        $evaluacionesConEnlace = collect();
         $estaBloqueado = false;
 
         if ($user->estudiante) {
@@ -170,6 +189,7 @@ new #[Layout('layouts.app')] class extends Component
             if (! $estaBloqueado) {
                 $misCalificaciones = $service->misCalificaciones($user->estudiante, $this->horario);
                 $promedio = $service->promedioDelEstudiante($user->estudiante, $this->horario);
+                $evaluacionesConEnlace = $service->evaluacionesConEnlaceDelHorario($this->horario);
             }
         }
 
@@ -182,6 +202,7 @@ new #[Layout('layouts.app')] class extends Component
             'evaluacionSeleccionada' => null,
             'misCalificaciones' => $misCalificaciones,
             'promedio' => $promedio,
+            'evaluacionesConEnlace' => $evaluacionesConEnlace,
             'miEstudianteId' => $user->estudiante?->id,
             'estaBloqueado' => $estaBloqueado,
         ];
@@ -217,6 +238,12 @@ new #[Layout('layouts.app')] class extends Component
                             <x-input-label for="nuevaFecha" value="Fecha" />
                             <x-date-input wire:model="nuevaFecha" id="nuevaFecha" class="mt-1 block w-full" />
                             <x-input-error :messages="$errors->get('nuevaFecha')" class="mt-1" />
+                        </div>
+                        <div>
+                            <x-input-label for="nuevoEnlace" value="Enlace externo (opcional)" />
+                            <x-text-input wire:model="nuevoEnlace" id="nuevoEnlace" class="mt-1 block w-full" placeholder="https://…" />
+                            <p class="mt-1 text-xs text-ink-faint">Los estudiantes lo verán apenas crees la evaluación, para poder rendirla.</p>
+                            <x-input-error :messages="$errors->get('nuevoEnlace')" class="mt-1" />
                         </div>
                         <div class="flex justify-end gap-2">
                             <x-secondary-button type="button" wire:click="$set('mostrarFormNueva', false)">Cancelar</x-secondary-button>
@@ -272,6 +299,22 @@ new #[Layout('layouts.app')] class extends Component
                         <p class="mb-4 rounded-md bg-accent-soft px-3 py-2 text-sm text-accent">Notas guardadas.</p>
                     @endif
 
+                    @if ($puedeRegistrar)
+                        <div class="mb-4 flex items-end gap-2 rounded-lg border border-border bg-surface p-4">
+                            <div class="flex-1">
+                                <x-input-label for="enlaceEditar" value="Enlace externo (opcional)" />
+                                <x-text-input wire:model="enlaceEditar" id="enlaceEditar" class="mt-1 block w-full" placeholder="https://…" />
+                                <x-input-error :messages="$errors->get('enlaceEditar')" class="mt-1" />
+                            </div>
+                            <x-secondary-button type="button" wire:click="actualizarEnlace">Guardar enlace</x-secondary-button>
+                        </div>
+                    @elseif ($evaluacionSeleccionada->enlace_externo)
+                        <p class="mb-4 text-sm text-ink-dim">
+                            Enlace externo:
+                            <a href="{{ $evaluacionSeleccionada->enlace_externo }}" target="_blank" class="font-medium text-accent hover:underline">{{ $evaluacionSeleccionada->enlace_externo }}</a>
+                        </p>
+                    @endif
+
                     <div class="divide-y divide-border rounded-lg border border-border bg-surface">
                         @forelse ($estudiantes as $estudiante)
                             <div class="flex items-center justify-between gap-4 px-4 py-3 text-sm">
@@ -322,6 +365,23 @@ new #[Layout('layouts.app')] class extends Component
         </div>
     @else
         <div class="space-y-4">
+            @if ($evaluacionesConEnlace->isNotEmpty())
+                <div class="rounded-lg border border-border bg-surface p-4">
+                    <p class="text-xs uppercase tracking-wide text-ink-faint">Evaluaciones para rendir</p>
+                    <div class="mt-2 divide-y divide-border">
+                        @foreach ($evaluacionesConEnlace as $evaluacion)
+                            <div class="flex items-center justify-between gap-4 py-2 text-sm">
+                                <div>
+                                    <p class="text-ink">{{ $evaluacion->nombre }}</p>
+                                    <p class="text-xs text-ink-faint">{{ $evaluacion->fecha->format('d/m/Y') }}</p>
+                                </div>
+                                <a href="{{ $evaluacion->enlace_externo }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Abrir enlace →</a>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
             <div class="rounded-lg border border-border bg-surface p-4">
                 <p class="text-xs uppercase tracking-wide text-ink-faint">Promedio del curso</p>
                 <p class="mt-1 font-display text-3xl text-accent">{{ $promedio !== null ? number_format($promedio, 2) : '—' }}</p>

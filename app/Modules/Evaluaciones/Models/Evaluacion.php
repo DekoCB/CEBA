@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
  * @property int $horario_id
  * @property string $nombre
  * @property Carbon $fecha
+ * @property string|null $enlace_externo
  * @property EstadoEvaluacionEnum $estado
  * @property-read Horario $horario
  */
@@ -33,6 +34,7 @@ class Evaluacion extends Model
         'horario_id',
         'nombre',
         'fecha',
+        'enlace_externo',
         'estado',
     ];
 
@@ -65,5 +67,10 @@ class Evaluacion extends Model
     public function estaPublicada(): bool
     {
         return $this->estado === EstadoEvaluacionEnum::PUBLICADA;
+    }
+
+    public function tieneEnlaceExterno(): bool
+    {
+        return $this->enlace_externo !== null;
     }
 }

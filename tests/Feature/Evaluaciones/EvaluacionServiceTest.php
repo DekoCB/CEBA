@@ -104,4 +104,57 @@ class EvaluacionServiceTest extends TestCase
 
         $this->assertNull($this->service()->promedioDelEstudiante($estudiante, $horario));
     }
+
+    public function test_crear_una_evaluacion_con_enlace_lo_persiste(): void
+    {
+        $horario = Horario::factory()->create();
+
+        $evaluacion = $this->service()->crear($horario, 'Evaluación', '2026-07-15', 'https://forms.test/examen');
+
+        $this->assertSame('https://forms.test/examen', $evaluacion->enlace_externo);
+        $this->assertTrue($evaluacion->tieneEnlaceExterno());
+    }
+
+    public function test_crear_una_evaluacion_sin_enlace_lo_deja_nulo(): void
+    {
+        $horario = Horario::factory()->create();
+
+        $evaluacion = $this->service()->crear($horario, 'Evaluación', '2026-07-15');
+
+        $this->assertNull($evaluacion->enlace_externo);
+        $this->assertFalse($evaluacion->tieneEnlaceExterno());
+    }
+
+    public function test_actualizar_enlace_modifica_el_enlace_de_una_evaluacion_existente(): void
+    {
+        $horario = Horario::factory()->create();
+        $evaluacion = $this->service()->crear($horario, 'Evaluación', '2026-07-15');
+
+        $this->service()->actualizarEnlace($evaluacion, 'https://forms.test/nuevo');
+
+        $this->assertSame('https://forms.test/nuevo', $evaluacion->refresh()->enlace_externo);
+    }
+
+    public function test_evaluaciones_con_enlace_del_horario_solo_incluye_las_que_tienen_enlace(): void
+    {
+        $horario = Horario::factory()->create();
+        $service = $this->service();
+
+        $conEnlace = $service->crear($horario, 'Con enlace', '2026-07-15', 'https://forms.test/examen');
+        $sinEnlace = $service->crear($horario, 'Sin enlace', '2026-07-16');
+
+        $resultado = $service->evaluacionesConEnlaceDelHorario($horario);
+
+        $this->assertTrue($resultado->contains('id', $conEnlace->id));
+        $this->assertFalse($resultado->contains('id', $sinEnlace->id));
+    }
+
+    public function test_evaluaciones_con_enlace_del_horario_incluye_evaluaciones_en_borrador(): void
+    {
+        $horario = Horario::factory()->create();
+        $evaluacion = $this->service()->crear($horario, 'Con enlace', '2026-07-15', 'https://forms.test/examen');
+
+        $this->assertSame(EstadoEvaluacionEnum::BORRADOR, $evaluacion->estado);
+        $this->assertTrue($this->service()->evaluacionesConEnlaceDelHorario($horario)->contains('id', $evaluacion->id));
+    }
 }

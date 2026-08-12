@@ -76,14 +76,22 @@ class EvaluacionService
         return Horario::query()->with(['curso', 'grado', 'ciclo', 'docente'])->get();
     }
 
-    public function crear(Horario $horario, string $nombre, string $fecha): Evaluacion
+    public function crear(Horario $horario, string $nombre, string $fecha, ?string $enlaceExterno = null): Evaluacion
     {
         return Evaluacion::query()->create([
             'horario_id' => $horario->id,
             'nombre' => $nombre,
             'fecha' => $fecha,
+            'enlace_externo' => $enlaceExterno,
             'estado' => EstadoEvaluacionEnum::BORRADOR,
         ]);
+    }
+
+    public function actualizarEnlace(Evaluacion $evaluacion, ?string $enlaceExterno): Evaluacion
+    {
+        $evaluacion->update(['enlace_externo' => $enlaceExterno]);
+
+        return $evaluacion;
     }
 
     /**
@@ -132,6 +140,23 @@ class EvaluacionService
     public function publicar(Evaluacion $evaluacion): void
     {
         $evaluacion->update(['estado' => EstadoEvaluacionEnum::PUBLICADA]);
+    }
+
+    /**
+     * Evaluaciones de un horario que tienen un enlace externo adjunto, sin
+     * importar su estado (borrador o publicada): el estudiante debe poder
+     * acceder al enlace y rendirla apenas el docente la crea, no recién
+     * cuando se publican las notas.
+     *
+     * @return Collection<int, Evaluacion>
+     */
+    public function evaluacionesConEnlaceDelHorario(Horario $horario): Collection
+    {
+        return Evaluacion::query()
+            ->where('horario_id', $horario->id)
+            ->whereNotNull('enlace_externo')
+            ->orderByDesc('fecha')
+            ->get();
     }
 
     /**
