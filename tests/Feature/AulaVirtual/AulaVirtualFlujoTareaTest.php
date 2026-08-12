@@ -3,6 +3,7 @@
 namespace Tests\Feature\AulaVirtual;
 
 use App\Models\User;
+use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\AulaVirtual\Enums\EstadoEntregaEnum;
 use App\Modules\AulaVirtual\Models\CursoVirtual;
@@ -11,6 +12,8 @@ use App\Modules\AulaVirtual\Services\TareaService;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Pagos\Models\Cuota;
+use App\Modules\Pagos\Models\PlanPago;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -108,5 +111,43 @@ class AulaVirtualFlujoTareaTest extends TestCase
 
         $this->assertNull($entrega->fresh()->nota);
         $this->assertSame(EstadoEntregaEnum::ENTREGADO, $entrega->fresh()->estado);
+    }
+
+    public function test_un_estudiante_con_una_cuota_vencida_del_ciclo_actual_no_puede_entregar_la_tarea(): void
+    {
+        Storage::fake('public');
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $cicloActivo = Ciclo::factory()->activo()->create();
+        $horario = Horario::factory()->create(['docente_id' => $docente->id, 'ciclo_id' => $cicloActivo->id]);
+        $curso = CursoVirtual::factory()->create(['horario_id' => $horario->id]);
+
+        $usuarioEstudiante = User::factory()->create();
+        $usuarioEstudiante->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuarioEstudiante->id]);
+        $matricula = Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $horario->ciclo_id,
+            'grado_id' => $horario->grado_id,
+        ]);
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
+        Cuota::factory()->vencida()->create(['plan_pago_id' => $plan->id, 'numero' => 1]);
+
+        $tarea = Tarea::factory()->create([
+            'curso_virtual_id' => $curso->id,
+            'fecha_limite' => now()->addDay(),
+            'puntaje_max' => 20,
+        ]);
+
+        $this->actingAs($usuarioEstudiante);
+
+        Volt::test('aula-virtual.tarea', ['curso' => $curso, 'tarea' => $tarea])
+            ->assertSee('No puedes entregar esta tarea por ahora')
+            ->set('comentario', 'Adjunto mi ensayo')
+            ->call('entregar')
+            ->assertForbidden();
+
+        $this->assertDatabaseCount('entregas_tarea', 0);
     }
 }

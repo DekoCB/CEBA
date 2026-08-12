@@ -5,6 +5,7 @@ use App\Modules\AulaVirtual\Models\CursoVirtual;
 use App\Modules\AulaVirtual\Models\EntregaTarea;
 use App\Modules\AulaVirtual\Models\Tarea;
 use App\Modules\AulaVirtual\Services\TareaService;
+use App\Modules\Pagos\Services\BloqueoAccesoService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
@@ -53,11 +54,12 @@ new #[Layout('layouts.app')] class extends Component
         return app(TareaService::class)->entregaDe($this->tarea, $estudiante);
     }
 
-    public function entregar(TareaService $service): void
+    public function entregar(TareaService $service, BloqueoAccesoService $bloqueos): void
     {
         $estudiante = Auth::user()->estudiante;
 
         abort_unless($estudiante !== null, 403);
+        abort_if($bloqueos->tieneCuotasVencidasEnCicloActual($estudiante), 403);
 
         $this->validate([
             'comentario' => 'nullable|string',
@@ -82,9 +84,10 @@ new #[Layout('layouts.app')] class extends Component
         $service->calificar(EntregaTarea::query()->where('tarea_id', $this->tarea->id)->findOrFail($entregaId), $nota);
     }
 
-    public function with(): array
+    public function with(BloqueoAccesoService $bloqueos): array
     {
         $puedeGestionar = Gate::allows('manage', $this->curso);
+        $estudiante = Auth::user()->estudiante;
 
         return [
             'puedeGestionar' => $puedeGestionar,
@@ -92,6 +95,7 @@ new #[Layout('layouts.app')] class extends Component
                 ? $this->tarea->entregas()->with('estudiante')->latest('fecha_entrega')->get()
                 : collect(),
             'miEntrega' => $puedeGestionar ? null : $this->miEntrega(),
+            'estaBloqueado' => ! $puedeGestionar && $estudiante && $bloqueos->tieneCuotasVencidasEnCicloActual($estudiante),
         ];
     }
 }; ?>
@@ -156,6 +160,13 @@ new #[Layout('layouts.app')] class extends Component
                 @if ($miEntrega->getFirstMedia('archivo'))
                     <a href="{{ $miEntrega->getFirstMediaUrl('archivo') }}" target="_blank" class="mt-2 inline-block text-xs font-medium text-accent hover:underline">Ver mi archivo entregado</a>
                 @endif
+            @elseif ($estaBloqueado)
+                <div class="rounded-lg border border-danger/30 bg-danger/10 px-4 py-4 text-sm text-danger">
+                    <p class="font-medium">No puedes entregar esta tarea por ahora.</p>
+                    <p class="mt-1">Tienes cuotas vencidas del ciclo actual. Regulariza tu deuda en
+                        <a href="{{ route('pagos.mi-cuenta') }}" wire:navigate class="underline">Mi estado de cuenta</a>
+                        o comunícate con Cobranza para un compromiso de pago.</p>
+                </div>
             @else
                 @if ($miEntrega)
                     <p class="mb-4 text-xs text-ink-faint">

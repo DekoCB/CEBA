@@ -164,7 +164,8 @@ new #[Layout('layouts.app')] class extends Component
         $estaBloqueado = false;
 
         if ($user->estudiante) {
-            $estaBloqueado = $bloqueos->estaBloqueado($user->estudiante);
+            $estaBloqueado = $bloqueos->estaBloqueado($user->estudiante)
+                || $bloqueos->tieneCuotasVencidasEnCicloActual($user->estudiante);
 
             if (! $estaBloqueado) {
                 $misCalificaciones = $service->misCalificaciones($user->estudiante, $this->horario);

@@ -31,7 +31,8 @@ new #[Layout('layouts.app')] class extends Component
         // Solo se bloquea la vista al propio estudiante; el personal con
         // evaluaciones.ver sigue pudiendo consultar/generar la libreta
         // para gestionar la cobranza.
-        $this->estaBloqueado = $esElMismoEstudiante && $bloqueos->estaBloqueado($estudiante);
+        $this->estaBloqueado = $esElMismoEstudiante
+            && ($bloqueos->estaBloqueado($estudiante) || $bloqueos->tieneCuotasVencidasEnCicloActual($estudiante));
     }
 
     public function generar(LibretaService $service): void

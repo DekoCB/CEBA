@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Modules\Pagos\Services;
 
+use App\Modules\Academico\Repositories\Contracts\CicloRepositoryInterface;
 use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Pagos\Enums\EstadoCuotaEnum;
 use App\Modules\Pagos\Models\BloqueoAcceso;
 use App\Modules\Pagos\Models\Cuota;
 use Illuminate\Database\Eloquent\Collection;
@@ -16,6 +18,10 @@ class BloqueoAccesoService
      * bloqueo de acceso a notas.
      */
     private const CUOTAS_VENCIDAS_PARA_BLOQUEAR = 2;
+
+    public function __construct(
+        private readonly CicloRepositoryInterface $ciclos,
+    ) {}
 
     /**
      * @return Collection<int, Cuota>
@@ -37,6 +43,32 @@ class BloqueoAccesoService
         return BloqueoAcceso::query()
             ->where('estudiante_id', $estudiante->id)
             ->where('activo', true)
+            ->exists();
+    }
+
+    /**
+     * Regla específica (distinta del bloqueo general de acceso): un
+     * estudiante con CUALQUIER cuota vencida del ciclo actualmente activo no
+     * puede solicitar certificado ni acceder a sus evaluaciones. No depende
+     * del umbral de {@see self::CUOTAS_VENCIDAS_PARA_BLOQUEAR} ni del
+     * registro persistido en {@see BloqueoAcceso}, que sigue rigiendo el
+     * bloqueo general (dashboard, mi cuenta, etc.).
+     */
+    public function tieneCuotasVencidasEnCicloActual(Estudiante $estudiante): bool
+    {
+        $cicloActual = $this->ciclos->activo();
+
+        if ($cicloActual === null) {
+            return false;
+        }
+
+        return Cuota::query()
+            ->where('estado', EstadoCuotaEnum::PENDIENTE)
+            ->where('fecha_vencimiento', '<', now()->toDateString())
+            ->whereHas('planPago.matricula', function ($query) use ($estudiante, $cicloActual) {
+                $query->where('estudiante_id', $estudiante->id)
+                    ->where('ciclo_id', $cicloActual->id);
+            })
             ->exists();
     }
 

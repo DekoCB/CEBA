@@ -2,6 +2,7 @@
 
 use App\Modules\Certificados\Services\CertificadoService;
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Pagos\Services\BloqueoAccesoService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -19,10 +20,11 @@ new #[Layout('layouts.app')] class extends Component
         abort_unless($user->hasPermissionTo('certificados.solicitar') && $user->estudiante, 403);
     }
 
-    public function solicitar(CertificadoService $service): void
+    public function solicitar(CertificadoService $service, BloqueoAccesoService $bloqueos): void
     {
         $estudiante = Auth::user()->estudiante;
         abort_unless($estudiante !== null, 403);
+        abort_if($bloqueos->tieneCuotasVencidasEnCicloActual($estudiante), 403);
 
         $this->validate([
             'matriculaId' => 'nullable|integer|exists:matriculas,id',
@@ -37,7 +39,7 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('status', 'Solicitud enviada. Te avisaremos cuando tu certificado esté listo.');
     }
 
-    public function with(CertificadoService $certificados): array
+    public function with(CertificadoService $certificados, BloqueoAccesoService $bloqueos): array
     {
         $estudiante = Auth::user()->estudiante;
 
@@ -49,6 +51,7 @@ new #[Layout('layouts.app')] class extends Component
                 ->with(['grado', 'ciclo'])
                 ->latest('fecha_matricula')
                 ->get(),
+            'tieneDeudaCicloActual' => $bloqueos->tieneCuotasVencidasEnCicloActual($estudiante),
         ];
     }
 }; ?>
@@ -67,26 +70,36 @@ new #[Layout('layouts.app')] class extends Component
 
     <div class="rounded-lg border border-border bg-surface p-6">
         <h2 class="text-sm font-semibold text-ink">Solicitar certificado</h2>
-        <form wire:submit="solicitar" class="mt-4 space-y-4">
-            <div>
-                <x-input-label for="matriculaId" value="Matrícula (opcional)" />
-                <x-select-input
-                    wire:model="matriculaId"
-                    id="matriculaId"
-                    class="mt-1 block w-full"
-                    :options="collect($matriculas)->mapWithKeys(fn ($matricula) => [$matricula->id => $matricula->grado->nombre.' · '.$matricula->ciclo->nombre])->prepend('Sin vincular a una matrícula específica', '')"
-                />
-                <x-input-error :messages="$errors->get('matriculaId')" class="mt-1" />
+
+        @if ($tieneDeudaCicloActual)
+            <div class="mt-4 rounded-lg border border-danger/30 bg-danger/10 px-4 py-4 text-sm text-danger">
+                <p class="font-medium">No puedes solicitar un certificado por ahora.</p>
+                <p class="mt-1">Tienes cuotas vencidas del ciclo actual. Regulariza tu deuda en
+                    <a href="{{ route('pagos.mi-cuenta') }}" wire:navigate class="underline">Mi estado de cuenta</a>
+                    o comunícate con Cobranza para un compromiso de pago.</p>
             </div>
-            <div>
-                <x-input-label for="motivo" value="Motivo de la solicitud" />
-                <textarea wire:model="motivo" id="motivo" rows="2" placeholder="Ej. trámite laboral, continuación de estudios…" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent"></textarea>
-                <x-input-error :messages="$errors->get('motivo')" class="mt-1" />
-            </div>
-            <div class="flex justify-end">
-                <x-primary-button type="submit">Solicitar</x-primary-button>
-            </div>
-        </form>
+        @else
+            <form wire:submit="solicitar" class="mt-4 space-y-4">
+                <div>
+                    <x-input-label for="matriculaId" value="Matrícula (opcional)" />
+                    <x-select-input
+                        wire:model="matriculaId"
+                        id="matriculaId"
+                        class="mt-1 block w-full"
+                        :options="collect($matriculas)->mapWithKeys(fn ($matricula) => [$matricula->id => $matricula->grado->nombre.' · '.$matricula->ciclo->nombre])->prepend('Sin vincular a una matrícula específica', '')"
+                    />
+                    <x-input-error :messages="$errors->get('matriculaId')" class="mt-1" />
+                </div>
+                <div>
+                    <x-input-label for="motivo" value="Motivo de la solicitud" />
+                    <textarea wire:model="motivo" id="motivo" rows="2" placeholder="Ej. trámite laboral, continuación de estudios…" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent"></textarea>
+                    <x-input-error :messages="$errors->get('motivo')" class="mt-1" />
+                </div>
+                <div class="flex justify-end">
+                    <x-primary-button type="submit">Solicitar</x-primary-button>
+                </div>
+            </form>
+        @endif
     </div>
 
     <div class="rounded-lg border border-border bg-surface p-6">

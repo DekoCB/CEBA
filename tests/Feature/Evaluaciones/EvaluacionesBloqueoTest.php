@@ -3,6 +3,7 @@
 namespace Tests\Feature\Evaluaciones;
 
 use App\Models\User;
+use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Evaluaciones\Services\EvaluacionService;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
@@ -95,5 +96,85 @@ class EvaluacionesBloqueoTest extends TestCase
             ->get(route('evaluaciones.libreta', ['estudiante' => $estudiante, 'ciclo' => $ciclo]))
             ->assertOk()
             ->assertSee('libreta no está disponible');
+    }
+
+    private function estudianteConUnaCuotaVencidaEnCicloActivo(): array
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+
+        $cicloActivo = Ciclo::factory()->activo()->create();
+        $horario = Horario::factory()->create(['ciclo_id' => $cicloActivo->id]);
+        $matricula = Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $cicloActivo->id,
+        ]);
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
+        Cuota::factory()->vencida()->create(['plan_pago_id' => $plan->id, 'numero' => 1]);
+
+        return [$usuario, $estudiante, $horario];
+    }
+
+    public function test_una_sola_cuota_vencida_del_ciclo_actual_bloquea_ver_las_notas_aunque_no_llegue_al_umbral_general(): void
+    {
+        [$usuario, $estudiante, $horario] = $this->estudianteConUnaCuotaVencidaEnCicloActivo();
+
+        $evaluacion = $this->app->make(EvaluacionService::class)->crear($horario, 'Evaluación mensual', now()->format('Y-m-d'));
+        $this->app->make(EvaluacionService::class)->calificar($evaluacion, $estudiante, 18.0, null, null);
+        $this->app->make(EvaluacionService::class)->publicar($evaluacion);
+
+        $this->assertFalse($this->app->make(BloqueoAccesoService::class)->estaBloqueado($estudiante));
+
+        $this->actingAs($usuario)
+            ->get(route('evaluaciones.show', $horario))
+            ->assertOk()
+            ->assertSee('no están disponibles')
+            ->assertDontSee('18.00');
+    }
+
+    public function test_una_sola_cuota_vencida_del_ciclo_actual_bloquea_generar_la_libreta(): void
+    {
+        [$usuario, $estudiante, $horario] = $this->estudianteConUnaCuotaVencidaEnCicloActivo();
+
+        $this->actingAs($usuario)
+            ->get(route('evaluaciones.libreta', ['estudiante' => $estudiante, 'ciclo' => $horario->ciclo]))
+            ->assertOk()
+            ->assertSee('libreta no está disponible');
+    }
+
+    public function test_una_cuota_vencida_de_un_ciclo_distinto_al_actual_no_bloquea_las_notas(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+
+        $cicloActivo = Ciclo::factory()->activo()->create();
+        $cicloNoActivo = Ciclo::factory()->create();
+
+        $horario = Horario::factory()->create(['ciclo_id' => $cicloActivo->id]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $cicloActivo->id,
+        ]);
+
+        $matriculaAnterior = Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $cicloNoActivo->id,
+        ]);
+        $planAnterior = PlanPago::factory()->create(['matricula_id' => $matriculaAnterior->id]);
+        Cuota::factory()->vencida()->create(['plan_pago_id' => $planAnterior->id, 'numero' => 1]);
+
+        $evaluacion = $this->app->make(EvaluacionService::class)->crear($horario, 'Evaluación mensual', now()->format('Y-m-d'));
+        $this->app->make(EvaluacionService::class)->calificar($evaluacion, $estudiante, 18.0, null, null);
+        $this->app->make(EvaluacionService::class)->publicar($evaluacion);
+
+        $this->actingAs($usuario)
+            ->get(route('evaluaciones.show', $horario))
+            ->assertOk()
+            ->assertSee('18.00')
+            ->assertDontSee('no están disponibles');
     }
 }
