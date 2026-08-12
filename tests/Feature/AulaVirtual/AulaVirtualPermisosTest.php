@@ -140,6 +140,55 @@ class AulaVirtualPermisosTest extends TestCase
         $this->assertTrue($docente->can('manage', $curso));
     }
 
+    public function test_el_docente_puede_subir_un_material_a_varias_de_sus_secciones_a_la_vez(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+
+        $horarioUno = Horario::factory()->create(['docente_id' => $docente->id]);
+        $cursoUno = CursoVirtual::factory()->create(['horario_id' => $horarioUno->id]);
+
+        $horarioDos = Horario::factory()->create(['docente_id' => $docente->id]);
+        $cursoDos = CursoVirtual::factory()->create(['horario_id' => $horarioDos->id]);
+
+        $this->actingAs($docente);
+
+        Volt::test('aula-virtual.show', ['curso' => $cursoUno])
+            ->set('materialTipo', 'enlace')
+            ->set('materialTitulo', 'Video de repaso')
+            ->set('materialUrl', 'https://ejemplo.test/video')
+            ->set('materialCursosSeleccionados', [$cursoUno->id, $cursoDos->id])
+            ->call('crearMaterial')
+            ->assertHasNoErrors();
+
+        $this->assertSame(1, $cursoUno->materiales()->count());
+        $this->assertSame(1, $cursoDos->materiales()->count());
+    }
+
+    public function test_un_docente_no_puede_subir_material_a_la_seccion_de_otro_docente_inyectando_el_id(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $miCurso = $this->cursoDelDocente($docente);
+
+        $otroDocente = User::factory()->create();
+        $otroDocente->assignRole(RolEnum::DOCENTE->value);
+        $cursoAjeno = $this->cursoDelDocente($otroDocente);
+
+        $this->actingAs($docente);
+
+        Volt::test('aula-virtual.show', ['curso' => $miCurso])
+            ->set('materialTipo', 'enlace')
+            ->set('materialTitulo', 'Video de repaso')
+            ->set('materialUrl', 'https://ejemplo.test/video')
+            ->set('materialCursosSeleccionados', [$miCurso->id, $cursoAjeno->id])
+            ->call('crearMaterial')
+            ->assertHasNoErrors();
+
+        $this->assertSame(1, $miCurso->materiales()->count());
+        $this->assertSame(0, $cursoAjeno->materiales()->count());
+    }
+
     public function test_direccion_puede_gestionar_cualquier_curso(): void
     {
         $direccion = User::factory()->create();

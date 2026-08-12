@@ -66,6 +66,66 @@ class AulaVirtualServiceTest extends TestCase
         $this->assertNotNull($material->getFirstMedia('archivo'));
     }
 
+    public function test_crear_para_varios_crea_un_material_por_cada_curso(): void
+    {
+        $cursoUno = CursoVirtual::factory()->create();
+        $cursoDos = CursoVirtual::factory()->create();
+
+        $materiales = $this->app->make(MaterialService::class)->crearParaVarios(
+            collect([$cursoUno, $cursoDos]),
+            TipoMaterialEnum::ENLACE,
+            'Video de repaso',
+            'https://ejemplo.test/video',
+            null,
+        );
+
+        $this->assertCount(2, $materiales);
+        $this->assertSame(1, $cursoUno->materiales()->count());
+        $this->assertSame(1, $cursoDos->materiales()->count());
+        $this->assertSame('Video de repaso', $cursoUno->materiales()->first()->titulo);
+        $this->assertSame('Video de repaso', $cursoDos->materiales()->first()->titulo);
+    }
+
+    public function test_crear_para_varios_con_archivo_lo_adjunta_en_cada_material(): void
+    {
+        Storage::fake('public');
+
+        $cursoUno = CursoVirtual::factory()->create();
+        $cursoDos = CursoVirtual::factory()->create();
+        $archivo = UploadedFile::fake()->create('separata.pdf', 500, 'application/pdf');
+
+        $materiales = $this->app->make(MaterialService::class)->crearParaVarios(
+            collect([$cursoUno, $cursoDos]),
+            TipoMaterialEnum::PDF,
+            'Separata',
+            null,
+            $archivo,
+        );
+
+        $this->assertNotNull($materiales[0]->getFirstMedia('archivo'));
+        $this->assertNotNull($materiales[1]->getFirstMedia('archivo'));
+    }
+
+    public function test_crear_para_varios_sin_archivo_requerido_lanza_excepcion_sin_crear_nada(): void
+    {
+        $cursoUno = CursoVirtual::factory()->create();
+        $cursoDos = CursoVirtual::factory()->create();
+
+        try {
+            $this->app->make(MaterialService::class)->crearParaVarios(
+                collect([$cursoUno, $cursoDos]),
+                TipoMaterialEnum::PDF,
+                'Separata',
+                null,
+                null,
+            );
+            $this->fail('Se esperaba una ValidationException.');
+        } catch (ValidationException) {
+            $this->assertSame(0, $cursoUno->materiales()->count());
+            $this->assertSame(0, $cursoDos->materiales()->count());
+        }
+    }
+
     public function test_entregar_tarea_antes_de_la_fecha_limite_queda_como_entregado(): void
     {
         $curso = CursoVirtual::factory()->create();

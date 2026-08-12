@@ -6,12 +6,12 @@ use App\Modules\AulaVirtual\Models\CursoVirtual;
 use App\Modules\AulaVirtual\Models\Foro;
 use App\Modules\AulaVirtual\Models\Publicacion;
 use App\Modules\AulaVirtual\Services\ComentarioService;
+use App\Modules\AulaVirtual\Services\CursoVirtualService;
 use App\Modules\AulaVirtual\Services\ForoService;
 use App\Modules\AulaVirtual\Services\MaterialService;
 use App\Modules\AulaVirtual\Services\PublicacionService;
 use App\Modules\AulaVirtual\Services\TareaService;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
@@ -34,6 +34,9 @@ new #[Layout('layouts.app')] class extends Component
     public string $materialUrl = '';
 
     public $materialArchivo = null;
+
+    /** @var array<int, int> */
+    public array $materialCursosSeleccionados = [];
 
     // Nueva tarea
     public bool $mostrarFormTarea = false;
@@ -71,6 +74,7 @@ new #[Layout('layouts.app')] class extends Component
         Gate::authorize('view', $curso);
 
         $this->curso = $curso;
+        $this->materialCursosSeleccionados = [$curso->id];
     }
 
     public function crearMaterial(MaterialService $service): void
@@ -82,10 +86,23 @@ new #[Layout('layouts.app')] class extends Component
             'materialTitulo' => 'required|string|max:150',
             'materialUrl' => 'nullable|url|max:500',
             'materialArchivo' => 'nullable|file|max:10240',
+            'materialCursosSeleccionados' => 'required|array|min:1',
+            'materialCursosSeleccionados.*' => 'integer|exists:aula_virtual_cursos,id',
         ]);
 
-        $service->crear(
-            $this->curso,
+        // Se revalida cada curso elegido (no solo el de la página actual):
+        // el checklist puede incluir otras secciones del mismo docente, y no
+        // hay que confiar en los IDs que llegan del cliente sin verificar
+        // permisos sobre cada uno.
+        $cursosSeleccionados = CursoVirtual::query()
+            ->whereIn('id', $this->materialCursosSeleccionados)
+            ->get()
+            ->filter(fn (CursoVirtual $curso) => Gate::allows('manage', $curso));
+
+        abort_if($cursosSeleccionados->isEmpty(), 403);
+
+        $service->crearParaVarios(
+            $cursosSeleccionados,
             TipoMaterialEnum::from($this->materialTipo),
             $this->materialTitulo,
             $this->materialUrl ?: null,
@@ -93,6 +110,7 @@ new #[Layout('layouts.app')] class extends Component
         );
 
         $this->reset(['materialTipo', 'materialTitulo', 'materialUrl', 'materialArchivo', 'mostrarFormMaterial']);
+        $this->materialCursosSeleccionados = [$this->curso->id];
     }
 
     public function eliminarMaterial(int $materialId, MaterialService $service): void
@@ -185,7 +203,7 @@ new #[Layout('layouts.app')] class extends Component
         unset($this->nuevaRespuestaForo[$foroId]);
     }
 
-    public function with(): array
+    public function with(CursoVirtualService $cursos): array
     {
         return [
             'puedeGestionar' => Gate::allows('manage', $this->curso),
@@ -195,6 +213,7 @@ new #[Layout('layouts.app')] class extends Component
             'foros' => $this->curso->foros()->with(['autor', 'respuestas.autor'])->latest()->get(),
             'tiposMaterial' => TipoMaterialEnum::cases(),
             'tiposPublicacion' => TipoPublicacionEnum::cases(),
+            'misCursosParaMaterial' => $cursos->delDocente($this->curso->horario->docente_id),
         ];
     }
 }; ?>
@@ -262,6 +281,27 @@ new #[Layout('layouts.app')] class extends Component
                             <x-input-error :messages="$errors->get('materialUrl')" class="mt-1" />
                         </div>
                     @endif
+
+                    @if ($misCursosParaMaterial->count() > 1)
+                        <div>
+                            <x-input-label value="Subir también a" />
+                            <div class="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-md border border-border bg-surface p-2">
+                                @foreach ($misCursosParaMaterial as $cursoOpcion)
+                                    <label class="flex items-center gap-2 text-sm text-ink">
+                                        <input
+                                            type="checkbox"
+                                            value="{{ $cursoOpcion->id }}"
+                                            wire:model="materialCursosSeleccionados"
+                                            class="rounded border-border text-accent focus:ring-accent"
+                                        >
+                                        {{ $cursoOpcion->horario->curso->nombre }} · {{ $cursoOpcion->horario->grado->nombre }} · {{ $cursoOpcion->horario->ciclo->nombre }}
+                                    </label>
+                                @endforeach
+                            </div>
+                            <x-input-error :messages="$errors->get('materialCursosSeleccionados')" class="mt-1" />
+                        </div>
+                    @endif
+
                     <div class="flex justify-end gap-2">
                         <x-secondary-button type="button" wire:click="$set('mostrarFormMaterial', false)">Cancelar</x-secondary-button>
                         <x-primary-button type="submit">Guardar</x-primary-button>
