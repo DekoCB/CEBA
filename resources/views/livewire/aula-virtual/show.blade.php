@@ -13,6 +13,8 @@ use App\Modules\AulaVirtual\Services\ForoService;
 use App\Modules\AulaVirtual\Services\MaterialService;
 use App\Modules\AulaVirtual\Services\PublicacionService;
 use App\Modules\AulaVirtual\Services\TareaService;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -35,6 +37,8 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $materialUrl = '';
 
+    public string $materialSemana = '';
+
     public $materialArchivo = null;
 
     /** @var array<int, int> */
@@ -48,6 +52,8 @@ new #[Layout('layouts.app')] class extends Component
     public string $grabacionTitulo = '';
 
     public string $grabacionUrl = '';
+
+    public string $grabacionSemana = '';
 
     public $grabacionArchivo = null;
 
@@ -65,6 +71,8 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $tareaPuntajeMax = '20';
 
+    public string $tareaSemana = '';
+
     // Nueva publicación
     public bool $mostrarFormPublicacion = false;
 
@@ -81,6 +89,8 @@ new #[Layout('layouts.app')] class extends Component
     public string $foroTitulo = '';
 
     public string $foroDescripcion = '';
+
+    public string $foroSemana = '';
 
     /** @var array<int, string> */
     public array $nuevaRespuestaForo = [];
@@ -103,6 +113,7 @@ new #[Layout('layouts.app')] class extends Component
             'materialTitulo' => 'required|string|max:150',
             'materialUrl' => 'nullable|url|max:500',
             'materialArchivo' => 'nullable|file|max:10240',
+            'materialSemana' => 'nullable|integer|min:1',
             'materialCursosSeleccionados' => 'required|array|min:1',
             'materialCursosSeleccionados.*' => 'integer|exists:aula_virtual_cursos,id',
         ]);
@@ -124,9 +135,10 @@ new #[Layout('layouts.app')] class extends Component
             $this->materialTitulo,
             $this->materialUrl ?: null,
             $this->materialArchivo,
+            $this->materialSemana !== '' ? (int) $this->materialSemana : null,
         );
 
-        $this->reset(['materialTipo', 'materialTitulo', 'materialUrl', 'materialArchivo', 'mostrarFormMaterial']);
+        $this->reset(['materialTipo', 'materialTitulo', 'materialUrl', 'materialArchivo', 'materialSemana', 'mostrarFormMaterial']);
         $this->materialCursosSeleccionados = [$this->curso->id];
     }
 
@@ -146,6 +158,7 @@ new #[Layout('layouts.app')] class extends Component
             'grabacionTitulo' => 'required|string|max:150',
             'grabacionUrl' => 'nullable|url|max:500',
             'grabacionArchivo' => 'nullable|file|max:40000',
+            'grabacionSemana' => 'nullable|integer|min:1',
             'grabacionCursosSeleccionados' => 'required|array|min:1',
             'grabacionCursosSeleccionados.*' => 'integer|exists:aula_virtual_cursos,id',
         ]);
@@ -165,9 +178,10 @@ new #[Layout('layouts.app')] class extends Component
             $this->grabacionTitulo,
             $this->grabacionUrl ?: null,
             $this->grabacionArchivo,
+            $this->grabacionSemana !== '' ? (int) $this->grabacionSemana : null,
         );
 
-        $this->reset(['grabacionTipo', 'grabacionTitulo', 'grabacionUrl', 'grabacionArchivo', 'mostrarFormGrabacion']);
+        $this->reset(['grabacionTipo', 'grabacionTitulo', 'grabacionUrl', 'grabacionArchivo', 'grabacionSemana', 'mostrarFormGrabacion']);
         $this->grabacionCursosSeleccionados = [$this->curso->id];
     }
 
@@ -187,6 +201,7 @@ new #[Layout('layouts.app')] class extends Component
             'tareaDescripcion' => 'nullable|string',
             'tareaFechaLimite' => 'required|date',
             'tareaPuntajeMax' => 'required|integer|min:1|max:20',
+            'tareaSemana' => 'nullable|integer|min:1',
         ]);
 
         $service->crear($this->curso, [
@@ -194,9 +209,10 @@ new #[Layout('layouts.app')] class extends Component
             'descripcion' => $this->tareaDescripcion ?: null,
             'fecha_limite' => $this->tareaFechaLimite,
             'puntaje_max' => (int) $this->tareaPuntajeMax,
+            'semana' => $this->tareaSemana !== '' ? (int) $this->tareaSemana : null,
         ]);
 
-        $this->reset(['tareaTitulo', 'tareaDescripcion', 'tareaFechaLimite', 'tareaPuntajeMax', 'mostrarFormTarea']);
+        $this->reset(['tareaTitulo', 'tareaDescripcion', 'tareaFechaLimite', 'tareaPuntajeMax', 'tareaSemana', 'mostrarFormTarea']);
     }
 
     public function crearPublicacion(PublicacionService $service): void
@@ -237,11 +253,18 @@ new #[Layout('layouts.app')] class extends Component
         $this->validate([
             'foroTitulo' => 'required|string|max:150',
             'foroDescripcion' => 'nullable|string',
+            'foroSemana' => 'nullable|integer|min:1',
         ]);
 
-        $service->crear($this->curso, auth()->id(), $this->foroTitulo, $this->foroDescripcion ?: null);
+        $service->crear(
+            $this->curso,
+            auth()->id(),
+            $this->foroTitulo,
+            $this->foroDescripcion ?: null,
+            $this->foroSemana !== '' ? (int) $this->foroSemana : null,
+        );
 
-        $this->reset(['foroTitulo', 'foroDescripcion', 'mostrarFormForo']);
+        $this->reset(['foroTitulo', 'foroDescripcion', 'foroSemana', 'mostrarFormForo']);
     }
 
     public function responderForo(int $foroId, ForoService $service): void
@@ -261,15 +284,28 @@ new #[Layout('layouts.app')] class extends Component
         unset($this->nuevaRespuestaForo[$foroId]);
     }
 
+    /**
+     * Agrupa por número de semana (clave 0 = "Bienvenida", antes de la
+     * Semana 1, para el contenido sin clasificar) y ordena las semanas de
+     * forma ascendente.
+     *
+     * @param  Collection<int, mixed>  $items
+     * @return SupportCollection<int, Collection<int, mixed>>
+     */
+    private function agruparPorSemana($items): SupportCollection
+    {
+        return $items->groupBy(fn ($item) => $item->semana ?? 0)->sortKeys();
+    }
+
     public function with(CursoVirtualService $cursos): array
     {
         return [
             'puedeGestionar' => Gate::allows('manage', $this->curso),
-            'materiales' => $this->curso->materiales,
-            'clasesGrabadas' => $this->curso->clasesGrabadas,
-            'tareas' => $this->curso->tareas()->latest('fecha_limite')->get(),
+            'materialesPorSemana' => $this->agruparPorSemana($this->curso->materiales),
+            'clasesGrabadasPorSemana' => $this->agruparPorSemana($this->curso->clasesGrabadas),
+            'tareasPorSemana' => $this->agruparPorSemana($this->curso->tareas()->latest('fecha_limite')->get()),
             'publicaciones' => $this->curso->publicaciones()->with(['autor', 'comentarios.autor'])->latest()->get(),
-            'foros' => $this->curso->foros()->with(['autor', 'respuestas.autor'])->latest()->get(),
+            'forosPorSemana' => $this->agruparPorSemana($this->curso->foros()->with(['autor', 'respuestas.autor'])->latest()->get()),
             'tiposMaterial' => TipoMaterialEnum::cases(),
             'tiposClaseGrabada' => TipoClaseGrabadaEnum::cases(),
             'tiposPublicacion' => TipoPublicacionEnum::cases(),
@@ -328,6 +364,12 @@ new #[Layout('layouts.app')] class extends Component
                             <x-input-error :messages="$errors->get('materialTitulo')" class="mt-1" />
                         </div>
                     </div>
+                    <div>
+                        <x-input-label for="materialSemana" value="Semana (opcional)" />
+                        <x-text-input wire:model="materialSemana" id="materialSemana" type="number" min="1" class="mt-1 block w-full" placeholder="Ej. 1" />
+                        <p class="mt-1 text-xs text-ink-faint">Déjalo vacío para que aparezca en «Bienvenida», antes de la Semana 1.</p>
+                        <x-input-error :messages="$errors->get('materialSemana')" class="mt-1" />
+                    </div>
                     @if (in_array($materialTipo, ['pdf', 'archivo']))
                         <div>
                             <x-input-label for="materialArchivo" value="Archivo" />
@@ -369,22 +411,29 @@ new #[Layout('layouts.app')] class extends Component
                 </form>
             @endif
 
-            <div class="divide-y divide-border rounded-lg border border-border bg-surface">
-                @forelse ($materiales as $material)
-                    <div class="flex items-center justify-between px-4 py-3 text-sm">
-                        <div class="flex items-center gap-3">
-                            <span class="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-mono text-ink-faint">{{ $material->tipo->label() }}</span>
-                            <span class="text-ink">{{ $material->titulo }}</span>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            @if ($material->tipo->requiereArchivo() && $material->getFirstMedia('archivo'))
-                                <a href="{{ $material->getFirstMediaUrl('archivo') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Descargar</a>
-                            @elseif ($material->url)
-                                <a href="{{ $material->url }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Abrir enlace</a>
-                            @endif
-                            @can('manage', $curso)
-                                <button wire:click="eliminarMaterial({{ $material->id }})" wire:confirm="¿Eliminar este material?" class="text-xs font-medium text-danger hover:underline">Eliminar</button>
-                            @endcan
+            <div class="space-y-4">
+                @forelse ($materialesPorSemana as $numeroSemana => $materialesDeSemana)
+                    <div>
+                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $numeroSemana === 0 ? 'Bienvenida' : 'Semana '.$numeroSemana }}</p>
+                        <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+                            @foreach ($materialesDeSemana as $material)
+                                <div class="flex items-center justify-between px-4 py-3 text-sm">
+                                    <div class="flex items-center gap-3">
+                                        <span class="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-mono text-ink-faint">{{ $material->tipo->label() }}</span>
+                                        <span class="text-ink">{{ $material->titulo }}</span>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        @if ($material->tipo->requiereArchivo() && $material->getFirstMedia('archivo'))
+                                            <a href="{{ $material->getFirstMediaUrl('archivo') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Descargar</a>
+                                        @elseif ($material->url)
+                                            <a href="{{ $material->url }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Abrir enlace</a>
+                                        @endif
+                                        @can('manage', $curso)
+                                            <button wire:click="eliminarMaterial({{ $material->id }})" wire:confirm="¿Eliminar este material?" class="text-xs font-medium text-danger hover:underline">Eliminar</button>
+                                        @endcan
+                                    </div>
+                                </div>
+                            @endforeach
                         </div>
                     </div>
                 @empty
@@ -421,6 +470,12 @@ new #[Layout('layouts.app')] class extends Component
                             <x-text-input wire:model="grabacionTitulo" id="grabacionTitulo" class="mt-1 block w-full" placeholder="Ej. Clase del 15 de julio" />
                             <x-input-error :messages="$errors->get('grabacionTitulo')" class="mt-1" />
                         </div>
+                    </div>
+                    <div>
+                        <x-input-label for="grabacionSemana" value="Semana (opcional)" />
+                        <x-text-input wire:model="grabacionSemana" id="grabacionSemana" type="number" min="1" class="mt-1 block w-full" placeholder="Ej. 1" />
+                        <p class="mt-1 text-xs text-ink-faint">Déjalo vacío para que aparezca en «Bienvenida», antes de la Semana 1.</p>
+                        <x-input-error :messages="$errors->get('grabacionSemana')" class="mt-1" />
                     </div>
                     @if ($grabacionTipo === 'archivo')
                         <div>
@@ -463,22 +518,29 @@ new #[Layout('layouts.app')] class extends Component
                 </form>
             @endif
 
-            <div class="divide-y divide-border rounded-lg border border-border bg-surface">
-                @forelse ($clasesGrabadas as $claseGrabada)
-                    <div class="flex items-center justify-between px-4 py-3 text-sm">
-                        <div class="flex items-center gap-3">
-                            <span class="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-mono text-ink-faint">{{ $claseGrabada->tipo->label() }}</span>
-                            <span class="text-ink">{{ $claseGrabada->titulo }}</span>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            @if ($claseGrabada->tipo->requiereArchivo() && $claseGrabada->getFirstMedia('video'))
-                                <a href="{{ $claseGrabada->getFirstMediaUrl('video') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver video</a>
-                            @elseif ($claseGrabada->url)
-                                <a href="{{ $claseGrabada->url }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Abrir enlace</a>
-                            @endif
-                            @can('manage', $curso)
-                                <button wire:click="eliminarGrabacion({{ $claseGrabada->id }})" wire:confirm="¿Eliminar esta clase grabada?" class="text-xs font-medium text-danger hover:underline">Eliminar</button>
-                            @endcan
+            <div class="space-y-4">
+                @forelse ($clasesGrabadasPorSemana as $numeroSemana => $clasesDeSemana)
+                    <div>
+                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $numeroSemana === 0 ? 'Bienvenida' : 'Semana '.$numeroSemana }}</p>
+                        <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+                            @foreach ($clasesDeSemana as $claseGrabada)
+                                <div class="flex items-center justify-between px-4 py-3 text-sm">
+                                    <div class="flex items-center gap-3">
+                                        <span class="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-mono text-ink-faint">{{ $claseGrabada->tipo->label() }}</span>
+                                        <span class="text-ink">{{ $claseGrabada->titulo }}</span>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        @if ($claseGrabada->tipo->requiereArchivo() && $claseGrabada->getFirstMedia('video'))
+                                            <a href="{{ $claseGrabada->getFirstMediaUrl('video') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver video</a>
+                                        @elseif ($claseGrabada->url)
+                                            <a href="{{ $claseGrabada->url }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Abrir enlace</a>
+                                        @endif
+                                        @can('manage', $curso)
+                                            <button wire:click="eliminarGrabacion({{ $claseGrabada->id }})" wire:confirm="¿Eliminar esta clase grabada?" class="text-xs font-medium text-danger hover:underline">Eliminar</button>
+                                        @endcan
+                                    </div>
+                                </div>
+                            @endforeach
                         </div>
                     </div>
                 @empty
@@ -519,6 +581,12 @@ new #[Layout('layouts.app')] class extends Component
                             <x-text-input wire:model="tareaPuntajeMax" id="tareaPuntajeMax" type="number" min="1" max="20" class="mt-1 block w-full" />
                         </div>
                     </div>
+                    <div>
+                        <x-input-label for="tareaSemana" value="Semana (opcional)" />
+                        <x-text-input wire:model="tareaSemana" id="tareaSemana" type="number" min="1" class="mt-1 block w-full" placeholder="Ej. 1" />
+                        <p class="mt-1 text-xs text-ink-faint">Déjalo vacío para que aparezca en «Bienvenida», antes de la Semana 1.</p>
+                        <x-input-error :messages="$errors->get('tareaSemana')" class="mt-1" />
+                    </div>
                     <div class="flex justify-end gap-2">
                         <x-secondary-button type="button" wire:click="$set('mostrarFormTarea', false)">Cancelar</x-secondary-button>
                         <x-primary-button type="submit">Guardar</x-primary-button>
@@ -526,17 +594,24 @@ new #[Layout('layouts.app')] class extends Component
                 </form>
             @endif
 
-            <div class="divide-y divide-border rounded-lg border border-border bg-surface">
-                @forelse ($tareas as $tarea)
-                    <a href="{{ route('aula-virtual.tarea', [$curso, $tarea]) }}" wire:navigate class="flex items-center justify-between px-4 py-3 text-sm hover:bg-surface-2">
-                        <div>
-                            <p class="text-ink">{{ $tarea->titulo }}</p>
-                            <p class="text-xs text-ink-faint">Vence {{ $tarea->fecha_limite->format('d/m/Y H:i') }} · {{ $tarea->puntaje_max }} pts</p>
+            <div class="space-y-4">
+                @forelse ($tareasPorSemana as $numeroSemana => $tareasDeSemana)
+                    <div>
+                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $numeroSemana === 0 ? 'Bienvenida' : 'Semana '.$numeroSemana }}</p>
+                        <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+                            @foreach ($tareasDeSemana as $tarea)
+                                <a href="{{ route('aula-virtual.tarea', [$curso, $tarea]) }}" wire:navigate class="flex items-center justify-between px-4 py-3 text-sm hover:bg-surface-2">
+                                    <div>
+                                        <p class="text-ink">{{ $tarea->titulo }}</p>
+                                        <p class="text-xs text-ink-faint">Vence {{ $tarea->fecha_limite->format('d/m/Y H:i') }} · {{ $tarea->puntaje_max }} pts</p>
+                                    </div>
+                                    @if ($tarea->estaVencida())
+                                        <span class="rounded-full bg-danger/10 px-2 py-0.5 text-xs text-danger">Vencida</span>
+                                    @endif
+                                </a>
+                            @endforeach
                         </div>
-                        @if ($tarea->estaVencida())
-                            <span class="rounded-full bg-danger/10 px-2 py-0.5 text-xs text-danger">Vencida</span>
-                        @endif
-                    </a>
+                    </div>
                 @empty
                     <p class="px-4 py-8 text-center text-sm text-ink-faint">Todavía no hay tareas.</p>
                 @endforelse
@@ -632,6 +707,12 @@ new #[Layout('layouts.app')] class extends Component
                         <x-input-label for="foroDescripcion" value="Descripción" />
                         <textarea wire:model="foroDescripcion" id="foroDescripcion" rows="2" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent"></textarea>
                     </div>
+                    <div>
+                        <x-input-label for="foroSemana" value="Semana (opcional)" />
+                        <x-text-input wire:model="foroSemana" id="foroSemana" type="number" min="1" class="mt-1 block w-full" placeholder="Ej. 1" />
+                        <p class="mt-1 text-xs text-ink-faint">Déjalo vacío para que aparezca en «Bienvenida», antes de la Semana 1.</p>
+                        <x-input-error :messages="$errors->get('foroSemana')" class="mt-1" />
+                    </div>
                     <div class="flex justify-end gap-2">
                         <x-secondary-button type="button" wire:click="$set('mostrarFormForo', false)">Cancelar</x-secondary-button>
                         <x-primary-button type="submit">Crear foro</x-primary-button>
@@ -640,33 +721,40 @@ new #[Layout('layouts.app')] class extends Component
             @endif
 
             <div class="space-y-4">
-                @forelse ($foros as $foro)
-                    <div class="rounded-lg border border-border bg-surface p-4">
-                        <p class="text-ink">{{ $foro->titulo }}</p>
-                        <p class="text-xs text-ink-faint">
-                            {{ $foro->autor->name }} · {{ $foro->respuestas->count() }} {{ Str::plural('respuesta', $foro->respuestas->count()) }}
-                        </p>
-                        @if ($foro->descripcion)
-                            <p class="mt-2 text-sm text-ink-dim">{{ $foro->descripcion }}</p>
-                        @endif
+                @forelse ($forosPorSemana as $numeroSemana => $forosDeSemana)
+                    <div>
+                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $numeroSemana === 0 ? 'Bienvenida' : 'Semana '.$numeroSemana }}</p>
+                        <div class="space-y-4">
+                            @foreach ($forosDeSemana as $foro)
+                                <div class="rounded-lg border border-border bg-surface p-4">
+                                    <p class="text-ink">{{ $foro->titulo }}</p>
+                                    <p class="text-xs text-ink-faint">
+                                        {{ $foro->autor->name }} · {{ $foro->respuestas->count() }} {{ Str::plural('respuesta', $foro->respuestas->count()) }}
+                                    </p>
+                                    @if ($foro->descripcion)
+                                        <p class="mt-2 text-sm text-ink-dim">{{ $foro->descripcion }}</p>
+                                    @endif
 
-                        <div class="mt-4 space-y-2 border-t border-border pt-3">
-                            @foreach ($foro->respuestas as $respuesta)
-                                <div class="text-xs">
-                                    <span class="font-medium text-ink">{{ $respuesta->autor->name }}</span>
-                                    <span class="text-ink-dim">{{ $respuesta->contenido }}</span>
+                                    <div class="mt-4 space-y-2 border-t border-border pt-3">
+                                        @foreach ($foro->respuestas as $respuesta)
+                                            <div class="text-xs">
+                                                <span class="font-medium text-ink">{{ $respuesta->autor->name }}</span>
+                                                <span class="text-ink-dim">{{ $respuesta->contenido }}</span>
+                                            </div>
+                                        @endforeach
+
+                                        <form wire:submit="responderForo({{ $foro->id }})" class="flex gap-2 pt-1">
+                                            <input
+                                                type="text"
+                                                wire:model="nuevaRespuestaForo.{{ $foro->id }}"
+                                                placeholder="Escribe una respuesta…"
+                                                class="flex-1 rounded-md border-border bg-surface text-xs text-ink placeholder:text-ink-faint focus:border-accent focus:ring-accent"
+                                            >
+                                            <button type="submit" class="text-xs font-medium text-accent hover:underline">Responder</button>
+                                        </form>
+                                    </div>
                                 </div>
                             @endforeach
-
-                            <form wire:submit="responderForo({{ $foro->id }})" class="flex gap-2 pt-1">
-                                <input
-                                    type="text"
-                                    wire:model="nuevaRespuestaForo.{{ $foro->id }}"
-                                    placeholder="Escribe una respuesta…"
-                                    class="flex-1 rounded-md border-border bg-surface text-xs text-ink placeholder:text-ink-faint focus:border-accent focus:ring-accent"
-                                >
-                                <button type="submit" class="text-xs font-medium text-accent hover:underline">Responder</button>
-                            </form>
                         </div>
                     </div>
                 @empty

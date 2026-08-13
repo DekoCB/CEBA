@@ -17,6 +17,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property string $titulo
  * @property TipoClaseGrabadaEnum $tipo
  * @property string|null $url
+ * @property int|null $semana
  */
 class ClaseGrabada extends Model implements HasMedia
 {
@@ -27,6 +28,7 @@ class ClaseGrabada extends Model implements HasMedia
 
     protected $fillable = [
         'curso_virtual_id',
+        'semana',
         'tipo',
         'titulo',
         'url',

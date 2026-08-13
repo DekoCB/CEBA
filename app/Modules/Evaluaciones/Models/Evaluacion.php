@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $horario_id
+ * @property int|null $semana
  * @property string $nombre
  * @property Carbon $fecha
  * @property string|null $enlace_externo
@@ -33,6 +34,7 @@ class Evaluacion extends Model
 
     protected $fillable = [
         'horario_id',
+        'semana',
         'nombre',
         'fecha',
         'enlace_externo',

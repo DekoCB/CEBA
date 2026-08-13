@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * @property string $titulo
  * @property string|null $descripcion
+ * @property int|null $semana
  */
 class Foro extends Model
 {
@@ -23,6 +24,7 @@ class Foro extends Model
 
     protected $fillable = [
         'curso_virtual_id',
+        'semana',
         'autor_id',
         'titulo',
         'descripcion',

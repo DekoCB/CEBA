@@ -92,10 +92,11 @@ class EvaluacionService
         return Horario::query()->with(['curso', 'grado', 'ciclo', 'docente'])->get();
     }
 
-    public function crear(Horario $horario, string $nombre, string $fecha, ?string $enlaceExterno = null, ?string $disponibleHasta = null): Evaluacion
+    public function crear(Horario $horario, string $nombre, string $fecha, ?string $enlaceExterno = null, ?string $disponibleHasta = null, ?int $semana = null): Evaluacion
     {
         return Evaluacion::query()->create([
             'horario_id' => $horario->id,
+            'semana' => $semana,
             'nombre' => $nombre,
             'fecha' => $fecha,
             'enlace_externo' => $enlaceExterno,
@@ -110,6 +111,13 @@ class EvaluacionService
             'enlace_externo' => $enlaceExterno,
             'disponible_hasta' => $disponibleHasta,
         ]);
+
+        return $evaluacion;
+    }
+
+    public function actualizarSemana(Evaluacion $evaluacion, ?int $semana): Evaluacion
+    {
+        $evaluacion->update(['semana' => $semana]);
 
         return $evaluacion;
     }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\AulaVirtual;
 
+use App\Models\User;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\AulaVirtual\Enums\EstadoEntregaEnum;
 use App\Modules\AulaVirtual\Enums\TipoClaseGrabadaEnum;
@@ -9,6 +10,7 @@ use App\Modules\AulaVirtual\Enums\TipoMaterialEnum;
 use App\Modules\AulaVirtual\Models\CursoVirtual;
 use App\Modules\AulaVirtual\Services\ClaseGrabadaService;
 use App\Modules\AulaVirtual\Services\CursoVirtualService;
+use App\Modules\AulaVirtual\Services\ForoService;
 use App\Modules\AulaVirtual\Services\MaterialService;
 use App\Modules\AulaVirtual\Services\TareaService;
 use App\Modules\Matricula\Models\Estudiante;
@@ -154,6 +156,24 @@ class AulaVirtualServiceTest extends TestCase
         }
     }
 
+    public function test_crear_material_persiste_la_semana_indicada(): void
+    {
+        $curso = CursoVirtual::factory()->create();
+
+        $material = $this->app->make(MaterialService::class)->crear($curso, TipoMaterialEnum::ENLACE, 'Video', 'https://ejemplo.test/video', null, 3);
+
+        $this->assertSame(3, $material->fresh()->semana);
+    }
+
+    public function test_crear_material_sin_semana_la_deja_nula(): void
+    {
+        $curso = CursoVirtual::factory()->create();
+
+        $material = $this->app->make(MaterialService::class)->crear($curso, TipoMaterialEnum::ENLACE, 'Video', 'https://ejemplo.test/video', null);
+
+        $this->assertNull($material->fresh()->semana);
+    }
+
     public function test_clase_grabada_de_tipo_archivo_requiere_archivo(): void
     {
         $curso = CursoVirtual::factory()->create();
@@ -232,6 +252,30 @@ class AulaVirtualServiceTest extends TestCase
         $this->assertNotNull($clasesGrabadas[1]->getFirstMedia('video'));
     }
 
+    public function test_crear_clase_grabada_persiste_la_semana_indicada(): void
+    {
+        $curso = CursoVirtual::factory()->create();
+
+        $claseGrabada = $this->app->make(ClaseGrabadaService::class)->crear($curso, TipoClaseGrabadaEnum::ENLACE, 'Clase del 15 de julio', 'https://youtube.test/clase', null, 2);
+
+        $this->assertSame(2, $claseGrabada->fresh()->semana);
+    }
+
+    public function test_crear_tarea_persiste_la_semana_indicada(): void
+    {
+        $curso = CursoVirtual::factory()->create();
+
+        $tarea = $this->app->make(TareaService::class)->crear($curso, [
+            'titulo' => 'Ensayo',
+            'descripcion' => null,
+            'fecha_limite' => now()->addDay(),
+            'puntaje_max' => 20,
+            'semana' => 1,
+        ]);
+
+        $this->assertSame(1, $tarea->fresh()->semana);
+    }
+
     public function test_entregar_tarea_antes_de_la_fecha_limite_queda_como_entregado(): void
     {
         $curso = CursoVirtual::factory()->create();
@@ -281,6 +325,26 @@ class AulaVirtualServiceTest extends TestCase
 
         $this->assertEquals(18.5, $calificada->nota);
         $this->assertSame(EstadoEntregaEnum::CALIFICADO, $calificada->estado);
+    }
+
+    public function test_crear_foro_persiste_la_semana_indicada(): void
+    {
+        $curso = CursoVirtual::factory()->create();
+        $autor = User::factory()->create();
+
+        $foro = $this->app->make(ForoService::class)->crear($curso, $autor->id, 'Dudas de la semana', null, 2);
+
+        $this->assertSame(2, $foro->fresh()->semana);
+    }
+
+    public function test_crear_foro_sin_semana_la_deja_nula(): void
+    {
+        $curso = CursoVirtual::factory()->create();
+        $autor = User::factory()->create();
+
+        $foro = $this->app->make(ForoService::class)->crear($curso, $autor->id, 'Dudas generales', null);
+
+        $this->assertNull($foro->fresh()->semana);
     }
 
     public function test_reentregar_actualiza_la_misma_fila_en_lugar_de_duplicarla(): void

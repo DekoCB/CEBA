@@ -205,4 +205,45 @@ class EvaluacionesFlujoTest extends TestCase
             ->assertSee('Evaluaciones para rendir')
             ->assertSee('https://forms.test/examen');
     }
+
+    public function test_el_docente_ve_las_evaluaciones_agrupadas_por_semana_en_orden_ascendente(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario = Horario::factory()->create(['docente_id' => $docente->id]);
+
+        $service = $this->app->make(EvaluacionService::class);
+        $service->crear($horario, 'Evaluación semana 2', '2026-07-15', null, null, 2);
+        $service->crear($horario, 'Evaluación sin semana', '2026-07-10');
+
+        $this->actingAs($docente);
+
+        Volt::test('evaluaciones.show', ['horario' => $horario])
+            ->assertSeeInOrder(['Bienvenida', 'Evaluación sin semana', 'Semana 2', 'Evaluación semana 2']);
+    }
+
+    public function test_un_estudiante_ve_las_evaluaciones_para_rendir_agrupadas_por_semana(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario = Horario::factory()->create(['docente_id' => $docente->id]);
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+
+        $service = $this->app->make(EvaluacionService::class);
+        $evaluacion = $service->crear($horario, 'Evaluación semana 3', now()->format('Y-m-d'), 'https://forms.test/examen', null, 3);
+        $service->publicar($evaluacion);
+
+        $this->actingAs($usuario);
+
+        Volt::test('evaluaciones.show', ['horario' => $horario])
+            ->assertSeeInOrder(['Evaluaciones para rendir', 'Semana 3', 'Evaluación semana 3']);
+    }
 }

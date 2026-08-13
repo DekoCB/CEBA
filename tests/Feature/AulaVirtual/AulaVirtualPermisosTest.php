@@ -167,6 +167,43 @@ class AulaVirtualPermisosTest extends TestCase
         $this->assertSame(1, $cursoDos->materiales()->count());
     }
 
+    public function test_el_material_creado_con_semana_se_agrupa_bajo_su_semana(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $curso = $this->cursoDelDocente($docente);
+
+        $this->actingAs($docente);
+
+        Volt::test('aula-virtual.show', ['curso' => $curso])
+            ->set('materialTipo', 'enlace')
+            ->set('materialTitulo', 'Video de repaso')
+            ->set('materialUrl', 'https://ejemplo.test/video')
+            ->set('materialSemana', '2')
+            ->set('materialCursosSeleccionados', [$curso->id])
+            ->call('crearMaterial')
+            ->assertHasNoErrors()
+            ->assertSeeInOrder(['Semana 2', 'Video de repaso']);
+    }
+
+    public function test_el_material_creado_sin_semana_se_agrupa_bajo_bienvenida(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $curso = $this->cursoDelDocente($docente);
+
+        $this->actingAs($docente);
+
+        Volt::test('aula-virtual.show', ['curso' => $curso])
+            ->set('materialTipo', 'enlace')
+            ->set('materialTitulo', 'Video de bienvenida')
+            ->set('materialUrl', 'https://ejemplo.test/video')
+            ->set('materialCursosSeleccionados', [$curso->id])
+            ->call('crearMaterial')
+            ->assertHasNoErrors()
+            ->assertSeeInOrder(['Bienvenida', 'Video de bienvenida']);
+    }
+
     public function test_un_docente_no_puede_subir_material_a_la_seccion_de_otro_docente_inyectando_el_id(): void
     {
         $docente = User::factory()->create();
@@ -266,6 +303,39 @@ class AulaVirtualPermisosTest extends TestCase
             ->set('tab', 'clases-grabadas')
             ->assertSee('Clase del 15 de julio')
             ->assertDontSee('Nueva clase grabada');
+    }
+
+    public function test_el_foro_creado_con_semana_se_agrupa_bajo_su_semana(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $curso = $this->cursoDelDocente($docente);
+
+        $this->actingAs($docente);
+
+        Volt::test('aula-virtual.show', ['curso' => $curso])
+            ->set('tab', 'foros')
+            ->set('foroTitulo', 'Dudas de la semana 2')
+            ->set('foroSemana', '2')
+            ->call('crearForo')
+            ->assertHasNoErrors()
+            ->assertSeeInOrder(['Semana 2', 'Dudas de la semana 2']);
+    }
+
+    public function test_el_foro_creado_sin_semana_se_agrupa_bajo_bienvenida(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $curso = $this->cursoDelDocente($docente);
+
+        $this->actingAs($docente);
+
+        Volt::test('aula-virtual.show', ['curso' => $curso])
+            ->set('tab', 'foros')
+            ->set('foroTitulo', 'Introduccion al curso')
+            ->call('crearForo')
+            ->assertHasNoErrors()
+            ->assertSeeInOrder(['Bienvenida', 'Introduccion al curso']);
     }
 
     public function test_direccion_puede_gestionar_cualquier_curso(): void

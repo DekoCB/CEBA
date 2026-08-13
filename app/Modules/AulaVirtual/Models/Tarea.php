@@ -15,6 +15,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $curso_virtual_id
+ * @property int|null $semana
  * @property string $titulo
  * @property string|null $descripcion
  * @property Carbon $fecha_limite
@@ -27,6 +28,7 @@ class Tarea extends Model
 
     protected $fillable = [
         'curso_virtual_id',
+        'semana',
         'titulo',
         'descripcion',
         'fecha_limite',

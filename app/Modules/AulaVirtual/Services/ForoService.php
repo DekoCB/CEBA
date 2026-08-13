@@ -10,12 +10,13 @@ use App\Modules\AulaVirtual\Models\ForoRespuesta;
 
 class ForoService
 {
-    public function crear(CursoVirtual $curso, int $autorId, string $titulo, ?string $descripcion): Foro
+    public function crear(CursoVirtual $curso, int $autorId, string $titulo, ?string $descripcion, ?int $semana = null): Foro
     {
         return $curso->foros()->create([
             'autor_id' => $autorId,
             'titulo' => $titulo,
             'descripcion' => $descripcion,
+            'semana' => $semana,
         ]);
     }
 

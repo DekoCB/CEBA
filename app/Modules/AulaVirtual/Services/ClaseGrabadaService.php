@@ -13,11 +13,12 @@ use Illuminate\Validation\ValidationException;
 
 class ClaseGrabadaService
 {
-    public function crear(CursoVirtual $curso, TipoClaseGrabadaEnum $tipo, string $titulo, ?string $url, ?UploadedFile $archivo): ClaseGrabada
+    public function crear(CursoVirtual $curso, TipoClaseGrabadaEnum $tipo, string $titulo, ?string $url, ?UploadedFile $archivo, ?int $semana = null): ClaseGrabada
     {
         $this->validarDatos($tipo, $url, $archivo);
 
         $claseGrabada = $curso->clasesGrabadas()->create([
+            'semana' => $semana,
             'tipo' => $tipo,
             'titulo' => $titulo,
             'url' => $tipo->requiereArchivo() ? null : $url,
@@ -43,11 +44,11 @@ class ClaseGrabadaService
      * @param  Collection<int, CursoVirtual>  $cursos
      * @return Collection<int, ClaseGrabada>
      */
-    public function crearParaVarios(Collection $cursos, TipoClaseGrabadaEnum $tipo, string $titulo, ?string $url, ?UploadedFile $archivo): Collection
+    public function crearParaVarios(Collection $cursos, TipoClaseGrabadaEnum $tipo, string $titulo, ?string $url, ?UploadedFile $archivo, ?int $semana = null): Collection
     {
         $this->validarDatos($tipo, $url, $archivo);
 
-        return $cursos->map(fn (CursoVirtual $curso) => $this->crear($curso, $tipo, $titulo, $url, $archivo));
+        return $cursos->map(fn (CursoVirtual $curso) => $this->crear($curso, $tipo, $titulo, $url, $archivo, $semana));
     }
 
     public function eliminar(ClaseGrabada $claseGrabada): void

@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
 class TareaService
 {
     /**
-     * @param  array{titulo: string, descripcion: ?string, fecha_limite: string, puntaje_max: int}  $datos
+     * @param  array{titulo: string, descripcion: ?string, fecha_limite: string, puntaje_max: int, semana?: ?int}  $datos
      */
     public function crear(CursoVirtual $curso, array $datos): Tarea
     {
