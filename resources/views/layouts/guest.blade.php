@@ -17,6 +17,9 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="bg-[#0a0a0a] font-sans text-white antialiased">
+        <div class="fondo-login" aria-hidden="true" style="background-image: url('{{ asset('images/fondo_log.png') }}')"></div>
+        <div class="fondo-login-overlay" aria-hidden="true"></div>
+
         <div class="relative flex min-h-screen flex-col items-center justify-center px-4 py-10">
             <a href="{{ route('landing') }}" wire:navigate class="absolute left-4 top-4 flex items-center gap-1.5 text-sm text-gray-400 transition hover:text-white sm:left-8 sm:top-8">
                 <x-heroicon-o-arrow-left class="h-4 w-4" />

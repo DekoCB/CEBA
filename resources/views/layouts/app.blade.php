@@ -21,7 +21,7 @@
     <body class="font-sans antialiased">
         <div x-data="{ sidebarOpen: false }" class="flex h-dvh overflow-hidden bg-bg">
             <!-- Sidebar (desktop) -->
-            <aside class="sidebar-desktop relative hidden w-64 shrink-0 flex-col border-r border-border bg-surface transition-all duration-300 ease-in-out md:flex">
+            <aside class="sidebar-desktop relative hidden w-72 shrink-0 flex-col border-r border-border bg-surface transition-all duration-300 ease-in-out md:flex">
                 <div class="flex h-16 items-center border-b border-border px-4">
                     <a href="{{ route('dashboard') }}" wire:navigate>
                         <x-application-logo />
@@ -60,7 +60,7 @@
                 x-transition:leave="transition ease-in duration-150"
                 x-transition:leave-start="translate-x-0"
                 x-transition:leave-end="-translate-x-full"
-                class="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-border bg-surface md:hidden"
+                class="fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-border bg-surface md:hidden"
             >
                 <div class="flex h-16 items-center justify-between border-b border-border px-4">
                     <x-application-logo />
