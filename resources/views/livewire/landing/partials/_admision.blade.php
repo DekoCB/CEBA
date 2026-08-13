@@ -143,11 +143,11 @@
                         :style="`transform: rotate(${activo * -72}deg)`"
                     >
                         @foreach ([
-                            ['icon' => 'chat-bubble-left-right', 'color' => 'red', 'titulo' => 'Contacto Inicial', 'descripcion' => 'Escríbenos por WhatsApp o llena el formulario de contacto.', 'x' => 0, 'y' => -210],
-                            ['icon' => 'light-bulb', 'color' => 'blue', 'titulo' => 'Información y Orientación', 'descripcion' => 'Te explicamos el programa, horarios y costos sin compromiso.', 'x' => 200, 'y' => -65],
-                            ['icon' => 'document-check', 'color' => 'amber', 'titulo' => 'Presentación de Documentos', 'descripcion' => 'Nos envías o acercas tus documentos para validar tu ingreso.', 'x' => 123, 'y' => 170],
-                            ['icon' => 'pencil-square', 'color' => 'green', 'titulo' => 'Matrícula', 'descripcion' => 'Completamos tu matrícula, totalmente gratuita.', 'x' => -123, 'y' => 170],
-                            ['icon' => 'academic-cap', 'color' => 'pink', 'titulo' => 'Inicio de Clases', 'descripcion' => 'Comienzas tus clases y tu acompañamiento docente.', 'x' => -200, 'y' => -65],
+                            ['icon' => 'chat-bubble-left-right', 'color' => 'red', 'titulo' => 'Contacto Inicial', 'descripcion' => 'Escríbenos por WhatsApp o llena el formulario de contacto.', 'x' => 0, 'y' => -190],
+                            ['icon' => 'light-bulb', 'color' => 'blue', 'titulo' => 'Información y Orientación', 'descripcion' => 'Te explicamos el programa, horarios y costos sin compromiso.', 'x' => 181, 'y' => -59],
+                            ['icon' => 'document-check', 'color' => 'amber', 'titulo' => 'Presentación de Documentos', 'descripcion' => 'Nos envías o acercas tus documentos para validar tu ingreso.', 'x' => 111, 'y' => 154],
+                            ['icon' => 'pencil-square', 'color' => 'green', 'titulo' => 'Matrícula', 'descripcion' => 'Completamos tu matrícula, totalmente gratuita.', 'x' => -111, 'y' => 154],
+                            ['icon' => 'academic-cap', 'color' => 'pink', 'titulo' => 'Inicio de Clases', 'descripcion' => 'Comienzas tus clases y tu acompañamiento docente.', 'x' => -181, 'y' => -59],
                         ] as $indice => $paso)
                             @php
                                 $colorActivo = [
