@@ -36,7 +36,7 @@
                 </div>
             </div>
 
-            <div x-data x-reveal class="rounded-2xl border border-white/5 bg-[#1a1a1c] p-6 sm:p-8 lg:col-span-3">
+            <div x-data x-reveal class="flex flex-col justify-center rounded-2xl border border-white/5 bg-[#1a1a1c] p-6 sm:p-8 lg:col-span-3">
                 <h3 class="font-sans text-lg font-bold text-white">Envíanos un Mensaje</h3>
 
                 @if ($enviado)
