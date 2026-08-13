@@ -92,20 +92,24 @@ class EvaluacionService
         return Horario::query()->with(['curso', 'grado', 'ciclo', 'docente'])->get();
     }
 
-    public function crear(Horario $horario, string $nombre, string $fecha, ?string $enlaceExterno = null): Evaluacion
+    public function crear(Horario $horario, string $nombre, string $fecha, ?string $enlaceExterno = null, ?string $disponibleHasta = null): Evaluacion
     {
         return Evaluacion::query()->create([
             'horario_id' => $horario->id,
             'nombre' => $nombre,
             'fecha' => $fecha,
             'enlace_externo' => $enlaceExterno,
+            'disponible_hasta' => $disponibleHasta,
             'estado' => EstadoEvaluacionEnum::BORRADOR,
         ]);
     }
 
-    public function actualizarEnlace(Evaluacion $evaluacion, ?string $enlaceExterno): Evaluacion
+    public function actualizarEnlace(Evaluacion $evaluacion, ?string $enlaceExterno, ?string $disponibleHasta = null): Evaluacion
     {
-        $evaluacion->update(['enlace_externo' => $enlaceExterno]);
+        $evaluacion->update([
+            'enlace_externo' => $enlaceExterno,
+            'disponible_hasta' => $disponibleHasta,
+        ]);
 
         return $evaluacion;
     }
@@ -159,10 +163,9 @@ class EvaluacionService
     }
 
     /**
-     * Evaluaciones de un horario que tienen un enlace externo adjunto, sin
-     * importar su estado (borrador o publicada): el estudiante debe poder
-     * acceder al enlace y rendirla apenas el docente la crea, no recién
-     * cuando se publican las notas.
+     * Evaluaciones de un horario con un enlace externo que el estudiante ya
+     * puede resolver: deben estar publicadas y, si el docente puso una
+     * fecha límite, todavía no haber pasado (ver Evaluacion::enlaceDisponible()).
      *
      * @return Collection<int, Evaluacion>
      */
@@ -170,7 +173,11 @@ class EvaluacionService
     {
         return Evaluacion::query()
             ->where('horario_id', $horario->id)
+            ->where('estado', EstadoEvaluacionEnum::PUBLICADA)
             ->whereNotNull('enlace_externo')
+            ->where(function ($query) {
+                $query->whereNull('disponible_hasta')->orWhere('disponible_hasta', '>=', now());
+            })
             ->orderByDesc('fecha')
             ->get();
     }

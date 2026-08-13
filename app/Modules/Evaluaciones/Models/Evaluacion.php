@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
  * @property string $nombre
  * @property Carbon $fecha
  * @property string|null $enlace_externo
+ * @property Carbon|null $disponible_hasta
  * @property EstadoEvaluacionEnum $estado
  * @property-read Horario $horario
  */
@@ -35,6 +36,7 @@ class Evaluacion extends Model
         'nombre',
         'fecha',
         'enlace_externo',
+        'disponible_hasta',
         'estado',
     ];
 
@@ -42,6 +44,7 @@ class Evaluacion extends Model
     {
         return [
             'fecha' => 'date',
+            'disponible_hasta' => 'datetime',
             'estado' => EstadoEvaluacionEnum::class,
         ];
     }
@@ -72,5 +75,18 @@ class Evaluacion extends Model
     public function tieneEnlaceExterno(): bool
     {
         return $this->enlace_externo !== null;
+    }
+
+    /**
+     * El enlace externo solo puede resolverse si la evaluación ya está
+     * publicada y, si el docente puso una fecha límite, todavía no pasó.
+     */
+    public function enlaceDisponible(): bool
+    {
+        if (! $this->estaPublicada() || ! $this->tieneEnlaceExterno()) {
+            return false;
+        }
+
+        return $this->disponible_hasta === null || now()->lte($this->disponible_hasta);
     }
 }

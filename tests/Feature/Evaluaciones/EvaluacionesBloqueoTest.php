@@ -149,16 +149,11 @@ class EvaluacionesBloqueoTest extends TestCase
     {
         [$usuario, , $horario] = $this->estudianteBloqueado();
 
-        $docente = User::factory()->create();
-        $docente->assignRole(RolEnum::DOCENTE->value);
-        $horario->update(['docente_id' => $docente->id]);
-
-        $this->actingAs($docente);
-        Volt::test('evaluaciones.show', ['horario' => $horario])
-            ->set('nuevoNombre', 'Evaluación mensual')
-            ->set('nuevaFecha', now()->format('Y-m-d'))
-            ->set('nuevoEnlace', 'https://forms.test/examen')
-            ->call('crear');
+        // Publicada a propósito: así el "no lo ve" se debe únicamente al
+        // bloqueo por deuda, sin mezclarlo con el nuevo requisito de que
+        // la evaluación esté publicada.
+        $evaluacion = $this->app->make(EvaluacionService::class)->crear($horario, 'Evaluación mensual', now()->format('Y-m-d'), 'https://forms.test/examen');
+        $this->app->make(EvaluacionService::class)->publicar($evaluacion);
 
         $this->actingAs($usuario);
         Volt::test('evaluaciones.show', ['horario' => $horario])
@@ -170,16 +165,8 @@ class EvaluacionesBloqueoTest extends TestCase
     {
         [$usuario, , $horario] = $this->estudianteConUnaCuotaVencidaEnCicloActivo();
 
-        $docente = User::factory()->create();
-        $docente->assignRole(RolEnum::DOCENTE->value);
-        $horario->update(['docente_id' => $docente->id]);
-
-        $this->actingAs($docente);
-        Volt::test('evaluaciones.show', ['horario' => $horario])
-            ->set('nuevoNombre', 'Evaluación mensual')
-            ->set('nuevaFecha', now()->format('Y-m-d'))
-            ->set('nuevoEnlace', 'https://forms.test/examen')
-            ->call('crear');
+        $evaluacion = $this->app->make(EvaluacionService::class)->crear($horario, 'Evaluación mensual', now()->format('Y-m-d'), 'https://forms.test/examen');
+        $this->app->make(EvaluacionService::class)->publicar($evaluacion);
 
         $this->actingAs($usuario);
         Volt::test('evaluaciones.show', ['horario' => $horario])

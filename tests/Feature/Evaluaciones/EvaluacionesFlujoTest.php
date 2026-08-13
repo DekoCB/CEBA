@@ -4,6 +4,7 @@ namespace Tests\Feature\Evaluaciones;
 
 use App\Models\User;
 use App\Modules\Academico\Models\Horario;
+use App\Modules\Evaluaciones\Services\EvaluacionService;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
@@ -151,7 +152,7 @@ class EvaluacionesFlujoTest extends TestCase
         ]);
     }
 
-    public function test_un_estudiante_matriculado_ve_el_enlace_de_una_evaluacion_en_borrador(): void
+    public function test_un_estudiante_matriculado_no_ve_el_enlace_de_una_evaluacion_en_borrador(): void
     {
         $docente = User::factory()->create();
         $docente->assignRole(RolEnum::DOCENTE->value);
@@ -172,6 +173,31 @@ class EvaluacionesFlujoTest extends TestCase
             ->set('nuevaFecha', '2026-07-15')
             ->set('nuevoEnlace', 'https://forms.test/examen')
             ->call('crear');
+
+        $this->actingAs($usuario);
+
+        Volt::test('evaluaciones.show', ['horario' => $horario])
+            ->assertDontSee('Evaluaciones para rendir')
+            ->assertDontSee('https://forms.test/examen');
+    }
+
+    public function test_un_estudiante_matriculado_ve_el_enlace_recien_cuando_se_publica(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario = Horario::factory()->create(['docente_id' => $docente->id]);
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+
+        $evaluacion = $this->app->make(EvaluacionService::class)->crear($horario, 'Evaluación mensual', now()->format('Y-m-d'), 'https://forms.test/examen');
+        $this->app->make(EvaluacionService::class)->publicar($evaluacion);
 
         $this->actingAs($usuario);
 

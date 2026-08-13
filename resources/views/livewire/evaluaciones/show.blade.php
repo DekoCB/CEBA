@@ -21,9 +21,13 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $nuevoEnlace = '';
 
+    public string $nuevoDisponibleHasta = '';
+
     public bool $mostrarFormNueva = false;
 
     public string $enlaceEditar = '';
+
+    public string $disponibleHastaEditar = '';
 
     /** @var array<int, string> */
     public array $notas = [];
@@ -49,11 +53,18 @@ new #[Layout('layouts.app')] class extends Component
             'nuevoNombre' => 'required|string|max:150',
             'nuevaFecha' => 'required|date',
             'nuevoEnlace' => 'nullable|url|max:500',
+            'nuevoDisponibleHasta' => 'nullable|date',
         ]);
 
-        $evaluacion = $service->crear($this->horario, $this->nuevoNombre, $this->nuevaFecha, $this->nuevoEnlace ?: null);
+        $evaluacion = $service->crear(
+            $this->horario,
+            $this->nuevoNombre,
+            $this->nuevaFecha,
+            $this->nuevoEnlace ?: null,
+            $this->nuevoDisponibleHasta ?: null,
+        );
 
-        $this->reset(['nuevoNombre', 'nuevoEnlace', 'mostrarFormNueva']);
+        $this->reset(['nuevoNombre', 'nuevoEnlace', 'nuevoDisponibleHasta', 'mostrarFormNueva']);
         $this->nuevaFecha = now()->format('Y-m-d');
         $this->evaluacionId = $evaluacion->id;
     }
@@ -85,6 +96,7 @@ new #[Layout('layouts.app')] class extends Component
         $this->notas = [];
         $this->observaciones = [];
         $this->enlaceEditar = (string) $evaluacion->enlace_externo;
+        $this->disponibleHastaEditar = $evaluacion->disponible_hasta?->format('Y-m-d\TH:i') ?? '';
 
         foreach ($estudiantes as $estudiante) {
             $calificacion = $existentes->get($estudiante->id);
@@ -97,11 +109,14 @@ new #[Layout('layouts.app')] class extends Component
     {
         Gate::authorize('evaluaciones.registrar-horario', $this->horario);
 
-        $this->validate(['enlaceEditar' => 'nullable|url|max:500']);
+        $this->validate([
+            'enlaceEditar' => 'nullable|url|max:500',
+            'disponibleHastaEditar' => 'nullable|date',
+        ]);
 
         $evaluacion = Evaluacion::query()->where('horario_id', $this->horario->id)->findOrFail($this->evaluacionId);
 
-        $service->actualizarEnlace($evaluacion, $this->enlaceEditar ?: null);
+        $service->actualizarEnlace($evaluacion, $this->enlaceEditar ?: null, $this->disponibleHastaEditar ?: null);
     }
 
     public function guardarNotas(EvaluacionService $service): void
@@ -242,8 +257,14 @@ new #[Layout('layouts.app')] class extends Component
                         <div>
                             <x-input-label for="nuevoEnlace" value="Enlace externo (opcional)" />
                             <x-text-input wire:model="nuevoEnlace" id="nuevoEnlace" class="mt-1 block w-full" placeholder="https://…" />
-                            <p class="mt-1 text-xs text-ink-faint">Los estudiantes lo verán apenas crees la evaluación, para poder rendirla.</p>
+                            <p class="mt-1 text-xs text-ink-faint">Los estudiantes lo verán recién cuando publiques la evaluación, para poder rendirla.</p>
                             <x-input-error :messages="$errors->get('nuevoEnlace')" class="mt-1" />
+                        </div>
+                        <div>
+                            <x-input-label for="nuevoDisponibleHasta" value="Disponible hasta (opcional)" />
+                            <x-text-input wire:model="nuevoDisponibleHasta" id="nuevoDisponibleHasta" type="datetime-local" class="mt-1 block w-full" />
+                            <p class="mt-1 text-xs text-ink-faint">Pasada esta fecha, el enlace deja de estar disponible para el estudiante.</p>
+                            <x-input-error :messages="$errors->get('nuevoDisponibleHasta')" class="mt-1" />
                         </div>
                         <div class="flex justify-end gap-2">
                             <x-secondary-button type="button" wire:click="$set('mostrarFormNueva', false)">Cancelar</x-secondary-button>
@@ -289,7 +310,7 @@ new #[Layout('layouts.app')] class extends Component
                             <p class="text-xs text-ink-faint">{{ $evaluacionSeleccionada->fecha->format('d/m/Y') }}</p>
                         </div>
                         @if ($puedePublicar && ! $evaluacionSeleccionada->estaPublicada())
-                            <x-secondary-button type="button" wire:click="publicar" wire:confirm="¿Publicar esta evaluación? Los estudiantes podrán ver sus notas.">
+                            <x-secondary-button type="button" wire:click="publicar" wire:confirm="¿Publicar esta evaluación? Los estudiantes podrán ver sus notas{{ $evaluacionSeleccionada->enlace_externo ? ' y acceder al enlace para rendirla' : '' }}.">
                                 Publicar
                             </x-secondary-button>
                         @endif
@@ -300,18 +321,33 @@ new #[Layout('layouts.app')] class extends Component
                     @endif
 
                     @if ($puedeRegistrar)
-                        <div class="mb-4 flex items-end gap-2 rounded-lg border border-border bg-surface p-4">
-                            <div class="flex-1">
-                                <x-input-label for="enlaceEditar" value="Enlace externo (opcional)" />
-                                <x-text-input wire:model="enlaceEditar" id="enlaceEditar" class="mt-1 block w-full" placeholder="https://…" />
-                                <x-input-error :messages="$errors->get('enlaceEditar')" class="mt-1" />
+                        <div class="mb-4 space-y-3 rounded-lg border border-border bg-surface p-4">
+                            @unless ($evaluacionSeleccionada->estaPublicada())
+                                <p class="text-xs text-ink-faint">El enlace no será visible para los estudiantes hasta que publiques esta evaluación.</p>
+                            @endunless
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div>
+                                    <x-input-label for="enlaceEditar" value="Enlace externo (opcional)" />
+                                    <x-text-input wire:model="enlaceEditar" id="enlaceEditar" class="mt-1 block w-full" placeholder="https://…" />
+                                    <x-input-error :messages="$errors->get('enlaceEditar')" class="mt-1" />
+                                </div>
+                                <div>
+                                    <x-input-label for="disponibleHastaEditar" value="Disponible hasta (opcional)" />
+                                    <x-text-input wire:model="disponibleHastaEditar" id="disponibleHastaEditar" type="datetime-local" class="mt-1 block w-full" />
+                                    <x-input-error :messages="$errors->get('disponibleHastaEditar')" class="mt-1" />
+                                </div>
                             </div>
-                            <x-secondary-button type="button" wire:click="actualizarEnlace">Guardar enlace</x-secondary-button>
+                            <div class="flex justify-end">
+                                <x-secondary-button type="button" wire:click="actualizarEnlace">Guardar enlace</x-secondary-button>
+                            </div>
                         </div>
                     @elseif ($evaluacionSeleccionada->enlace_externo)
                         <p class="mb-4 text-sm text-ink-dim">
                             Enlace externo:
                             <a href="{{ $evaluacionSeleccionada->enlace_externo }}" target="_blank" class="font-medium text-accent hover:underline">{{ $evaluacionSeleccionada->enlace_externo }}</a>
+                            @if ($evaluacionSeleccionada->disponible_hasta)
+                                <span class="text-xs text-ink-faint">· disponible hasta {{ $evaluacionSeleccionada->disponible_hasta->format('d/m/Y H:i') }}</span>
+                            @endif
                         </p>
                     @endif
 
@@ -373,7 +409,12 @@ new #[Layout('layouts.app')] class extends Component
                             <div class="flex items-center justify-between gap-4 py-2 text-sm">
                                 <div>
                                     <p class="text-ink">{{ $evaluacion->nombre }}</p>
-                                    <p class="text-xs text-ink-faint">{{ $evaluacion->fecha->format('d/m/Y') }}</p>
+                                    <p class="text-xs text-ink-faint">
+                                        {{ $evaluacion->fecha->format('d/m/Y') }}
+                                        @if ($evaluacion->disponible_hasta)
+                                            · disponible hasta {{ $evaluacion->disponible_hasta->format('d/m/Y H:i') }}
+                                        @endif
+                                    </p>
                                 </div>
                                 <a href="{{ $evaluacion->enlace_externo }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Abrir enlace →</a>
                             </div>

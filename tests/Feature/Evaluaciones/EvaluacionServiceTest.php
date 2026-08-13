@@ -234,7 +234,9 @@ class EvaluacionServiceTest extends TestCase
         $service = $this->service();
 
         $conEnlace = $service->crear($horario, 'Con enlace', '2026-07-15', 'https://forms.test/examen');
+        $service->publicar($conEnlace);
         $sinEnlace = $service->crear($horario, 'Sin enlace', '2026-07-16');
+        $service->publicar($sinEnlace);
 
         $resultado = $service->evaluacionesConEnlaceDelHorario($horario);
 
@@ -242,12 +244,80 @@ class EvaluacionServiceTest extends TestCase
         $this->assertFalse($resultado->contains('id', $sinEnlace->id));
     }
 
-    public function test_evaluaciones_con_enlace_del_horario_incluye_evaluaciones_en_borrador(): void
+    public function test_evaluaciones_con_enlace_del_horario_excluye_evaluaciones_en_borrador(): void
     {
         $horario = Horario::factory()->create();
         $evaluacion = $this->service()->crear($horario, 'Con enlace', '2026-07-15', 'https://forms.test/examen');
 
         $this->assertSame(EstadoEvaluacionEnum::BORRADOR, $evaluacion->estado);
-        $this->assertTrue($this->service()->evaluacionesConEnlaceDelHorario($horario)->contains('id', $evaluacion->id));
+        $this->assertFalse($this->service()->evaluacionesConEnlaceDelHorario($horario)->contains('id', $evaluacion->id));
+    }
+
+    public function test_evaluaciones_con_enlace_del_horario_excluye_las_vencidas(): void
+    {
+        $horario = Horario::factory()->create();
+        $service = $this->service();
+
+        $vigente = $service->crear($horario, 'Vigente', '2026-07-15', 'https://forms.test/vigente', now()->addDay()->format('Y-m-d H:i:s'));
+        $service->publicar($vigente);
+
+        $vencida = $service->crear($horario, 'Vencida', '2026-07-14', 'https://forms.test/vencida', now()->subDay()->format('Y-m-d H:i:s'));
+        $service->publicar($vencida);
+
+        $resultado = $service->evaluacionesConEnlaceDelHorario($horario);
+
+        $this->assertTrue($resultado->contains('id', $vigente->id));
+        $this->assertFalse($resultado->contains('id', $vencida->id));
+    }
+
+    public function test_crear_una_evaluacion_con_disponible_hasta_lo_persiste(): void
+    {
+        $horario = Horario::factory()->create();
+        $fecha = now()->addWeek();
+
+        $evaluacion = $this->service()->crear($horario, 'Evaluación', '2026-07-15', 'https://forms.test/examen', $fecha->format('Y-m-d H:i:s'));
+
+        $this->assertSame($fecha->format('Y-m-d H:i'), $evaluacion->disponible_hasta->format('Y-m-d H:i'));
+    }
+
+    public function test_actualizar_enlace_tambien_actualiza_disponible_hasta(): void
+    {
+        $horario = Horario::factory()->create();
+        $evaluacion = $this->service()->crear($horario, 'Evaluación', '2026-07-15', 'https://forms.test/examen');
+        $fecha = now()->addWeek();
+
+        $this->service()->actualizarEnlace($evaluacion, 'https://forms.test/nuevo', $fecha->format('Y-m-d H:i:s'));
+
+        $evaluacion->refresh();
+        $this->assertSame('https://forms.test/nuevo', $evaluacion->enlace_externo);
+        $this->assertSame($fecha->format('Y-m-d H:i'), $evaluacion->disponible_hasta->format('Y-m-d H:i'));
+    }
+
+    public function test_enlace_disponible_es_falso_si_no_esta_publicada(): void
+    {
+        $horario = Horario::factory()->create();
+        $evaluacion = $this->service()->crear($horario, 'Evaluación', '2026-07-15', 'https://forms.test/examen');
+
+        $this->assertFalse($evaluacion->enlaceDisponible());
+    }
+
+    public function test_enlace_disponible_es_verdadero_publicada_sin_fecha_limite(): void
+    {
+        $horario = Horario::factory()->create();
+        $service = $this->service();
+        $evaluacion = $service->crear($horario, 'Evaluación', '2026-07-15', 'https://forms.test/examen');
+        $service->publicar($evaluacion);
+
+        $this->assertTrue($evaluacion->refresh()->enlaceDisponible());
+    }
+
+    public function test_enlace_disponible_es_falso_publicada_pero_vencida(): void
+    {
+        $horario = Horario::factory()->create();
+        $service = $this->service();
+        $evaluacion = $service->crear($horario, 'Evaluación', '2026-07-15', 'https://forms.test/examen', now()->subDay()->format('Y-m-d H:i:s'));
+        $service->publicar($evaluacion);
+
+        $this->assertFalse($evaluacion->refresh()->enlaceDisponible());
     }
 }
