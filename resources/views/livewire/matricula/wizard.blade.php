@@ -15,6 +15,7 @@ use App\Modules\Matricula\Services\MatriculaService;
 use App\Shared\ValueObjects\Dni;
 use App\Shared\ValueObjects\Telefono;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
 use Livewire\Volt\Component;
@@ -236,73 +237,84 @@ new class extends Component
             'horarioId' => 'nullable|integer|exists:horarios,id',
         ]);
 
-        $estudiante = $matriculaService->registrarEstudiante(new RegistrarEstudianteData(
-            nombres: $this->nombres,
-            apellidos: $this->apellidos,
-            dni: new Dni($this->dni),
-            fechaNacimiento: $this->fechaNacimiento,
-            estadoCivil: $this->estadoCivil !== '' ? EstadoCivilEnum::from($this->estadoCivil) : null,
-            direccion: $this->direccion ?: null,
-            celular: $this->celular !== '' ? new Telefono($this->celular) : null,
-            observaciones: $this->observacionesEstudiante ?: null,
-        ));
-
-        if ($this->foto) {
-            $estudiante->addMedia($this->foto->getRealPath())
-                ->usingFileName('foto-'.$estudiante->id.'.'.$this->foto->getClientOriginalExtension())
-                ->preservingOriginal()
-                ->toMediaCollection('foto');
-        }
-
-        if ($this->esMenorDeEdad) {
-            $matriculaService->registrarApoderado($estudiante, new RegistrarApoderadoData(
-                nombres: $this->apoderadoNombres,
-                dni: new Dni($this->apoderadoDni),
-                celular: new Telefono($this->apoderadoCelular),
-                correo: $this->apoderadoCorreo ?: null,
-                direccion: $this->apoderadoDireccion ?: null,
-                parentesco: $this->apoderadoParentesco,
+        // Todo el registro (estudiante, apoderado, documentos, examen y
+        // matrícula) va en una sola transacción: si matricular() falla al
+        // final (grado incoherente con la edad, periodo cerrado, sección
+        // faltante, etc.), el estudiante recién creado NO debe quedar
+        // huérfano en la base de datos -- si quedara, un reintento desde
+        // este mismo paso 5 (sin volver al paso 1) chocaría con el DNI ya
+        // registrado y rompería con un error sin manejar.
+        $estudiante = DB::transaction(function () use ($matriculaService, $documentoService, $examenService) {
+            $estudiante = $matriculaService->registrarEstudiante(new RegistrarEstudianteData(
+                nombres: $this->nombres,
+                apellidos: $this->apellidos,
+                dni: new Dni($this->dni),
+                fechaNacimiento: $this->fechaNacimiento,
+                estadoCivil: $this->estadoCivil !== '' ? EstadoCivilEnum::from($this->estadoCivil) : null,
+                direccion: $this->direccion ?: null,
+                celular: $this->celular !== '' ? new Telefono($this->celular) : null,
+                observaciones: $this->observacionesEstudiante ?: null,
             ));
-        }
 
-        if ($this->colegioNombre !== '') {
-            $matriculaService->registrarInstitucionProcedencia($estudiante, [
-                'nombre_colegio' => $this->colegioNombre,
-                'ubicacion' => $this->colegioUbicacion ?: null,
-                'anio_egreso' => $this->colegioAnioEgreso !== '' ? (int) $this->colegioAnioEgreso : null,
-            ]);
-        }
+            if ($this->foto) {
+                $estudiante->addMedia($this->foto->getRealPath())
+                    ->usingFileName('foto-'.$estudiante->id.'.'.$this->foto->getClientOriginalExtension())
+                    ->preservingOriginal()
+                    ->toMediaCollection('foto');
+            }
 
-        if ($this->dniEstudianteArchivo) {
-            $documentoService->subir($estudiante, TipoDocumentoEnum::DNI_ESTUDIANTE, $this->dniEstudianteArchivo, auth()->id());
-        }
-        if ($this->dniApoderadoArchivo) {
-            $documentoService->subir($estudiante, TipoDocumentoEnum::DNI_APODERADO, $this->dniApoderadoArchivo, auth()->id());
-        }
-        if ($this->certificadoArchivo) {
-            $documentoService->subir($estudiante, TipoDocumentoEnum::CERTIFICADO_ESTUDIOS, $this->certificadoArchivo, auth()->id());
-        }
-        if ($this->constanciaArchivo) {
-            $documentoService->subir($estudiante, TipoDocumentoEnum::CONSTANCIA, $this->constanciaArchivo, auth()->id());
-        }
+            if ($this->esMenorDeEdad) {
+                $matriculaService->registrarApoderado($estudiante, new RegistrarApoderadoData(
+                    nombres: $this->apoderadoNombres,
+                    dni: new Dni($this->apoderadoDni),
+                    celular: new Telefono($this->apoderadoCelular),
+                    correo: $this->apoderadoCorreo ?: null,
+                    direccion: $this->apoderadoDireccion ?: null,
+                    parentesco: $this->apoderadoParentesco,
+                ));
+            }
 
-        if ($this->registrarExamen) {
-            $examenService->registrar($estudiante, [
-                'fecha' => $this->examenFecha,
-                'costo' => (float) $this->examenCosto,
-                'resultado' => $this->examenResultado ?: null,
-                'grado_asignado_id' => $this->examenGradoAsignadoId !== '' ? (int) $this->examenGradoAsignadoId : null,
-                'observaciones' => $this->examenObservaciones ?: null,
-            ]);
-        }
+            if ($this->colegioNombre !== '') {
+                $matriculaService->registrarInstitucionProcedencia($estudiante, [
+                    'nombre_colegio' => $this->colegioNombre,
+                    'ubicacion' => $this->colegioUbicacion ?: null,
+                    'anio_egreso' => $this->colegioAnioEgreso !== '' ? (int) $this->colegioAnioEgreso : null,
+                ]);
+            }
 
-        $matriculaService->matricular($estudiante, new RegistrarMatriculaData(
-            cicloId: (int) $this->cicloId,
-            gradoId: (int) $this->gradoId,
-            horarioId: $this->horarioId !== '' ? (int) $this->horarioId : null,
-            observaciones: $this->observacionesMatricula ?: null,
-            registradoPor: auth()->id(),
-        ));
+            if ($this->dniEstudianteArchivo) {
+                $documentoService->subir($estudiante, TipoDocumentoEnum::DNI_ESTUDIANTE, $this->dniEstudianteArchivo, auth()->id());
+            }
+            if ($this->dniApoderadoArchivo) {
+                $documentoService->subir($estudiante, TipoDocumentoEnum::DNI_APODERADO, $this->dniApoderadoArchivo, auth()->id());
+            }
+            if ($this->certificadoArchivo) {
+                $documentoService->subir($estudiante, TipoDocumentoEnum::CERTIFICADO_ESTUDIOS, $this->certificadoArchivo, auth()->id());
+            }
+            if ($this->constanciaArchivo) {
+                $documentoService->subir($estudiante, TipoDocumentoEnum::CONSTANCIA, $this->constanciaArchivo, auth()->id());
+            }
+
+            if ($this->registrarExamen) {
+                $examenService->registrar($estudiante, [
+                    'fecha' => $this->examenFecha,
+                    'costo' => (float) $this->examenCosto,
+                    'resultado' => $this->examenResultado ?: null,
+                    'grado_asignado_id' => $this->examenGradoAsignadoId !== '' ? (int) $this->examenGradoAsignadoId : null,
+                    'observaciones' => $this->examenObservaciones ?: null,
+                ]);
+            }
+
+            $matriculaService->matricular($estudiante, new RegistrarMatriculaData(
+                cicloId: (int) $this->cicloId,
+                gradoId: (int) $this->gradoId,
+                horarioId: $this->horarioId !== '' ? (int) $this->horarioId : null,
+                observaciones: $this->observacionesMatricula ?: null,
+                registradoPor: auth()->id(),
+            ));
+
+            return $estudiante;
+        });
 
         $this->dispatch('matricula-registrada', estudianteId: $estudiante->id, nombre: $estudiante->nombreCompleto());
     }

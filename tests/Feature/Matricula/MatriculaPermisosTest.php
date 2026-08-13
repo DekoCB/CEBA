@@ -164,11 +164,6 @@ class MatriculaPermisosTest extends TestCase
 
         $this->actingAs($usuario);
 
-        // Nota: no se reintenta confirmar() tras el error aquí porque
-        // registrarEstudiante() ya corre antes de la validación de
-        // horario dentro de confirmar() (igual que con las validaciones
-        // de grado/periodo de matrícula, preexistente a este cambio) —
-        // reintentar en el mismo componente duplicaría el estudiante.
         $this->wizardEnPasoDeMatricula('55667800')
             ->set('cicloId', (string) $ciclo->id)
             ->set('gradoId', (string) $grado->id)
@@ -209,6 +204,54 @@ class MatriculaPermisosTest extends TestCase
             ->assertHasErrors();
 
         $this->assertDatabaseCount('matriculas', 0);
+
+        // El estudiante tampoco debe quedar creado a medias: confirmar()
+        // registra estudiante y matricula en una sola transacción, así que
+        // si matricular() falla (aquí, por falta de sección), todo se
+        // revierte -- incluido el estudiante recién creado.
+        $this->assertDatabaseCount('estudiantes', 0);
+    }
+
+    public function test_reintentar_confirmar_tras_error_de_seccion_no_duplica_al_estudiante(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
+        $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+
+        $this->actingAs($usuario);
+
+        $component = $this->wizardEnPasoDeMatricula('55667802')
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->call('confirmar')
+            ->assertHasErrors();
+
+        $this->assertDatabaseCount('estudiantes', 0);
+
+        // El coordinador corrige el dato sin volver al paso 1 y reintenta
+        // en el mismo componente: antes de la corrección, esto duplicaba
+        // al estudiante (mismo DNI) y rompía con un error sin manejar.
+        $component
+            ->set('horarioId', (string) $horarioB->id)
+            ->call('confirmar')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseCount('estudiantes', 1);
+        $estudiante = Estudiante::query()->where('dni', '55667802')->firstOrFail();
+        $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'horario_id' => $horarioB->id]);
     }
 
     public function test_cancelar_el_wizard_dispara_el_evento_que_cierra_el_modal(): void
