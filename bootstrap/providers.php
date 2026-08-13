@@ -7,6 +7,7 @@ use App\Modules\Certificados\Providers\CertificadosServiceProvider;
 use App\Modules\Dashboard\Providers\DashboardServiceProvider;
 use App\Modules\Evaluaciones\Providers\EvaluacionesServiceProvider;
 use App\Modules\Identidad\Providers\IdentidadServiceProvider;
+use App\Modules\Incidencias\Providers\IncidenciasServiceProvider;
 use App\Modules\Landing\Providers\LandingServiceProvider;
 use App\Modules\Matricula\Providers\MatriculaServiceProvider;
 use App\Modules\Notificaciones\Providers\NotificacionesServiceProvider;
@@ -32,4 +33,5 @@ return [
     CertificadosServiceProvider::class,
     ReportesServiceProvider::class,
     NotificacionesServiceProvider::class,
+    IncidenciasServiceProvider::class,
 ];

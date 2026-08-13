@@ -84,6 +84,21 @@
         </a>
     @endcanany
 
+    @canany(['incidencias.ver', 'incidencias.crear', 'incidencias.gestionar_propio', 'incidencias.ver_propio'])
+        <a
+            href="{{ route('incidencias.index') }}"
+            wire:navigate
+            @class([
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('incidencias.*'),
+                'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('incidencias.*'),
+            ])
+        >
+            <x-heroicon-o-exclamation-triangle class="h-5 w-5 shrink-0" />
+            <span class="sidebar-label">Incidencias</span>
+        </a>
+    @endcanany
+
     @canany(['pagos.ver', 'pagos.registrar', 'pagos.gestionar', 'pagos.aprobar', 'pagos.rechazar', 'pagos.ver_propio', 'tesoreria.gestionar'])
         <div class="mt-4 border-t border-border pt-4">
             <p class="sidebar-section-title px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">

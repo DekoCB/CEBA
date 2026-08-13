@@ -9,6 +9,7 @@ enum TipoMensajeWhatsappEnum: string
     case CAMPANIA = 'campania';
     case RECORDATORIO = 'recordatorio';
     case ENTRANTE = 'entrante';
+    case INCIDENCIA = 'incidencia';
 
     public function label(): string
     {
@@ -16,6 +17,7 @@ enum TipoMensajeWhatsappEnum: string
             self::CAMPANIA => 'Campaña',
             self::RECORDATORIO => 'Recordatorio automático',
             self::ENTRANTE => 'Recibido',
+            self::INCIDENCIA => 'Incidencia',
         };
     }
 }

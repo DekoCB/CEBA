@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $descripcion
  * @property Carbon $fecha_limite
  * @property int $puntaje_max
+ * @property-read CursoVirtual $cursoVirtual
  */
 class Tarea extends Model
 {
