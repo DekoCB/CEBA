@@ -341,17 +341,14 @@
     @endcanany
 
     <div class="mt-auto border-t border-border pt-4">
-        <a
-            href="{{ route('profile') }}"
-            wire:navigate
-            @class([
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('profile'),
-                'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('profile'),
-            ])
+        <button
+            type="button"
+            x-data
+            x-on:click="$dispatch('open-modal', 'mi-perfil')"
+            class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-ink-dim transition hover:bg-surface-2 hover:text-ink"
         >
             <x-heroicon-o-user-circle class="h-5 w-5 shrink-0" />
             <span class="sidebar-label">Mi perfil</span>
-        </a>
+        </button>
     </div>
 </nav>

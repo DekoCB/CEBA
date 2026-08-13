@@ -151,6 +151,128 @@
     }
 }
 
+/*
+ * Modal de "Mi perfil" (x-modal :tv="true" en navigation.blade.php): en vez
+ * del fade+translate+scale genérico, entra y sale como una tele CRT
+ * encendiéndose / apagándose (línea horizontal que se abre y luego se
+ * estira en vertical, y a la inversa al cerrar). transform-origin: center
+ * a propósito, para que lea como "pantalla".
+ */
+.tv-on {
+    animation: tv-on 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    transform-origin: center;
+}
+
+.tv-off {
+    animation: tv-off 320ms cubic-bezier(0.6, 0, 0.8, 0.2) both;
+    transform-origin: center;
+}
+
+@keyframes tv-on {
+    0% {
+        opacity: 0;
+        transform: scaleX(0.02) scaleY(0.02);
+        filter: brightness(3.2);
+    }
+
+    30% {
+        opacity: 1;
+        transform: scaleX(1) scaleY(0.02);
+        filter: brightness(3.5);
+    }
+
+    55% {
+        opacity: 1;
+        transform: scaleX(1) scaleY(0.04);
+        filter: brightness(2.5);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scaleX(1) scaleY(1);
+        filter: brightness(1);
+    }
+}
+
+@keyframes tv-off {
+    0% {
+        opacity: 1;
+        transform: scaleX(1) scaleY(1);
+        filter: brightness(1);
+    }
+
+    45% {
+        opacity: 1;
+        transform: scaleX(1) scaleY(0.04);
+        filter: brightness(2.8);
+    }
+
+    75% {
+        opacity: 1;
+        transform: scaleX(0.03) scaleY(0.04);
+        filter: brightness(3.5);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scaleX(0.01) scaleY(0.01);
+        filter: brightness(3.5);
+    }
+}
+
+/*
+ * Menú de "Mi perfil" (x-dropdown en navigation.blade.php): efecto de
+ * enrollamiento, como una persiana que se despliega desde arriba al abrir
+ * y se enrolla de vuelta hacia arriba al cerrar.
+ */
+.dropdown-roll-on {
+    animation: dropdown-roll-on 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    transform-origin: top center;
+}
+
+.dropdown-roll-off {
+    animation: dropdown-roll-off 200ms cubic-bezier(0.6, 0, 0.8, 0.2) both;
+    transform-origin: top center;
+}
+
+@keyframes dropdown-roll-on {
+    0% {
+        opacity: 0;
+        transform: scaleY(0);
+    }
+
+    60% {
+        opacity: 1;
+        transform: scaleY(1.03);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+}
+
+@keyframes dropdown-roll-off {
+    0% {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scaleY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tv-on,
+    .tv-off,
+    .dropdown-roll-on,
+    .dropdown-roll-off {
+        animation: none;
+    }
+}
+
 @layer base {
     body {
         @apply bg-bg text-ink;
