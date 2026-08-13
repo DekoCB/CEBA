@@ -27,6 +27,8 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $gradoId = '';
 
+    public string $seccion = '';
+
     public string $diaSemana = '';
 
     public string $horaInicio = '';
@@ -46,7 +48,7 @@ new #[Layout('layouts.app')] class extends Component
         Gate::authorize('academico.gestionar');
 
         $this->resetValidation();
-        $this->reset(['cursoId', 'docenteId', 'aulaId', 'gradoId', 'diaSemana', 'horaInicio', 'horaFin']);
+        $this->reset(['cursoId', 'docenteId', 'aulaId', 'gradoId', 'seccion', 'diaSemana', 'horaInicio', 'horaFin']);
         $this->cicloId = $this->cicloFiltro;
         $this->mostrarModal = true;
     }
@@ -61,6 +63,7 @@ new #[Layout('layouts.app')] class extends Component
             'aulaId' => 'required|integer|exists:aulas,id',
             'cicloId' => 'required|integer|exists:ciclos,id',
             'gradoId' => 'required|integer|exists:grados,id',
+            'seccion' => 'nullable|string|max:10',
             'diaSemana' => 'required|string|in:'.implode(',', array_column(DiaSemanaEnum::cases(), 'value')),
             'horaInicio' => 'required|date_format:H:i',
             'horaFin' => 'required|date_format:H:i',
@@ -72,6 +75,7 @@ new #[Layout('layouts.app')] class extends Component
             'aula_id' => (int) $this->aulaId,
             'ciclo_id' => (int) $this->cicloId,
             'grado_id' => (int) $this->gradoId,
+            'seccion' => $this->seccion ?: null,
             'dia_semana' => DiaSemanaEnum::from($this->diaSemana),
             'hora_inicio' => $this->horaInicio.':00',
             'hora_fin' => $this->horaFin.':00',
@@ -132,6 +136,7 @@ new #[Layout('layouts.app')] class extends Component
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Docente</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Aula</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Grado</th>
+                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Sección</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Día</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Horario</th>
                 </tr>
@@ -143,11 +148,12 @@ new #[Layout('layouts.app')] class extends Component
                         <td class="px-4 py-3 text-ink-dim">{{ $horario->docente->name }}</td>
                         <td class="px-4 py-3 text-ink-dim">{{ $horario->aula->nombre }}</td>
                         <td class="px-4 py-3 text-ink-dim">{{ $horario->grado->nombre }}</td>
+                        <td class="px-4 py-3 text-ink-dim">{{ $horario->seccion ?? '—' }}</td>
                         <td class="px-4 py-3 text-ink-dim">{{ $horario->dia_semana->label() }}</td>
                         <td class="px-4 py-3 font-mono text-ink-dim">{{ substr($horario->hora_inicio, 0, 5) }}–{{ substr($horario->hora_fin, 0, 5) }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="px-4 py-8 text-center text-sm text-ink-faint">{{ $cicloFiltro ? 'Este ciclo no tiene horarios todavía.' : 'Selecciona un ciclo para ver sus horarios.' }}</td></tr>
+                    <tr><td colspan="7" class="px-4 py-8 text-center text-sm text-ink-faint">{{ $cicloFiltro ? 'Este ciclo no tiene horarios todavía.' : 'Selecciona un ciclo para ver sus horarios.' }}</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -199,6 +205,13 @@ new #[Layout('layouts.app')] class extends Component
                             />
                             <x-input-error :messages="$errors->get('gradoId')" class="mt-1" />
                         </div>
+                    </div>
+
+                    <div>
+                        <x-input-label for="seccion" value="Sección (opcional)" />
+                        <x-text-input wire:model="seccion" id="seccion" class="mt-1 block w-full" placeholder="Ej. A, B…" maxlength="10" />
+                        <p class="mt-1 text-xs text-ink-faint">Solo hace falta si este grado tiene más de una sección en el ciclo (ej. Grupo A y Grupo B); el personal la elegirá al matricular.</p>
+                        <x-input-error :messages="$errors->get('seccion')" class="mt-1" />
                     </div>
 
                     <div>

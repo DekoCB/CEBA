@@ -306,6 +306,7 @@ class DemoRobustoSeeder extends Seeder
                     $servicio->matricular($estudiante, new RegistrarMatriculaData(
                         cicloId: $ciclo->id,
                         gradoId: $grado->id,
+                        horarioId: null,
                         observaciones: null,
                         registradoPor: null,
                     ));

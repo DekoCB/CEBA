@@ -25,7 +25,7 @@ class HorarioService
     }
 
     /**
-     * @param  array{curso_id: int, docente_id: int, aula_id: int, ciclo_id: int, grado_id: int, dia_semana: DiaSemanaEnum, hora_inicio: string, hora_fin: string}  $datos
+     * @param  array{curso_id: int, docente_id: int, aula_id: int, ciclo_id: int, grado_id: int, seccion?: string|null, dia_semana: DiaSemanaEnum, hora_inicio: string, hora_fin: string}  $datos
      */
     public function crear(array $datos): Horario
     {

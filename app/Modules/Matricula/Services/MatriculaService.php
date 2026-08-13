@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
+use App\Modules\Academico\Models\Horario;
 use App\Modules\Academico\Models\PeriodoMatricula;
 use App\Modules\Identidad\DTOs\CrearUsuarioData;
 use App\Modules\Identidad\Services\UserManagementService;
@@ -146,11 +147,14 @@ class MatriculaService
             ]);
         }
 
-        return DB::transaction(function () use ($estudiante, $ciclo, $grado, $data) {
+        $horario = $this->resolverHorario($grado, $ciclo, $data->horarioId);
+
+        return DB::transaction(function () use ($estudiante, $ciclo, $grado, $horario, $data) {
             $matricula = $this->matriculas->create([
                 'estudiante_id' => $estudiante->id,
                 'ciclo_id' => $ciclo->id,
                 'grado_id' => $grado->id,
+                'horario_id' => $horario?->id,
                 'fecha_matricula' => now(),
                 'estado' => EstadoMatriculaEnum::APROBADA,
                 'observaciones' => $data->observaciones,
@@ -163,6 +167,41 @@ class MatriculaService
 
             return $matricula;
         });
+    }
+
+    /**
+     * Si el grado tiene más de un horario en el ciclo (varias secciones,
+     * ej. Grupo A/B), exige elegir a cuál se matricula el estudiante. Si
+     * solo tiene uno, se asigna automáticamente sin pedir nada. Si no
+     * tiene ninguno todavía (grado sin horarios programados), la
+     * matrícula queda sin horario_id, igual que antes de este cambio.
+     */
+    private function resolverHorario(Grado $grado, Ciclo $ciclo, ?int $horarioId): ?Horario
+    {
+        $horariosDelGrado = Horario::query()
+            ->where('grado_id', $grado->id)
+            ->where('ciclo_id', $ciclo->id)
+            ->get();
+
+        if ($horariosDelGrado->count() <= 1) {
+            return $horariosDelGrado->first();
+        }
+
+        if ($horarioId === null) {
+            throw ValidationException::withMessages([
+                'horario' => "El grado «{$grado->nombre}» tiene varias secciones en este ciclo: selecciona a cuál se matricula el estudiante.",
+            ]);
+        }
+
+        $horario = $horariosDelGrado->firstWhere('id', $horarioId);
+
+        if ($horario === null) {
+            throw ValidationException::withMessages([
+                'horario' => 'La sección seleccionada no pertenece a este grado y ciclo.',
+            ]);
+        }
+
+        return $horario;
     }
 
     private function validarGradoCoherenteConEdad(Estudiante $estudiante, Grado $grado): void
@@ -297,9 +336,13 @@ class MatriculaService
                     throw new InvalidArgumentException("No existe el grado «{$nombreGrado}».");
                 }
 
+                // La carga masiva no pide sección por fila: si el grado
+                // tiene una sola, se asigna sola; si tiene varias, esa fila
+                // falla con un mensaje claro y se registra individualmente.
                 $this->matricular($estudiante, new RegistrarMatriculaData(
                     cicloId: $cicloId,
                     gradoId: $grado->id,
+                    horarioId: null,
                     observaciones: $this->celdaOpcional($fila, 'observaciones'),
                     registradoPor: $registradoPor,
                 ));

@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Evaluaciones;
 
+use App\Modules\Academico\Models\Ciclo;
+use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Evaluaciones\Enums\EstadoEvaluacionEnum;
 use App\Modules\Evaluaciones\Services\EvaluacionService;
@@ -46,6 +48,55 @@ class EvaluacionServiceTest extends TestCase
 
         $this->assertTrue($estudiantes->contains('id', $matriculado->id));
         $this->assertFalse($estudiantes->contains('id', $noMatriculado->id));
+    }
+
+    public function test_estudiantes_del_horario_no_mezcla_secciones_distintas_del_mismo_grado(): void
+    {
+        $grado = Grado::factory()->create();
+        $ciclo = Ciclo::factory()->create();
+        $horarioA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
+        $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+
+        $estudianteA = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudianteA->id,
+            'grado_id' => $grado->id,
+            'ciclo_id' => $ciclo->id,
+            'horario_id' => $horarioA->id,
+        ]);
+
+        $estudianteB = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudianteB->id,
+            'grado_id' => $grado->id,
+            'ciclo_id' => $ciclo->id,
+            'horario_id' => $horarioB->id,
+        ]);
+
+        $estudiantesDeA = $this->service()->estudiantesDelHorario($horarioA);
+
+        $this->assertTrue($estudiantesDeA->contains('id', $estudianteA->id));
+        $this->assertFalse($estudiantesDeA->contains('id', $estudianteB->id));
+    }
+
+    public function test_estudiantes_del_horario_incluye_matriculas_sin_horario_id_asignado(): void
+    {
+        $grado = Grado::factory()->create();
+        $ciclo = Ciclo::factory()->create();
+        $horarioA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+
+        $estudianteSinSeccion = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudianteSinSeccion->id,
+            'grado_id' => $grado->id,
+            'ciclo_id' => $ciclo->id,
+            'horario_id' => null,
+        ]);
+
+        $estudiantesDeA = $this->service()->estudiantesDelHorario($horarioA);
+
+        $this->assertTrue($estudiantesDeA->contains('id', $estudianteSinSeccion->id));
     }
 
     public function test_calificar_dos_veces_al_mismo_estudiante_actualiza_en_vez_de_duplicar(): void
@@ -95,6 +146,48 @@ class EvaluacionServiceTest extends TestCase
         $service->calificar($evaluacionSinPublicar, $estudiante, 0.0, null, null);
 
         $this->assertSame(17.0, $service->promedioDelEstudiante($estudiante, $horario));
+    }
+
+    public function test_horarios_del_estudiante_solo_incluye_la_seccion_asignada(): void
+    {
+        $grado = Grado::factory()->create();
+        $ciclo = Ciclo::factory()->create();
+        $horarioA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
+        $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+
+        $estudiante = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $grado->id,
+            'ciclo_id' => $ciclo->id,
+            'horario_id' => $horarioA->id,
+        ]);
+
+        $horarios = $this->service()->horariosDelEstudiante($estudiante);
+
+        $this->assertTrue($horarios->contains('id', $horarioA->id));
+        $this->assertFalse($horarios->contains('id', $horarioB->id));
+    }
+
+    public function test_horarios_del_estudiante_sin_horario_id_incluye_todas_las_secciones_del_grado(): void
+    {
+        $grado = Grado::factory()->create();
+        $ciclo = Ciclo::factory()->create();
+        $horarioA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
+        $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+
+        $estudiante = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $grado->id,
+            'ciclo_id' => $ciclo->id,
+            'horario_id' => null,
+        ]);
+
+        $horarios = $this->service()->horariosDelEstudiante($estudiante);
+
+        $this->assertTrue($horarios->contains('id', $horarioA->id));
+        $this->assertTrue($horarios->contains('id', $horarioB->id));
     }
 
     public function test_promedio_es_null_sin_calificaciones_publicadas(): void

@@ -12,6 +12,7 @@ use App\Modules\AulaVirtual\Services\CursoVirtualService;
 use App\Modules\AulaVirtual\Services\MaterialService;
 use App\Modules\AulaVirtual\Services\TareaService;
 use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Matricula\Models\Matricula;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -36,6 +37,31 @@ class AulaVirtualServiceTest extends TestCase
 
         $this->assertSame($primero->id, $segundo->id);
         $this->assertSame(1, CursoVirtual::query()->count());
+    }
+
+    public function test_del_estudiante_no_mezcla_secciones_distintas_del_mismo_grado(): void
+    {
+        $horarioA = Horario::factory()->create(['seccion' => 'A']);
+        $horarioB = Horario::factory()->create([
+            'grado_id' => $horarioA->grado_id,
+            'ciclo_id' => $horarioA->ciclo_id,
+            'seccion' => 'B',
+        ]);
+        $cursoA = $this->cursoVirtualService()->activarParaHorario($horarioA);
+        $cursoB = $this->cursoVirtualService()->activarParaHorario($horarioB);
+
+        $estudianteA = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudianteA->id,
+            'grado_id' => $horarioA->grado_id,
+            'ciclo_id' => $horarioA->ciclo_id,
+            'horario_id' => $horarioA->id,
+        ]);
+
+        $cursos = $this->cursoVirtualService()->delEstudiante($estudianteA);
+
+        $this->assertTrue($cursos->contains('id', $cursoA->id));
+        $this->assertFalse($cursos->contains('id', $cursoB->id));
     }
 
     public function test_material_de_tipo_pdf_requiere_archivo(): void

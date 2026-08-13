@@ -35,7 +35,7 @@ class EloquentCursoVirtualRepository extends BaseRepository implements CursoVirt
     {
         $gradosCiclos = $estudiante->matriculas()
             ->where('estado', 'aprobada')
-            ->get(['grado_id', 'ciclo_id']);
+            ->get(['grado_id', 'ciclo_id', 'horario_id']);
 
         if ($gradosCiclos->isEmpty()) {
             return new Collection;
@@ -49,6 +49,13 @@ class EloquentCursoVirtualRepository extends BaseRepository implements CursoVirt
                         $query->orWhere(function ($query) use ($matricula) {
                             $query->where('grado_id', $matricula->grado_id)
                                 ->where('ciclo_id', $matricula->ciclo_id);
+
+                            // Si la matrícula ya fija una sección específica
+                            // (Grupo A/B), solo ese horario cuenta; si no, se
+                            // mantiene el comportamiento previo (todo el grado).
+                            if ($matricula->horario_id !== null) {
+                                $query->where('id', $matricula->horario_id);
+                            }
                         });
                     }
                 });

@@ -7,6 +7,7 @@ namespace App\Modules\Matricula\Models;
 use App\Models\User;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
+use App\Modules\Academico\Models\Horario;
 use App\Modules\Identidad\Support\Auditable;
 use App\Modules\Matricula\Database\Factories\MatriculaFactory;
 use App\Modules\Matricula\Enums\EstadoMatriculaEnum;
@@ -23,11 +24,13 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property int $estudiante_id
  * @property int $ciclo_id
  * @property int $grado_id
+ * @property int|null $horario_id
  * @property Carbon $fecha_matricula
  * @property EstadoMatriculaEnum $estado
  * @property-read Estudiante $estudiante
  * @property-read Ciclo $ciclo
  * @property-read Grado $grado
+ * @property-read Horario|null $horario
  */
 class Matricula extends Model implements HasMedia
 {
@@ -38,6 +41,7 @@ class Matricula extends Model implements HasMedia
         'estudiante_id',
         'ciclo_id',
         'grado_id',
+        'horario_id',
         'fecha_matricula',
         'estado',
         'observaciones',
@@ -76,6 +80,11 @@ class Matricula extends Model implements HasMedia
     public function grado(): BelongsTo
     {
         return $this->belongsTo(Grado::class);
+    }
+
+    public function horario(): BelongsTo
+    {
+        return $this->belongsTo(Horario::class);
     }
 
     public function registradoPor(): BelongsTo

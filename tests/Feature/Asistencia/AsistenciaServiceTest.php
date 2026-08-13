@@ -44,6 +44,37 @@ class AsistenciaServiceTest extends TestCase
         $this->assertFalse($estudiantes->contains('id', $noMatriculado->id));
     }
 
+    public function test_estudiantes_del_horario_no_mezcla_secciones_distintas_del_mismo_grado(): void
+    {
+        $horarioA = Horario::factory()->create(['seccion' => 'A']);
+        $horarioB = Horario::factory()->create([
+            'grado_id' => $horarioA->grado_id,
+            'ciclo_id' => $horarioA->ciclo_id,
+            'seccion' => 'B',
+        ]);
+
+        $estudianteA = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudianteA->id,
+            'grado_id' => $horarioA->grado_id,
+            'ciclo_id' => $horarioA->ciclo_id,
+            'horario_id' => $horarioA->id,
+        ]);
+
+        $estudianteB = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudianteB->id,
+            'grado_id' => $horarioB->grado_id,
+            'ciclo_id' => $horarioB->ciclo_id,
+            'horario_id' => $horarioB->id,
+        ]);
+
+        $estudiantesDeA = $this->service()->estudiantesDelHorario($horarioA);
+
+        $this->assertTrue($estudiantesDeA->contains('id', $estudianteA->id));
+        $this->assertFalse($estudiantesDeA->contains('id', $estudianteB->id));
+    }
+
     public function test_registrar_crea_un_registro_de_asistencia_por_estudiante(): void
     {
         $horario = Horario::factory()->create();

@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
+use App\Modules\Academico\Models\Horario;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\DTOs\RegistrarApoderadoData;
 use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
@@ -131,6 +132,7 @@ class MatriculaServiceTest extends TestCase
         $this->service()->matricular($estudiante, new RegistrarMatriculaData(
             cicloId: $ciclo->id,
             gradoId: $gradoMenores->id,
+            horarioId: null,
             observaciones: null,
             registradoPor: null,
         ));
@@ -147,6 +149,7 @@ class MatriculaServiceTest extends TestCase
         $this->service()->matricular($estudiante, new RegistrarMatriculaData(
             cicloId: $ciclo->id,
             gradoId: $grado->id,
+            horarioId: null,
             observaciones: null,
             registradoPor: null,
         ));
@@ -158,7 +161,7 @@ class MatriculaServiceTest extends TestCase
         $ciclo = $this->cicloConPeriodoAbierto();
         $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
 
-        $data = new RegistrarMatriculaData($ciclo->id, $grado->id, null, null);
+        $data = new RegistrarMatriculaData($ciclo->id, $grado->id, null, null, null);
 
         $this->service()->matricular($estudiante, $data);
 
@@ -175,7 +178,7 @@ class MatriculaServiceTest extends TestCase
         $ciclo = $this->cicloConPeriodoAbierto();
         $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
 
-        $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
+        $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null, null));
 
         Event::assertDispatched(EstudianteMatriculado::class);
     }
@@ -186,8 +189,71 @@ class MatriculaServiceTest extends TestCase
         $ciclo = $this->cicloConPeriodoAbierto();
         $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
 
-        $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
+        $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null, null));
 
         $this->assertSame($grado->id, $estudiante->fresh()->grado_actual_id);
+    }
+
+    public function test_matricular_en_un_grado_sin_horarios_deja_la_matricula_sin_horario_id(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $ciclo = $this->cicloConPeriodoAbierto();
+        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+
+        $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null, null));
+
+        $this->assertNull($matricula->horario_id);
+    }
+
+    public function test_matricular_en_un_grado_con_un_solo_horario_lo_asigna_automaticamente(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $ciclo = $this->cicloConPeriodoAbierto();
+        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $horario = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+
+        $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null, null));
+
+        $this->assertSame($horario->id, $matricula->horario_id);
+    }
+
+    public function test_matricular_en_un_grado_con_varias_secciones_sin_elegir_una_lanza_excepcion(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $ciclo = $this->cicloConPeriodoAbierto();
+        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+
+        $this->expectException(ValidationException::class);
+
+        $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null, null));
+    }
+
+    public function test_matricular_en_un_grado_con_varias_secciones_eligiendo_una_la_asigna(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $ciclo = $this->cicloConPeriodoAbierto();
+        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
+        $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+
+        $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, $horarioB->id, null, null));
+
+        $this->assertSame($horarioB->id, $matricula->horario_id);
+    }
+
+    public function test_matricular_con_un_horario_que_no_pertenece_al_grado_lanza_excepcion(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $ciclo = $this->cicloConPeriodoAbierto();
+        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+        $horarioAjeno = Horario::factory()->create();
+
+        $this->expectException(ValidationException::class);
+
+        $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, $horarioAjeno->id, null, null));
     }
 }

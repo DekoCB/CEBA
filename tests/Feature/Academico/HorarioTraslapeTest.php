@@ -99,6 +99,24 @@ class HorarioTraslapeTest extends TestCase
         $this->assertDatabaseHas('horarios', ['id' => $horario->id]);
     }
 
+    public function test_permite_dos_secciones_del_mismo_grado_y_persiste_la_seccion(): void
+    {
+        $base = $this->datosBase();
+        $horarioA = $this->service()->crear([...$base, 'seccion' => 'A']);
+
+        $horarioB = $this->service()->crear([
+            ...$base,
+            'curso_id' => Curso::factory()->create()->id,
+            'docente_id' => User::factory()->create()->id,
+            'aula_id' => Aula::factory()->create()->id,
+            'dia_semana' => DiaSemanaEnum::MAR_JUE,
+            'seccion' => 'B',
+        ]);
+
+        $this->assertSame('A', $horarioA->fresh()->seccion);
+        $this->assertSame('B', $horarioB->fresh()->seccion);
+    }
+
     public function test_rechaza_hora_fin_anterior_o_igual_a_hora_inicio(): void
     {
         $this->expectException(ValidationException::class);

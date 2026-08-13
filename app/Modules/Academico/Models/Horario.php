@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $docente_id
  * @property int $ciclo_id
  * @property int $grado_id
+ * @property string|null $seccion
  * @property string $hora_inicio
  * @property string $hora_fin
  * @property DiaSemanaEnum $dia_semana
@@ -36,6 +37,7 @@ class Horario extends Model
         'aula_id',
         'ciclo_id',
         'grado_id',
+        'seccion',
         'dia_semana',
         'hora_inicio',
         'hora_fin',

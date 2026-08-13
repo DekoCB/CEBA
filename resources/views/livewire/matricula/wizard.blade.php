@@ -3,6 +3,7 @@
 use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
+use App\Modules\Academico\Models\Horario;
 use App\Modules\Matricula\DTOs\RegistrarApoderadoData;
 use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
 use App\Modules\Matricula\DTOs\RegistrarMatriculaData;
@@ -13,6 +14,7 @@ use App\Modules\Matricula\Services\ExamenUbicacionService;
 use App\Modules\Matricula\Services\MatriculaService;
 use App\Shared\ValueObjects\Dni;
 use App\Shared\ValueObjects\Telefono;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
 use Livewire\Volt\Component;
@@ -89,11 +91,40 @@ new class extends Component
 
     public string $gradoId = '';
 
+    public string $horarioId = '';
+
     public string $observacionesMatricula = '';
 
     public function mount(): void
     {
         Gate::authorize('matricula.crear');
+    }
+
+    public function updatedGradoId(): void
+    {
+        $this->horarioId = '';
+    }
+
+    public function updatedCicloId(): void
+    {
+        $this->horarioId = '';
+    }
+
+    /**
+     * @return Collection<int, Horario>
+     */
+    #[Computed]
+    public function horariosDelGrado()
+    {
+        if ($this->cicloId === '' || $this->gradoId === '') {
+            return collect();
+        }
+
+        return Horario::query()
+            ->where('ciclo_id', (int) $this->cicloId)
+            ->where('grado_id', (int) $this->gradoId)
+            ->with(['docente', 'aula'])
+            ->get();
     }
 
     #[Computed]
@@ -202,6 +233,7 @@ new class extends Component
         $this->validate([
             'cicloId' => 'required|integer|exists:ciclos,id',
             'gradoId' => 'required|integer|exists:grados,id',
+            'horarioId' => 'nullable|integer|exists:horarios,id',
         ]);
 
         $estudiante = $matriculaService->registrarEstudiante(new RegistrarEstudianteData(
@@ -267,6 +299,7 @@ new class extends Component
         $matriculaService->matricular($estudiante, new RegistrarMatriculaData(
             cicloId: (int) $this->cicloId,
             gradoId: (int) $this->gradoId,
+            horarioId: $this->horarioId !== '' ? (int) $this->horarioId : null,
             observaciones: $this->observacionesMatricula ?: null,
             registradoPor: auth()->id(),
         ));
@@ -542,7 +575,7 @@ new class extends Component
                 <div>
                     <x-input-label for="cicloId" value="Ciclo" />
                     <x-select-input
-                        wire:model="cicloId"
+                        wire:model.live="cicloId"
                         id="cicloId"
                         class="mt-1 block w-full"
                         :options="collect($ciclosDisponibles)->mapWithKeys(fn ($ciclo) => [$ciclo->id => $ciclo->nombre])"
@@ -555,13 +588,27 @@ new class extends Component
                 <div>
                     <x-input-label for="gradoId" value="Grado" />
                     <x-select-input
-                        wire:model="gradoId"
+                        wire:model.live="gradoId"
                         id="gradoId"
                         class="mt-1 block w-full"
                         :options="collect($gradosCompatibles)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])"
                     />
                     <x-input-error :messages="$errors->get('gradoId')" class="mt-1" />
                 </div>
+                @if ($this->horariosDelGrado->count() > 1)
+                    <div class="sm:col-span-2">
+                        <x-input-label for="horarioId" value="Sección" />
+                        <x-select-input
+                            wire:model="horarioId"
+                            id="horarioId"
+                            class="mt-1 block w-full"
+                            :options="collect($this->horariosDelGrado)->mapWithKeys(fn ($horario) => [$horario->id => trim(($horario->seccion ? 'Sección '.$horario->seccion.' · ' : '').$horario->dia_semana->label().' '.substr($horario->hora_inicio, 0, 5).'–'.substr($horario->hora_fin, 0, 5).' · '.$horario->docente->name)])"
+                        />
+                        <p class="mt-1 text-xs text-ink-faint">Este grado tiene más de una sección en el ciclo elegido: selecciona a cuál se matricula el estudiante.</p>
+                        <x-input-error :messages="$errors->get('horarioId')" class="mt-1" />
+                        <x-input-error :messages="$errors->get('horario')" class="mt-1" />
+                    </div>
+                @endif
                 <div class="sm:col-span-2">
                     <x-input-label for="observacionesMatricula" value="Observaciones (opcional)" />
                     <textarea wire:model="observacionesMatricula" id="observacionesMatricula" rows="2" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent"></textarea>
