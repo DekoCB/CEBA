@@ -55,6 +55,14 @@ class CursoVirtual extends Model
     }
 
     /**
+     * @return HasMany<ClaseGrabada, $this>
+     */
+    public function clasesGrabadas(): HasMany
+    {
+        return $this->hasMany(ClaseGrabada::class)->orderBy('orden');
+    }
+
+    /**
      * @return HasMany<Tarea, $this>
      */
     public function tareas(): HasMany

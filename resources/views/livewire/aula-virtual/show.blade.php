@@ -1,10 +1,12 @@
 <?php
 
+use App\Modules\AulaVirtual\Enums\TipoClaseGrabadaEnum;
 use App\Modules\AulaVirtual\Enums\TipoMaterialEnum;
 use App\Modules\AulaVirtual\Enums\TipoPublicacionEnum;
 use App\Modules\AulaVirtual\Models\CursoVirtual;
 use App\Modules\AulaVirtual\Models\Foro;
 use App\Modules\AulaVirtual\Models\Publicacion;
+use App\Modules\AulaVirtual\Services\ClaseGrabadaService;
 use App\Modules\AulaVirtual\Services\ComentarioService;
 use App\Modules\AulaVirtual\Services\CursoVirtualService;
 use App\Modules\AulaVirtual\Services\ForoService;
@@ -37,6 +39,20 @@ new #[Layout('layouts.app')] class extends Component
 
     /** @var array<int, int> */
     public array $materialCursosSeleccionados = [];
+
+    // Nueva clase grabada
+    public bool $mostrarFormGrabacion = false;
+
+    public string $grabacionTipo = '';
+
+    public string $grabacionTitulo = '';
+
+    public string $grabacionUrl = '';
+
+    public $grabacionArchivo = null;
+
+    /** @var array<int, int> */
+    public array $grabacionCursosSeleccionados = [];
 
     // Nueva tarea
     public bool $mostrarFormTarea = false;
@@ -75,6 +91,7 @@ new #[Layout('layouts.app')] class extends Component
 
         $this->curso = $curso;
         $this->materialCursosSeleccionados = [$curso->id];
+        $this->grabacionCursosSeleccionados = [$curso->id];
     }
 
     public function crearMaterial(MaterialService $service): void
@@ -118,6 +135,47 @@ new #[Layout('layouts.app')] class extends Component
         Gate::authorize('manage', $this->curso);
 
         $service->eliminar($this->curso->materiales()->findOrFail($materialId));
+    }
+
+    public function crearGrabacion(ClaseGrabadaService $service): void
+    {
+        Gate::authorize('manage', $this->curso);
+
+        $this->validate([
+            'grabacionTipo' => 'required|string|in:'.implode(',', array_column(TipoClaseGrabadaEnum::cases(), 'value')),
+            'grabacionTitulo' => 'required|string|max:150',
+            'grabacionUrl' => 'nullable|url|max:500',
+            'grabacionArchivo' => 'nullable|file|max:40000',
+            'grabacionCursosSeleccionados' => 'required|array|min:1',
+            'grabacionCursosSeleccionados.*' => 'integer|exists:aula_virtual_cursos,id',
+        ]);
+
+        // Misma lógica que crearMaterial(): se revalida cada curso elegido,
+        // no solo el de la página actual, sin confiar en los IDs del cliente.
+        $cursosSeleccionados = CursoVirtual::query()
+            ->whereIn('id', $this->grabacionCursosSeleccionados)
+            ->get()
+            ->filter(fn (CursoVirtual $curso) => Gate::allows('manage', $curso));
+
+        abort_if($cursosSeleccionados->isEmpty(), 403);
+
+        $service->crearParaVarios(
+            $cursosSeleccionados,
+            TipoClaseGrabadaEnum::from($this->grabacionTipo),
+            $this->grabacionTitulo,
+            $this->grabacionUrl ?: null,
+            $this->grabacionArchivo,
+        );
+
+        $this->reset(['grabacionTipo', 'grabacionTitulo', 'grabacionUrl', 'grabacionArchivo', 'mostrarFormGrabacion']);
+        $this->grabacionCursosSeleccionados = [$this->curso->id];
+    }
+
+    public function eliminarGrabacion(int $claseGrabadaId, ClaseGrabadaService $service): void
+    {
+        Gate::authorize('manage', $this->curso);
+
+        $service->eliminar($this->curso->clasesGrabadas()->findOrFail($claseGrabadaId));
     }
 
     public function crearTarea(TareaService $service): void
@@ -208,10 +266,12 @@ new #[Layout('layouts.app')] class extends Component
         return [
             'puedeGestionar' => Gate::allows('manage', $this->curso),
             'materiales' => $this->curso->materiales,
+            'clasesGrabadas' => $this->curso->clasesGrabadas,
             'tareas' => $this->curso->tareas()->latest('fecha_limite')->get(),
             'publicaciones' => $this->curso->publicaciones()->with(['autor', 'comentarios.autor'])->latest()->get(),
             'foros' => $this->curso->foros()->with(['autor', 'respuestas.autor'])->latest()->get(),
             'tiposMaterial' => TipoMaterialEnum::cases(),
+            'tiposClaseGrabada' => TipoClaseGrabadaEnum::cases(),
             'tiposPublicacion' => TipoPublicacionEnum::cases(),
             'misCursosParaMaterial' => $cursos->delDocente($this->curso->horario->docente_id),
         ];
@@ -226,7 +286,7 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     <div class="mb-6 flex gap-1 border-b border-border">
-        @foreach (['materiales' => 'Materiales', 'tareas' => 'Tareas', 'publicaciones' => 'Publicaciones', 'foros' => 'Foros'] as $valor => $etiqueta)
+        @foreach (['materiales' => 'Materiales', 'clases-grabadas' => 'Clases grabadas', 'tareas' => 'Tareas', 'publicaciones' => 'Publicaciones', 'foros' => 'Foros'] as $valor => $etiqueta)
             <button
                 wire:click="$set('tab', '{{ $valor }}')"
                 @class([
@@ -329,6 +389,100 @@ new #[Layout('layouts.app')] class extends Component
                     </div>
                 @empty
                     <p class="px-4 py-8 text-center text-sm text-ink-faint">Todavía no hay materiales.</p>
+                @endforelse
+            </div>
+        </div>
+    @endif
+
+    {{-- Clases grabadas --}}
+    @if ($tab === 'clases-grabadas')
+        <div class="space-y-4">
+            @can('manage', $curso)
+                <div class="flex justify-end">
+                    <x-secondary-button type="button" wire:click="$set('mostrarFormGrabacion', true)">+ Nueva clase grabada</x-secondary-button>
+                </div>
+            @endcan
+
+            @if ($mostrarFormGrabacion)
+                <form wire:submit="crearGrabacion" class="rounded-lg border border-border bg-surface p-4 space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <x-input-label for="grabacionTipo" value="Tipo" />
+                            <x-select-input
+                                wire:model.live="grabacionTipo"
+                                id="grabacionTipo"
+                                class="mt-1 block w-full"
+                                :options="collect($tiposClaseGrabada)->mapWithKeys(fn ($tipo) => [$tipo->value => $tipo->label()])"
+                            />
+                            <x-input-error :messages="$errors->get('grabacionTipo')" class="mt-1" />
+                        </div>
+                        <div>
+                            <x-input-label for="grabacionTitulo" value="Título" />
+                            <x-text-input wire:model="grabacionTitulo" id="grabacionTitulo" class="mt-1 block w-full" placeholder="Ej. Clase del 15 de julio" />
+                            <x-input-error :messages="$errors->get('grabacionTitulo')" class="mt-1" />
+                        </div>
+                    </div>
+                    @if ($grabacionTipo === 'archivo')
+                        <div>
+                            <x-input-label for="grabacionArchivo" value="Archivo de video" />
+                            <input wire:model="grabacionArchivo" id="grabacionArchivo" type="file" accept="video/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-ink">
+                            <x-input-error :messages="$errors->get('grabacionArchivo')" class="mt-1" />
+                        </div>
+                    @elseif ($grabacionTipo !== '')
+                        <div>
+                            <x-input-label for="grabacionUrl" value="URL" />
+                            <x-text-input wire:model="grabacionUrl" id="grabacionUrl" class="mt-1 block w-full" placeholder="https://…" />
+                            <x-input-error :messages="$errors->get('grabacionUrl')" class="mt-1" />
+                        </div>
+                    @endif
+
+                    @if ($misCursosParaMaterial->count() > 1)
+                        <div>
+                            <x-input-label value="Subir también a" />
+                            <div class="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-md border border-border bg-surface p-2">
+                                @foreach ($misCursosParaMaterial as $cursoOpcion)
+                                    <label class="flex items-center gap-2 text-sm text-ink">
+                                        <input
+                                            type="checkbox"
+                                            value="{{ $cursoOpcion->id }}"
+                                            wire:model="grabacionCursosSeleccionados"
+                                            class="rounded border-border text-accent focus:ring-accent"
+                                        >
+                                        {{ $cursoOpcion->horario->curso->nombre }} · {{ $cursoOpcion->horario->grado->nombre }} · {{ $cursoOpcion->horario->ciclo->nombre }}
+                                    </label>
+                                @endforeach
+                            </div>
+                            <x-input-error :messages="$errors->get('grabacionCursosSeleccionados')" class="mt-1" />
+                        </div>
+                    @endif
+
+                    <div class="flex justify-end gap-2">
+                        <x-secondary-button type="button" wire:click="$set('mostrarFormGrabacion', false)">Cancelar</x-secondary-button>
+                        <x-primary-button type="submit">Guardar</x-primary-button>
+                    </div>
+                </form>
+            @endif
+
+            <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+                @forelse ($clasesGrabadas as $claseGrabada)
+                    <div class="flex items-center justify-between px-4 py-3 text-sm">
+                        <div class="flex items-center gap-3">
+                            <span class="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-mono text-ink-faint">{{ $claseGrabada->tipo->label() }}</span>
+                            <span class="text-ink">{{ $claseGrabada->titulo }}</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            @if ($claseGrabada->tipo->requiereArchivo() && $claseGrabada->getFirstMedia('video'))
+                                <a href="{{ $claseGrabada->getFirstMediaUrl('video') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver video</a>
+                            @elseif ($claseGrabada->url)
+                                <a href="{{ $claseGrabada->url }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Abrir enlace</a>
+                            @endif
+                            @can('manage', $curso)
+                                <button wire:click="eliminarGrabacion({{ $claseGrabada->id }})" wire:confirm="¿Eliminar esta clase grabada?" class="text-xs font-medium text-danger hover:underline">Eliminar</button>
+                            @endcan
+                        </div>
+                    </div>
+                @empty
+                    <p class="px-4 py-8 text-center text-sm text-ink-faint">Todavía no hay clases grabadas.</p>
                 @endforelse
             </div>
         </div>

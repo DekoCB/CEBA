@@ -4,8 +4,10 @@ namespace Tests\Feature\AulaVirtual;
 
 use App\Modules\Academico\Models\Horario;
 use App\Modules\AulaVirtual\Enums\EstadoEntregaEnum;
+use App\Modules\AulaVirtual\Enums\TipoClaseGrabadaEnum;
 use App\Modules\AulaVirtual\Enums\TipoMaterialEnum;
 use App\Modules\AulaVirtual\Models\CursoVirtual;
+use App\Modules\AulaVirtual\Services\ClaseGrabadaService;
 use App\Modules\AulaVirtual\Services\CursoVirtualService;
 use App\Modules\AulaVirtual\Services\MaterialService;
 use App\Modules\AulaVirtual\Services\TareaService;
@@ -124,6 +126,84 @@ class AulaVirtualServiceTest extends TestCase
             $this->assertSame(0, $cursoUno->materiales()->count());
             $this->assertSame(0, $cursoDos->materiales()->count());
         }
+    }
+
+    public function test_clase_grabada_de_tipo_archivo_requiere_archivo(): void
+    {
+        $curso = CursoVirtual::factory()->create();
+
+        $this->expectException(ValidationException::class);
+
+        $this->app->make(ClaseGrabadaService::class)->crear($curso, TipoClaseGrabadaEnum::ARCHIVO, 'Clase del 15 de julio', null, null);
+    }
+
+    public function test_clase_grabada_de_tipo_enlace_requiere_url(): void
+    {
+        $curso = CursoVirtual::factory()->create();
+
+        $this->expectException(ValidationException::class);
+
+        $this->app->make(ClaseGrabadaService::class)->crear($curso, TipoClaseGrabadaEnum::ENLACE, 'Clase del 15 de julio', null, null);
+    }
+
+    public function test_crear_clase_grabada_con_archivo_lo_adjunta_a_la_coleccion_video(): void
+    {
+        Storage::fake('public');
+
+        $curso = CursoVirtual::factory()->create();
+        $archivo = UploadedFile::fake()->create('clase.mp4', 5000, 'video/mp4');
+
+        $claseGrabada = $this->app->make(ClaseGrabadaService::class)->crear($curso, TipoClaseGrabadaEnum::ARCHIVO, 'Clase del 15 de julio', null, $archivo);
+
+        $this->assertNotNull($claseGrabada->getFirstMedia('video'));
+    }
+
+    public function test_crear_clase_grabada_con_enlace_no_exige_archivo(): void
+    {
+        $curso = CursoVirtual::factory()->create();
+
+        $claseGrabada = $this->app->make(ClaseGrabadaService::class)->crear($curso, TipoClaseGrabadaEnum::ENLACE, 'Clase del 15 de julio', 'https://youtube.test/clase', null);
+
+        $this->assertSame('https://youtube.test/clase', $claseGrabada->url);
+        $this->assertNull($claseGrabada->getFirstMedia('video'));
+    }
+
+    public function test_crear_clase_grabada_para_varios_crea_una_por_cada_curso(): void
+    {
+        $cursoUno = CursoVirtual::factory()->create();
+        $cursoDos = CursoVirtual::factory()->create();
+
+        $clasesGrabadas = $this->app->make(ClaseGrabadaService::class)->crearParaVarios(
+            collect([$cursoUno, $cursoDos]),
+            TipoClaseGrabadaEnum::ENLACE,
+            'Clase del 15 de julio',
+            'https://youtube.test/clase',
+            null,
+        );
+
+        $this->assertCount(2, $clasesGrabadas);
+        $this->assertSame(1, $cursoUno->clasesGrabadas()->count());
+        $this->assertSame(1, $cursoDos->clasesGrabadas()->count());
+    }
+
+    public function test_crear_clase_grabada_para_varios_con_archivo_lo_adjunta_en_cada_una(): void
+    {
+        Storage::fake('public');
+
+        $cursoUno = CursoVirtual::factory()->create();
+        $cursoDos = CursoVirtual::factory()->create();
+        $archivo = UploadedFile::fake()->create('clase.mp4', 5000, 'video/mp4');
+
+        $clasesGrabadas = $this->app->make(ClaseGrabadaService::class)->crearParaVarios(
+            collect([$cursoUno, $cursoDos]),
+            TipoClaseGrabadaEnum::ARCHIVO,
+            'Clase del 15 de julio',
+            null,
+            $archivo,
+        );
+
+        $this->assertNotNull($clasesGrabadas[0]->getFirstMedia('video'));
+        $this->assertNotNull($clasesGrabadas[1]->getFirstMedia('video'));
     }
 
     public function test_entregar_tarea_antes_de_la_fecha_limite_queda_como_entregado(): void

@@ -4,8 +4,10 @@ namespace Tests\Feature\AulaVirtual;
 
 use App\Models\User;
 use App\Modules\Academico\Models\Horario;
+use App\Modules\AulaVirtual\Enums\TipoClaseGrabadaEnum;
 use App\Modules\AulaVirtual\Models\CursoVirtual;
 use App\Modules\AulaVirtual\Models\Foro;
+use App\Modules\AulaVirtual\Services\ClaseGrabadaService;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
@@ -187,6 +189,83 @@ class AulaVirtualPermisosTest extends TestCase
 
         $this->assertSame(1, $miCurso->materiales()->count());
         $this->assertSame(0, $cursoAjeno->materiales()->count());
+    }
+
+    public function test_el_docente_puede_subir_una_clase_grabada_a_varias_de_sus_secciones_a_la_vez(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+
+        $horarioUno = Horario::factory()->create(['docente_id' => $docente->id]);
+        $cursoUno = CursoVirtual::factory()->create(['horario_id' => $horarioUno->id]);
+
+        $horarioDos = Horario::factory()->create(['docente_id' => $docente->id]);
+        $cursoDos = CursoVirtual::factory()->create(['horario_id' => $horarioDos->id]);
+
+        $this->actingAs($docente);
+
+        Volt::test('aula-virtual.show', ['curso' => $cursoUno])
+            ->set('grabacionTipo', 'enlace')
+            ->set('grabacionTitulo', 'Clase del 15 de julio')
+            ->set('grabacionUrl', 'https://youtube.test/clase')
+            ->set('grabacionCursosSeleccionados', [$cursoUno->id, $cursoDos->id])
+            ->call('crearGrabacion')
+            ->assertHasNoErrors();
+
+        $this->assertSame(1, $cursoUno->clasesGrabadas()->count());
+        $this->assertSame(1, $cursoDos->clasesGrabadas()->count());
+    }
+
+    public function test_un_docente_no_puede_subir_clase_grabada_a_la_seccion_de_otro_docente_inyectando_el_id(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $miCurso = $this->cursoDelDocente($docente);
+
+        $otroDocente = User::factory()->create();
+        $otroDocente->assignRole(RolEnum::DOCENTE->value);
+        $cursoAjeno = $this->cursoDelDocente($otroDocente);
+
+        $this->actingAs($docente);
+
+        Volt::test('aula-virtual.show', ['curso' => $miCurso])
+            ->set('grabacionTipo', 'enlace')
+            ->set('grabacionTitulo', 'Clase del 15 de julio')
+            ->set('grabacionUrl', 'https://youtube.test/clase')
+            ->set('grabacionCursosSeleccionados', [$miCurso->id, $cursoAjeno->id])
+            ->call('crearGrabacion')
+            ->assertHasNoErrors();
+
+        $this->assertSame(1, $miCurso->clasesGrabadas()->count());
+        $this->assertSame(0, $cursoAjeno->clasesGrabadas()->count());
+    }
+
+    public function test_un_estudiante_matriculado_ve_las_clases_grabadas_pero_no_puede_crear_una(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario = Horario::factory()->create(['docente_id' => $docente->id]);
+        $curso = CursoVirtual::factory()->create(['horario_id' => $horario->id]);
+
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $horario->ciclo_id,
+            'grado_id' => $horario->grado_id,
+        ]);
+
+        $this->app->make(ClaseGrabadaService::class)
+            ->crear($curso, TipoClaseGrabadaEnum::ENLACE, 'Clase del 15 de julio', 'https://youtube.test/clase', null);
+
+        $this->actingAs($usuario);
+
+        Volt::test('aula-virtual.show', ['curso' => $curso])
+            ->set('tab', 'clases-grabadas')
+            ->assertSee('Clase del 15 de julio')
+            ->assertDontSee('Nueva clase grabada');
     }
 
     public function test_direccion_puede_gestionar_cualquier_curso(): void
