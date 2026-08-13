@@ -286,7 +286,7 @@ new #[Layout('layouts.app')] class extends Component
                         </div>
                         <div>
                             <x-input-label for="nuevoDisponibleHasta" value="Disponible hasta (opcional)" />
-                            <x-text-input wire:model="nuevoDisponibleHasta" id="nuevoDisponibleHasta" type="datetime-local" class="mt-1 block w-full" />
+                            <x-datetime-input wire:model="nuevoDisponibleHasta" id="nuevoDisponibleHasta" class="mt-1 block w-full" />
                             <p class="mt-1 text-xs text-ink-faint">Pasada esta fecha, el enlace deja de estar disponible para el estudiante.</p>
                             <x-input-error :messages="$errors->get('nuevoDisponibleHasta')" class="mt-1" />
                         </div>
@@ -370,7 +370,7 @@ new #[Layout('layouts.app')] class extends Component
                                 </div>
                                 <div>
                                     <x-input-label for="disponibleHastaEditar" value="Disponible hasta (opcional)" />
-                                    <x-text-input wire:model="disponibleHastaEditar" id="disponibleHastaEditar" type="datetime-local" class="mt-1 block w-full" />
+                                    <x-datetime-input wire:model="disponibleHastaEditar" id="disponibleHastaEditar" class="mt-1 block w-full" />
                                     <x-input-error :messages="$errors->get('disponibleHastaEditar')" class="mt-1" />
                                 </div>
                                 <div>
