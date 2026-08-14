@@ -13,12 +13,12 @@
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700|quantico:400,700&display=swap" rel="stylesheet" />
 
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="font-sans antialiased">
+    <body class="app-shell font-sans antialiased">
         <div x-data="{ sidebarOpen: false }" class="flex h-dvh overflow-hidden bg-bg">
             <!-- Sidebar (desktop) -->
             <aside class="sidebar-desktop relative hidden w-72 shrink-0 flex-col border-r border-border bg-surface transition-all duration-300 ease-in-out md:flex">

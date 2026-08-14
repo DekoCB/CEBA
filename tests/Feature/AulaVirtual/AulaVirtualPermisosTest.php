@@ -388,4 +388,45 @@ class AulaVirtualPermisosTest extends TestCase
             ->assertSee('Todos los cursos virtuales activos.')
             ->assertDontSee('Todavía no tienes cursos con aula virtual activada.');
     }
+
+    public function test_un_estudiante_ve_sus_tareas_de_todos_sus_cursos_en_mis_tareas(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario = Horario::factory()->create(['docente_id' => $docente->id]);
+        $curso = CursoVirtual::factory()->create(['horario_id' => $horario->id]);
+
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $horario->ciclo_id,
+            'grado_id' => $horario->grado_id,
+        ]);
+
+        $curso->tareas()->create([
+            'titulo' => 'Ensayo sobre el video',
+            'descripcion' => null,
+            'fecha_limite' => now()->addDay(),
+            'puntaje_max' => 20,
+        ]);
+
+        $this->actingAs($usuario)
+            ->get(route('aula-virtual.mis-tareas'))
+            ->assertOk()
+            ->assertSee('Ensayo sobre el video')
+            ->assertSee('Pendiente');
+    }
+
+    public function test_un_docente_no_puede_ver_mis_tareas_porque_no_es_estudiante(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+
+        $this->actingAs($docente)
+            ->get(route('aula-virtual.mis-tareas'))
+            ->assertForbidden();
+    }
 }

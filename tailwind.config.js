@@ -14,7 +14,7 @@ export default {
         extend: {
             fontFamily: {
                 sans: ['Inter', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'Helvetica Neue', 'Arial', 'sans-serif'],
-                display: ['Georgia', 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', 'serif'],
+                display: ['Quantico', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'Arial', 'sans-serif'],
                 mono: ['ui-monospace', 'Cascadia Code', 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'monospace'],
             },
             colors: {

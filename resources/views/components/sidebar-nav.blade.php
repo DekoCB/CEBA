@@ -1,4 +1,4 @@
-<nav class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
+<nav class="sidebar-nav flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
     <a
         href="{{ route('dashboard') }}"
         wire:navigate
@@ -45,13 +45,28 @@
             wire:navigate
             @class([
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('aula-virtual.*'),
-                'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('aula-virtual.*'),
+                'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('aula-virtual.index', 'aula-virtual.show', 'aula-virtual.tarea'),
+                'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('aula-virtual.index', 'aula-virtual.show', 'aula-virtual.tarea'),
             ])
         >
             <x-heroicon-o-computer-desktop class="h-5 w-5 shrink-0" />
             <span class="sidebar-label">Cursos virtuales</span>
         </a>
+
+        @can('aula_virtual.ver_propio')
+            <a
+                href="{{ route('aula-virtual.mis-tareas') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('aula-virtual.mis-tareas'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('aula-virtual.mis-tareas'),
+                ])
+            >
+                <x-heroicon-o-clipboard-document-list class="h-5 w-5 shrink-0" />
+                <span class="sidebar-label">Mis tareas</span>
+            </a>
+        @endcan
     @endcanany
 
     @canany(['asistencia.ver', 'asistencia.registrar', 'asistencia.ver_propio'])

@@ -6,6 +6,7 @@ namespace App\Modules\AulaVirtual\Models;
 
 use App\Modules\AulaVirtual\Database\Factories\TareaFactory;
 use App\Modules\Identidad\Support\Auditable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,6 +22,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon $fecha_limite
  * @property int $puntaje_max
  * @property-read CursoVirtual $cursoVirtual
+ * @property-read Collection<int, EntregaTarea> $entregas
  */
 class Tarea extends Model
 {

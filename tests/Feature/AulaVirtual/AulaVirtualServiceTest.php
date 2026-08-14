@@ -365,4 +365,102 @@ class AulaVirtualServiceTest extends TestCase
         $this->assertSame(1, $tarea->entregas()->count());
         $this->assertSame('Segundo intento', $tarea->entregas()->first()->comentario);
     }
+
+    public function test_tareas_del_estudiante_solo_incluye_las_de_sus_cursos_matriculados(): void
+    {
+        $horario = Horario::factory()->create();
+        $curso = CursoVirtual::factory()->create(['horario_id' => $horario->id]);
+        $estudiante = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+
+        $service = $this->app->make(TareaService::class);
+        $tareaDeMiCurso = $service->crear($curso, [
+            'titulo' => 'Ensayo',
+            'descripcion' => null,
+            'fecha_limite' => now()->addDay(),
+            'puntaje_max' => 20,
+        ]);
+
+        $cursoAjeno = CursoVirtual::factory()->create();
+        $service->crear($cursoAjeno, [
+            'titulo' => 'Tarea ajena',
+            'descripcion' => null,
+            'fecha_limite' => now()->addDay(),
+            'puntaje_max' => 20,
+        ]);
+
+        $tareas = $service->delEstudiante($estudiante);
+
+        $this->assertCount(1, $tareas);
+        $this->assertSame($tareaDeMiCurso->id, $tareas->first()->id);
+    }
+
+    public function test_tareas_del_estudiante_precarga_su_propia_entrega(): void
+    {
+        $horario = Horario::factory()->create();
+        $curso = CursoVirtual::factory()->create(['horario_id' => $horario->id]);
+        $estudiante = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+
+        $service = $this->app->make(TareaService::class);
+        $tarea = $service->crear($curso, [
+            'titulo' => 'Ensayo',
+            'descripcion' => null,
+            'fecha_limite' => now()->addDay(),
+            'puntaje_max' => 20,
+        ]);
+        $service->entregar($tarea, $estudiante, 'Mi respuesta', null);
+
+        $otroEstudiante = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $otroEstudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+        $service->entregar($tarea, $otroEstudiante, 'Otra respuesta', null);
+
+        $tareas = $service->delEstudiante($estudiante);
+
+        $this->assertCount(1, $tareas->first()->entregas);
+        $this->assertSame('Mi respuesta', $tareas->first()->entregas->first()->comentario);
+    }
+
+    public function test_tareas_del_estudiante_se_ordenan_por_fecha_limite_ascendente(): void
+    {
+        $horario = Horario::factory()->create();
+        $curso = CursoVirtual::factory()->create(['horario_id' => $horario->id]);
+        $estudiante = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+
+        $service = $this->app->make(TareaService::class);
+        $tareaLejana = $service->crear($curso, [
+            'titulo' => 'Tarea lejana',
+            'descripcion' => null,
+            'fecha_limite' => now()->addWeek(),
+            'puntaje_max' => 20,
+        ]);
+        $tareaProxima = $service->crear($curso, [
+            'titulo' => 'Tarea próxima',
+            'descripcion' => null,
+            'fecha_limite' => now()->addDay(),
+            'puntaje_max' => 20,
+        ]);
+
+        $tareas = $service->delEstudiante($estudiante);
+
+        $this->assertSame($tareaProxima->id, $tareas->first()->id);
+        $this->assertSame($tareaLejana->id, $tareas->last()->id);
+    }
 }

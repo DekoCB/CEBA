@@ -38,7 +38,7 @@ new class extends Component
         </div>
 
         <div class="flex items-center gap-2">
-            <span class="hidden rounded-full bg-surface-2 px-3 py-1 text-xs font-medium text-ink-dim sm:inline-block">
+            <span class="hidden rounded-full bg-surface-2 px-3 py-1 font-display text-xs font-medium text-ink-dim sm:inline-block">
                 {{ auth()->user()->roles->first()?->name ? ucfirst(auth()->user()->roles->first()->name) : 'Sin rol' }}
             </span>
 
@@ -55,7 +55,7 @@ new class extends Component
                             },
                         }"
                         x-on:profile-updated.window="name = $event.detail.name; avatarUrl = $event.detail.avatarUrl"
-                        class="inline-flex items-center gap-2 rounded-md py-1.5 pl-1.5 pr-3 text-sm font-medium text-ink-dim transition hover:bg-surface-2 hover:text-ink focus:outline-none"
+                        class="inline-flex items-center gap-2 rounded-md py-1.5 pl-1.5 pr-3 font-display text-sm font-medium text-ink-dim transition hover:bg-surface-2 hover:text-ink focus:outline-none"
                     >
                         <img x-show="avatarUrl" :src="avatarUrl" alt="" class="h-7 w-7 shrink-0 rounded-full object-cover">
                         <span x-show="! avatarUrl" x-text="iniciales()" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent"></span>

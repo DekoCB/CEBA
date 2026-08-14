@@ -111,6 +111,28 @@
 }
 
 /*
+ * Los enlaces y títulos de sección del sidebar usan la fuente "display"
+ * (texto de interfaz), en vez del font-sans del resto del contenido.
+ */
+.sidebar-nav a,
+.sidebar-nav button,
+.sidebar-nav .sidebar-section-title {
+    font-family: theme('fontFamily.display');
+}
+
+/*
+ * Badges (píldoras de estado: Publicada/Borrador, tipo de incidencia,
+ * asistencia, etc.): no hay una clase compartida, cada uno es un <span>
+ * suelto, pero todos comparten el patrón rounded-full + texto pequeño +
+ * relleno vertical — eso basta para detectarlos sin tocar cada aparición.
+ * Acotado a .app-shell (layouts.app) para no afectar los badges de la
+ * landing pública, que tiene su propia tipografía aparte.
+ */
+.app-shell [class*='rounded-full'][class*='text-xs'][class*='py-'] {
+    font-family: theme('fontFamily.display');
+}
+
+/*
  * Fondo de la página de login: la imagen vive en un contenedor 10% más
  * grande que el viewport en cada lado (inset: -10%) para tener margen de
  * recorrido de sobra y que el paneo hacia abajo nunca deje bordes vacíos.
