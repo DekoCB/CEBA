@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Notificaciones;
 
+use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Notificaciones\Enums\EstadoMensajeWhatsappEnum;
 use App\Modules\Notificaciones\Enums\TipoMensajeWhatsappEnum;
 use App\Modules\Notificaciones\Models\CampaniaWhatsapp;
@@ -55,5 +56,30 @@ class MensajeWhatsappServiceTest extends TestCase
         $resultado = app(MensajeWhatsappService::class)->listar(['campania_id' => $campania->id]);
 
         $this->assertSame(1, $resultado->total());
+    }
+
+    public function test_mis_mensajes_solo_incluye_los_del_estudiante_indicado(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $otroEstudiante = Estudiante::factory()->create();
+        MensajeWhatsapp::factory()->create(['estudiante_id' => $estudiante->id]);
+        MensajeWhatsapp::factory()->create(['estudiante_id' => $otroEstudiante->id]);
+
+        $resultado = app(MensajeWhatsappService::class)->misMensajes($estudiante);
+
+        $this->assertSame(1, $resultado->total());
+    }
+
+    public function test_mis_mensajes_excluye_mensajes_entrantes_e_incidencias(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        MensajeWhatsapp::factory()->create(['estudiante_id' => $estudiante->id, 'tipo' => TipoMensajeWhatsappEnum::CAMPANIA]);
+        MensajeWhatsapp::factory()->create(['estudiante_id' => $estudiante->id, 'tipo' => TipoMensajeWhatsappEnum::ENTRANTE]);
+        MensajeWhatsapp::factory()->create(['estudiante_id' => $estudiante->id, 'tipo' => TipoMensajeWhatsappEnum::INCIDENCIA]);
+
+        $resultado = app(MensajeWhatsappService::class)->misMensajes($estudiante);
+
+        $this->assertSame(1, $resultado->total());
+        $this->assertSame(TipoMensajeWhatsappEnum::CAMPANIA, $resultado->items()[0]->tipo);
     }
 }

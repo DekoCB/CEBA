@@ -302,6 +302,23 @@
         </div>
     @endcanany
 
+    @if (auth()->user()->can('notificaciones.ver_propio') && auth()->user()->estudiante)
+        <div class="mt-4 border-t border-border pt-4">
+            <a
+                href="{{ route('notificaciones.mis-mensajes') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('notificaciones.mis-mensajes'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('notificaciones.mis-mensajes'),
+                ])
+            >
+                <x-heroicon-o-chat-bubble-left-right class="h-5 w-5 shrink-0" />
+                <span class="sidebar-label">Mis mensajes</span>
+            </a>
+        </div>
+    @endif
+
     @canany(['usuarios.ver', 'roles.gestionar', 'auditoria.ver'])
         <div class="mt-4 border-t border-border pt-4">
             <p class="sidebar-section-title px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">

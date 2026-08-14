@@ -73,6 +73,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'incidencias.ver_propio',
             'pagos.ver_propio', 'pagos.subir_comprobante',
             'certificados.solicitar',
+            'notificaciones.ver_propio',
         ],
     ];
 
@@ -92,7 +93,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'certificados.emitir', 'certificados.duplicar', 'certificados.ver', 'certificados.solicitar', 'certificados.gestionar_plantilla',
         'reportes.academicos', 'reportes.operativos', 'reportes.financieros',
         'reportes.matricula', 'reportes.certificados', 'reportes.propios', 'reportes.exportar',
-        'whatsapp.enviar', 'whatsapp.ver',
+        'whatsapp.enviar', 'whatsapp.ver', 'notificaciones.ver_propio',
         'roles.gestionar', 'auditoria.ver',
         'usuarios.ver', 'usuarios.crear', 'usuarios.editar', 'usuarios.gestionar_sesiones',
     ];

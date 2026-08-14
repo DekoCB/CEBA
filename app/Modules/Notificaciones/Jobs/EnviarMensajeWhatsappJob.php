@@ -4,15 +4,17 @@ declare(strict_types=1);
 
 namespace App\Modules\Notificaciones\Jobs;
 
-use App\Modules\Notificaciones\Contracts\WhatsAppGateway;
 use App\Modules\Notificaciones\Enums\EstadoCampaniaEnum;
 use App\Modules\Notificaciones\Enums\EstadoMensajeWhatsappEnum;
+use App\Modules\Notificaciones\Enums\TipoNotificacionEnum;
 use App\Modules\Notificaciones\Models\MensajeWhatsapp;
+use App\Modules\Notificaciones\Services\NotificacionService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Str;
 
 class EnviarMensajeWhatsappJob implements ShouldQueue
 {
@@ -22,16 +24,34 @@ class EnviarMensajeWhatsappJob implements ShouldQueue
         private readonly MensajeWhatsapp $mensaje,
     ) {}
 
-    public function handle(WhatsAppGateway $gateway): void
+    /**
+     * El envío real por WhatsApp está pausado por ahora: en vez de llamar al
+     * WhatsAppGateway, el mensaje se refleja como una notificación in-app
+     * para que el estudiante lo vea en "Mis mensajes" y en la campana.
+     */
+    public function handle(NotificacionService $notificaciones): void
     {
-        $resultado = $gateway->enviar($this->mensaje->telefono, $this->mensaje->contenido);
+        $usuario = $this->mensaje->estudiante?->user;
+        $exitoso = $usuario !== null;
 
-        $this->mensaje->update([
-            'estado' => $resultado['exitoso'] ? EstadoMensajeWhatsappEnum::ENVIADO : EstadoMensajeWhatsappEnum::FALLIDO,
-            'external_id' => $resultado['external_id'],
-            'error' => $resultado['error'],
-            'enviado_en' => $resultado['exitoso'] ? now() : null,
-        ]);
+        if ($usuario) {
+            $notificaciones->notificar(
+                $usuario,
+                TipoNotificacionEnum::MENSAJE,
+                Str::limit($this->mensaje->contenido, 120),
+                route('notificaciones.mis-mensajes'),
+            );
+
+            $this->mensaje->update([
+                'estado' => EstadoMensajeWhatsappEnum::ENVIADO,
+                'enviado_en' => now(),
+            ]);
+        } else {
+            $this->mensaje->update([
+                'estado' => EstadoMensajeWhatsappEnum::FALLIDO,
+                'error' => 'El estudiante no tiene una cuenta de usuario vinculada.',
+            ]);
+        }
 
         $campania = $this->mensaje->campania;
 
@@ -39,7 +59,7 @@ class EnviarMensajeWhatsappJob implements ShouldQueue
             return;
         }
 
-        $campania->increment($resultado['exitoso'] ? 'enviados' : 'fallidos');
+        $campania->increment($exitoso ? 'enviados' : 'fallidos');
         $campania->refresh();
 
         if ($campania->enviados + $campania->fallidos >= $campania->total_destinatarios) {

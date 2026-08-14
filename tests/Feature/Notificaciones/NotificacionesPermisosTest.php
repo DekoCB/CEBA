@@ -4,6 +4,7 @@ namespace Tests\Feature\Notificaciones;
 
 use App\Models\User;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
+use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Notificaciones\Enums\TipoMensajeWhatsappEnum;
 use App\Modules\Notificaciones\Models\MensajeWhatsapp;
 use App\Shared\Enums\RolEnum;
@@ -69,6 +70,43 @@ class NotificacionesPermisosTest extends TestCase
 
         $this->actingAs($usuario)
             ->get(route('notificaciones.index'))
+            ->assertForbidden();
+    }
+
+    public function test_un_estudiante_puede_ver_sus_propios_mensajes(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+        MensajeWhatsapp::factory()->create(['estudiante_id' => $estudiante->id, 'contenido' => 'Recordatorio de pago']);
+
+        $this->actingAs($usuario)
+            ->get(route('notificaciones.mis-mensajes'))
+            ->assertOk()
+            ->assertSee('Recordatorio de pago');
+    }
+
+    public function test_un_estudiante_no_ve_mensajes_de_otro_estudiante(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        Estudiante::factory()->create(['user_id' => $usuario->id]);
+        $otroEstudiante = Estudiante::factory()->create();
+        MensajeWhatsapp::factory()->create(['estudiante_id' => $otroEstudiante->id, 'contenido' => 'Mensaje ajeno']);
+
+        $this->actingAs($usuario)
+            ->get(route('notificaciones.mis-mensajes'))
+            ->assertOk()
+            ->assertDontSee('Mensaje ajeno');
+    }
+
+    public function test_un_docente_no_puede_ver_mis_mensajes(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+
+        $this->actingAs($docente)
+            ->get(route('notificaciones.mis-mensajes'))
             ->assertForbidden();
     }
 

@@ -57,6 +57,7 @@ class ModuleRoutesHaveWebMiddlewareTest extends TestCase
             'certificados.verificar' => ['certificados.verificar'],
             'reportes.index' => ['reportes.index'],
             'notificaciones.index' => ['notificaciones.index'],
+            'notificaciones.mis-mensajes' => ['notificaciones.mis-mensajes'],
             'notificaciones.plantillas' => ['notificaciones.plantillas'],
         ];
     }
