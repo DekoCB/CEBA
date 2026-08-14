@@ -29,7 +29,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property int $emitido_por
  * @property Carbon $fecha_emision
  * @property string|null $observaciones
- * @property-read Estudiante $estudiante
+ * @property-read Estudiante|null $estudiante
  * @property-read Matricula|null $matricula
  * @property-read Certificado|null $original
  * @property-read User $emisor

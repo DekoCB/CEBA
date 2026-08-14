@@ -265,7 +265,7 @@ new #[Layout('layouts.app')] class extends Component
                     <div class="flex items-center gap-2">
                         <span class="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-ink-dim">{{ $incidencia->tipo->label() }}</span>
                         @if (! $esVistaEstudiante)
-                            <span class="text-sm font-medium text-ink">{{ $incidencia->estudiante->nombreCompleto() }}</span>
+                            <span class="text-sm font-medium text-ink">{{ $incidencia->estudiante?->nombreCompleto() ?? '—' }}</span>
                         @endif
                     </div>
                     <span class="text-xs text-ink-faint">{{ $incidencia->fecha->format('d/m/Y') }}</span>

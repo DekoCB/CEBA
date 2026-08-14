@@ -10,7 +10,6 @@ use App\Modules\Notificaciones\Services\MensajeWhatsappService;
 use App\Modules\Notificaciones\Services\PlantillaService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -120,13 +119,13 @@ new #[Layout('layouts.app')] class extends Component
     @endif
 
     <div class="mb-6 flex gap-1 border-b border-border">
-        <button wire:click="$set('tab', 'nueva')" @class(['border-b-2 px-4 py-2 text-sm font-medium transition', 'border-accent text-accent' => $tab === 'nueva', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'nueva'])>
+        <button wire:click="$set('tab', 'nueva')" @class(['border-b-2 px-4 py-2 font-display text-sm font-medium transition', 'border-accent text-accent' => $tab === 'nueva', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'nueva'])>
             Nueva campaña
         </button>
-        <button wire:click="$set('tab', 'historial')" @class(['border-b-2 px-4 py-2 text-sm font-medium transition', 'border-accent text-accent' => $tab === 'historial', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'historial'])>
+        <button wire:click="$set('tab', 'historial')" @class(['border-b-2 px-4 py-2 font-display text-sm font-medium transition', 'border-accent text-accent' => $tab === 'historial', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'historial'])>
             Historial
         </button>
-        <button wire:click="$set('tab', 'mensajes')" @class(['border-b-2 px-4 py-2 text-sm font-medium transition', 'border-accent text-accent' => $tab === 'mensajes', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'mensajes'])>
+        <button wire:click="$set('tab', 'mensajes')" @class(['border-b-2 px-4 py-2 font-display text-sm font-medium transition', 'border-accent text-accent' => $tab === 'mensajes', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'mensajes'])>
             Mensajes
         </button>
         <a href="{{ route('notificaciones.plantillas') }}" wire:navigate class="ml-auto self-center text-sm font-medium text-accent hover:underline">

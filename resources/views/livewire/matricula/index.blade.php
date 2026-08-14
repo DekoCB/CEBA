@@ -65,15 +65,15 @@ new #[Layout('layouts.app')] class extends Component
     {{-- Ver academico/grados/index.blade.php: el botón no puede vivir en x-slot="header". --}}
     @can('matricula.crear')
         <div class="mb-4 flex flex-wrap justify-end gap-3">
-            <a href="{{ route('matricula.carga-masiva-estudiantes') }}" wire:navigate class="inline-flex items-center gap-2 rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface-2">
+            <a href="{{ route('matricula.carga-masiva-estudiantes') }}" wire:navigate class="inline-flex items-center gap-2 rounded-md border border-border bg-surface px-4 py-2 font-display text-sm font-medium text-ink transition hover:bg-surface-2">
                 <x-heroicon-o-arrow-up-tray class="h-4 w-4" />
                 Carga masiva de estudiantes
             </a>
-            <a href="{{ route('matricula.carga-masiva') }}" wire:navigate class="inline-flex items-center gap-2 rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface-2">
+            <a href="{{ route('matricula.carga-masiva') }}" wire:navigate class="inline-flex items-center gap-2 rounded-md border border-border bg-surface px-4 py-2 font-display text-sm font-medium text-ink transition hover:bg-surface-2">
                 <x-heroicon-o-arrow-up-tray class="h-4 w-4" />
                 Matrícula masiva
             </a>
-            <button type="button" wire:click="$set('mostrarWizard', true)" class="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+            <button type="button" wire:click="$set('mostrarWizard', true)" class="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 font-display text-sm font-medium text-white hover:opacity-90">
                 <x-heroicon-o-plus class="h-4 w-4" />
                 Nueva matrícula
             </button>

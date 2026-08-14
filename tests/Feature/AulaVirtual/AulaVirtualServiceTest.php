@@ -368,6 +368,25 @@ class AulaVirtualServiceTest extends TestCase
         $this->assertSame(0, Notificacion::query()->count());
     }
 
+    public function test_calificar_una_entrega_de_un_estudiante_eliminado_no_falla_ni_notifica(): void
+    {
+        $curso = CursoVirtual::factory()->create();
+        $tarea = $this->app->make(TareaService::class)->crear($curso, [
+            'titulo' => 'Ensayo',
+            'descripcion' => null,
+            'fecha_limite' => now()->addDay(),
+            'puntaje_max' => 20,
+        ]);
+        $estudiante = Estudiante::factory()->create(['user_id' => User::factory()]);
+        $service = $this->app->make(TareaService::class);
+        $entrega = $service->entregar($tarea, $estudiante, null, null);
+        $estudiante->delete();
+
+        $service->calificar($entrega, 18.5);
+
+        $this->assertSame(0, Notificacion::query()->count());
+    }
+
     public function test_crear_foro_persiste_la_semana_indicada(): void
     {
         $curso = CursoVirtual::factory()->create();

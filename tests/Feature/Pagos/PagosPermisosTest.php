@@ -5,8 +5,10 @@ namespace Tests\Feature\Pagos;
 use App\Models\User;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Matricula\Models\Matricula;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 class PagosPermisosTest extends TestCase
@@ -48,6 +50,23 @@ class PagosPermisosTest extends TestCase
         $this->actingAs($administrativo)
             ->get(route('pagos.index'))
             ->assertOk();
+    }
+
+    public function test_la_pestana_planes_de_pago_no_falla_si_una_matricula_quedo_sin_estudiante(): void
+    {
+        $administrativo = User::factory()->create();
+        $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+        Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => 'aprobada']);
+        $estudiante->delete();
+
+        $this->actingAs($administrativo);
+
+        Volt::test('pagos.index')
+            ->set('tab', 'planes')
+            ->assertOk()
+            ->assertSee('—');
     }
 
     public function test_un_estudiante_puede_ver_su_estado_de_cuenta(): void

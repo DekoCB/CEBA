@@ -35,7 +35,12 @@ class RecordatorioCuotaService
         $enviados = 0;
 
         foreach ($cuotas as $cuota) {
-            $estudiante = $cuota->planPago->matricula->estudiante;
+            $estudiante = $cuota->planPago->matricula?->estudiante;
+
+            if (! $estudiante) {
+                continue;
+            }
+
             $telefono = $estudiante->telefonoDeContacto();
 
             if (! $telefono) {

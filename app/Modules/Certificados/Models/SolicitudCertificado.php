@@ -23,7 +23,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int|null $atendido_por
  * @property int|null $certificado_id
  * @property string|null $motivo_rechazo
- * @property-read Estudiante $estudiante
+ * @property-read Estudiante|null $estudiante
  * @property-read Matricula|null $matricula
  * @property-read User|null $revisor
  * @property-read Certificado|null $certificado

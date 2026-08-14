@@ -16,8 +16,8 @@
 
     <p>
         El Centro de Educación Básica Alternativa (CEBA) deja constancia de que
-        <strong>{{ $matricula->estudiante->nombreCompleto() }}</strong>, identificado(a) con DNI
-        <strong>{{ $matricula->estudiante->dni }}</strong>, cuenta con vacante confirmada para cursar
+        <strong>{{ $matricula->estudiante?->nombreCompleto() ?? '—' }}</strong>, identificado(a) con DNI
+        <strong>{{ $matricula->estudiante?->dni ?? '—' }}</strong>, cuenta con vacante confirmada para cursar
         <strong>{{ $matricula->grado->nombre }}</strong> durante el ciclo
         <strong>{{ $matricula->ciclo->nombre }}</strong>, con matrícula registrada el
         {{ $matricula->fecha_matricula->format('d/m/Y') }}.

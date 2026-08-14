@@ -27,7 +27,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property int|null $horario_id
  * @property Carbon $fecha_matricula
  * @property EstadoMatriculaEnum $estado
- * @property-read Estudiante $estudiante
+ * @property-read Estudiante|null $estudiante
  * @property-read Ciclo $ciclo
  * @property-read Grado $grado
  * @property-read Horario|null $horario

@@ -28,7 +28,7 @@ use Illuminate\Support\Carbon;
  * @property string $descripcion
  * @property Carbon $fecha
  * @property Carbon|null $notificado_apoderado_en
- * @property-read Estudiante $estudiante
+ * @property-read Estudiante|null $estudiante
  * @property-read User|null $reportadoPor
  * @property-read Horario|null $horario
  * @property-read Tarea|null $tarea

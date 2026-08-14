@@ -46,7 +46,7 @@ new #[Layout('layouts.app')] class extends Component
             type="button"
             wire:click="$set('categoria', 'personal')"
             @class([
-                'rounded-md px-4 py-2 text-sm font-medium transition',
+                'rounded-md px-4 py-2 font-display text-sm font-medium transition',
                 'bg-accent text-white' => $categoria === 'personal',
                 'border border-border bg-surface text-ink-dim hover:bg-surface-2' => $categoria !== 'personal',
             ])
@@ -57,7 +57,7 @@ new #[Layout('layouts.app')] class extends Component
             type="button"
             wire:click="$set('categoria', 'estudiantes')"
             @class([
-                'rounded-md px-4 py-2 text-sm font-medium transition',
+                'rounded-md px-4 py-2 font-display text-sm font-medium transition',
                 'bg-accent text-white' => $categoria === 'estudiantes',
                 'border border-border bg-surface text-ink-dim hover:bg-surface-2' => $categoria !== 'estudiantes',
             ])

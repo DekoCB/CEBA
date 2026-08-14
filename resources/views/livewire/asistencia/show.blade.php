@@ -10,6 +10,7 @@ use App\Modules\Asistencia\Services\JustificacionService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 
@@ -27,7 +28,7 @@ new #[Layout('layouts.app')] class extends Component
     /** @var array<int, string|null> */
     public array $observaciones = [];
 
-    /** @var array<int, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile|null> */
+    /** @var array<int, TemporaryUploadedFile|null> */
     public array $justificantes = [];
 
     /** @var array<int, Asistencia> */
@@ -229,7 +230,7 @@ new #[Layout('layouts.app')] class extends Component
                     <div class="flex flex-wrap items-center justify-between gap-3 rounded-md bg-surface px-3 py-2 text-sm">
                         <div>
                             <p class="text-ink">
-                                {{ $solicitud->asistencia->estudiante->nombreCompleto() }} ·
+                                {{ $solicitud->asistencia->estudiante?->nombreCompleto() ?? '—' }} ·
                                 {{ \Illuminate\Support\Carbon::parse($solicitud->asistencia->fecha)->format('d/m/Y') }}
                             </p>
                             <p class="text-xs text-ink-dim">{{ $solicitud->motivo }}</p>

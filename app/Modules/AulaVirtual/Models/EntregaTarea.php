@@ -21,7 +21,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property float|null $nota
  * @property EstadoEntregaEnum $estado
  * @property-read Tarea $tarea
- * @property-read Estudiante $estudiante
+ * @property-read Estudiante|null $estudiante
  */
 class EntregaTarea extends Model implements HasMedia
 {

@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $matricula_id
  * @property int $numero_cuotas
  * @property float $monto_total
- * @property-read Matricula $matricula
+ * @property-read Matricula|null $matricula
  */
 class PlanPago extends Model
 {

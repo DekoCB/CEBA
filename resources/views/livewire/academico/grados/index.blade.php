@@ -104,7 +104,7 @@ new #[Layout('layouts.app')] class extends Component
     --}}
     @can('academico.gestionar')
         <div class="mb-4 flex justify-end">
-            <button wire:click="abrirModal" class="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+            <button wire:click="abrirModal" class="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 font-display text-sm font-medium text-white hover:opacity-90">
                 <x-heroicon-o-plus class="h-4 w-4" />
                 Nuevo grado
             </button>

@@ -35,8 +35,8 @@ class ReporteService
         return [
             'columnas' => ['Estudiante', 'DNI', 'Grado', 'Ciclo', 'Estado', 'Fecha de matrícula'],
             'filas' => $matriculas->map(fn (Matricula $matricula) => [
-                $matricula->estudiante->nombreCompleto(),
-                $matricula->estudiante->dni,
+                $matricula->estudiante?->nombreCompleto() ?? '—',
+                $matricula->estudiante->dni ?? '—',
                 $matricula->grado->nombre,
                 $matricula->ciclo->nombre,
                 $matricula->estado->label(),
@@ -63,7 +63,7 @@ class ReporteService
         return [
             'columnas' => ['Estudiante', 'Grado', 'Curso', 'Evaluación', 'Nota', 'Resultado'],
             'filas' => $calificaciones->map(fn (Calificacion $calificacion) => [
-                $calificacion->estudiante->nombreCompleto(),
+                $calificacion->estudiante?->nombreCompleto() ?? '—',
                 $calificacion->evaluacion->horario->grado->nombre,
                 $calificacion->evaluacion->horario->curso->nombre,
                 $calificacion->evaluacion->nombre,
@@ -88,7 +88,7 @@ class ReporteService
         return [
             'columnas' => ['Estudiante', 'Concepto', 'Monto', 'Método', 'Estado', 'Fecha de pago'],
             'filas' => $pagos->map(fn (Pago $pago) => [
-                $pago->estudiante->nombreCompleto(),
+                $pago->estudiante?->nombreCompleto() ?? '—',
                 $pago->concepto->nombre,
                 number_format((float) $pago->monto, 2),
                 $pago->metodo->label(),
@@ -114,7 +114,7 @@ class ReporteService
             'columnas' => ['N.° certificado', 'Estudiante', 'Grado', 'Duplicado', 'Fecha de emisión'],
             'filas' => $certificados->map(fn (Certificado $certificado) => [
                 $certificado->numero,
-                $certificado->estudiante->nombreCompleto(),
+                $certificado->estudiante?->nombreCompleto() ?? '—',
                 $certificado->matricula !== null ? $certificado->matricula->grado->nombre : '—',
                 $certificado->es_duplicado ? 'Sí' : 'No',
                 $certificado->fecha_emision->format('d/m/Y'),
@@ -135,19 +135,21 @@ class ReporteService
             ->get()
             ->groupBy(fn (Asistencia $asistencia) => $asistencia->estudiante_id);
 
-        $filas = $asistencias->map(function ($registros) {
-            $estudiante = $registros->first()->estudiante;
-            $total = $registros->count();
-            $presentes = $registros->whereIn('estado', ['presente', 'justificado'])->count();
+        $filas = $asistencias
+            ->filter(fn ($registros) => $registros->first()->estudiante !== null)
+            ->map(function ($registros) {
+                $estudiante = $registros->first()->estudiante;
+                $total = $registros->count();
+                $presentes = $registros->whereIn('estado', ['presente', 'justificado'])->count();
 
-            return [
-                $estudiante->nombreCompleto(),
-                $registros->first()->horario->grado->nombre,
-                $total,
-                $presentes,
-                $total > 0 ? number_format($presentes / $total * 100, 1).'%' : '—',
-            ];
-        })->values()->all();
+                return [
+                    $estudiante->nombreCompleto(),
+                    $registros->first()->horario->grado->nombre,
+                    $total,
+                    $presentes,
+                    $total > 0 ? number_format($presentes / $total * 100, 1).'%' : '—',
+                ];
+            })->values()->all();
 
         return [
             'columnas' => ['Estudiante', 'Grado', 'Sesiones registradas', 'Asistencias', '% Asistencia'],

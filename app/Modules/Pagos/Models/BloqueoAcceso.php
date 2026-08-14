@@ -19,7 +19,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon $fecha_bloqueo
  * @property Carbon|null $fecha_desbloqueo
  * @property bool $activo
- * @property-read Estudiante $estudiante
+ * @property-read Estudiante|null $estudiante
  */
 class BloqueoAcceso extends Model
 {

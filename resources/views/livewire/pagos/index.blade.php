@@ -205,7 +205,7 @@ new #[Layout('layouts.app')] class extends Component
 
     <div class="mb-6 flex gap-1 border-b border-border">
         @if ($puedeAprobar)
-            <button wire:click="$set('tab', 'aprobacion')" @class(['border-b-2 px-4 py-2 text-sm font-medium transition', 'border-accent text-accent' => $tab === 'aprobacion', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'aprobacion'])>
+            <button wire:click="$set('tab', 'aprobacion')" @class(['border-b-2 px-4 py-2 font-display text-sm font-medium transition', 'border-accent text-accent' => $tab === 'aprobacion', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'aprobacion'])>
                 Cola de aprobación
                 @if ($colaAprobacion->isNotEmpty())
                     <span class="ml-1 rounded-full bg-warn/15 px-1.5 py-0.5 text-xs text-warn">{{ $colaAprobacion->count() }}</span>
@@ -213,10 +213,10 @@ new #[Layout('layouts.app')] class extends Component
             </button>
         @endif
         @if ($puedeRegistrar)
-            <button wire:click="$set('tab', 'registrar')" @class(['border-b-2 px-4 py-2 text-sm font-medium transition', 'border-accent text-accent' => $tab === 'registrar', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'registrar'])>
+            <button wire:click="$set('tab', 'registrar')" @class(['border-b-2 px-4 py-2 font-display text-sm font-medium transition', 'border-accent text-accent' => $tab === 'registrar', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'registrar'])>
                 Registrar pago
             </button>
-            <button wire:click="$set('tab', 'planes')" @class(['border-b-2 px-4 py-2 text-sm font-medium transition', 'border-accent text-accent' => $tab === 'planes', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'planes'])>
+            <button wire:click="$set('tab', 'planes')" @class(['border-b-2 px-4 py-2 font-display text-sm font-medium transition', 'border-accent text-accent' => $tab === 'planes', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'planes'])>
                 Planes de pago
                 @if ($matriculasSinPlan->isNotEmpty())
                     <span class="ml-1 rounded-full bg-warn/15 px-1.5 py-0.5 text-xs text-warn">{{ $matriculasSinPlan->count() }}</span>
@@ -224,7 +224,7 @@ new #[Layout('layouts.app')] class extends Component
             </button>
         @endif
         @if ($puedeVerHistorial)
-            <button wire:click="$set('tab', 'historial')" @class(['border-b-2 px-4 py-2 text-sm font-medium transition', 'border-accent text-accent' => $tab === 'historial', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'historial'])>
+            <button wire:click="$set('tab', 'historial')" @class(['border-b-2 px-4 py-2 font-display text-sm font-medium transition', 'border-accent text-accent' => $tab === 'historial', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'historial'])>
                 Historial
             </button>
         @endif
@@ -237,7 +237,7 @@ new #[Layout('layouts.app')] class extends Component
                 <div class="px-4 py-4 text-sm">
                     <div class="flex items-start justify-between gap-4">
                         <div>
-                            <p class="text-ink">{{ $pago->estudiante->nombreCompleto() }}</p>
+                            <p class="text-ink">{{ $pago->estudiante?->nombreCompleto() ?? '—' }}</p>
                             <p class="text-xs text-ink-faint">
                                 {{ $pago->concepto->nombre }}
                                 @if ($pago->cuota)
@@ -350,7 +350,7 @@ new #[Layout('layouts.app')] class extends Component
                 @forelse ($matriculasSinPlan as $matricula)
                     <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
                         <div>
-                            <p class="text-ink">{{ $matricula->estudiante->nombreCompleto() }}</p>
+                            <p class="text-ink">{{ $matricula->estudiante?->nombreCompleto() ?? '—' }}</p>
                             <p class="text-xs text-ink-faint">{{ $matricula->grado->nombre }} · {{ $matricula->ciclo->nombre }}</p>
                         </div>
                         <form wire:submit="crearPlan({{ $matricula->id }})" class="flex items-start gap-2">
@@ -402,7 +402,7 @@ new #[Layout('layouts.app')] class extends Component
                 @forelse ($historial as $pago)
                     <div class="flex items-center justify-between gap-4 px-4 py-3 text-sm">
                         <div>
-                            <p class="text-ink">{{ $pago->estudiante->nombreCompleto() }}</p>
+                            <p class="text-ink">{{ $pago->estudiante?->nombreCompleto() ?? '—' }}</p>
                             <p class="text-xs text-ink-faint">{{ $pago->concepto->nombre }} · {{ $pago->fecha_pago->format('d/m/Y') }}</p>
                             @if ($pago->estado->value === 'rechazado' && $pago->motivo_rechazo)
                                 <p class="text-xs text-danger">{{ $pago->motivo_rechazo }}</p>

@@ -17,23 +17,25 @@
     <h1>Ficha de Matrícula</h1>
     <p class="subtitulo">CEBA · {{ $matricula->ciclo->nombre }}</p>
 
+    @php $estudiante = $matricula->estudiante; @endphp
+
     <div class="seccion">Datos del estudiante</div>
     <table>
-        <tr><td class="etiqueta">Nombres y apellidos</td><td>{{ $matricula->estudiante->nombreCompleto() }}</td></tr>
-        <tr><td class="etiqueta">DNI</td><td>{{ $matricula->estudiante->dni }}</td></tr>
-        <tr><td class="etiqueta">Fecha de nacimiento</td><td>{{ $matricula->estudiante->fecha_nacimiento->format('d/m/Y') }}</td></tr>
-        <tr><td class="etiqueta">Dirección</td><td>{{ $matricula->estudiante->direccion ?? '—' }}</td></tr>
-        <tr><td class="etiqueta">Celular</td><td>{{ $matricula->estudiante->celular ?? '—' }}</td></tr>
-        <tr><td class="etiqueta">Correo</td><td>{{ $matricula->estudiante->email ?? '—' }}</td></tr>
+        <tr><td class="etiqueta">Nombres y apellidos</td><td>{{ $estudiante?->nombreCompleto() ?? '—' }}</td></tr>
+        <tr><td class="etiqueta">DNI</td><td>{{ $estudiante?->dni ?? '—' }}</td></tr>
+        <tr><td class="etiqueta">Fecha de nacimiento</td><td>{{ $estudiante?->fecha_nacimiento?->format('d/m/Y') ?? '—' }}</td></tr>
+        <tr><td class="etiqueta">Dirección</td><td>{{ $estudiante?->direccion ?? '—' }}</td></tr>
+        <tr><td class="etiqueta">Celular</td><td>{{ $estudiante?->celular ?? '—' }}</td></tr>
+        <tr><td class="etiqueta">Correo</td><td>{{ $estudiante?->email ?? '—' }}</td></tr>
     </table>
 
-    @if ($matricula->estudiante->es_menor_edad && $matricula->estudiante->apoderado)
+    @if ($estudiante?->es_menor_edad && $estudiante->apoderado)
         <div class="seccion">Datos del apoderado</div>
         <table>
-            <tr><td class="etiqueta">Nombres y apellidos</td><td>{{ $matricula->estudiante->apoderado->nombres }}</td></tr>
-            <tr><td class="etiqueta">DNI</td><td>{{ $matricula->estudiante->apoderado->dni }}</td></tr>
-            <tr><td class="etiqueta">Parentesco</td><td>{{ $matricula->estudiante->apoderado->parentesco }}</td></tr>
-            <tr><td class="etiqueta">Celular</td><td>{{ $matricula->estudiante->apoderado->celular }}</td></tr>
+            <tr><td class="etiqueta">Nombres y apellidos</td><td>{{ $estudiante->apoderado->nombres }}</td></tr>
+            <tr><td class="etiqueta">DNI</td><td>{{ $estudiante->apoderado->dni }}</td></tr>
+            <tr><td class="etiqueta">Parentesco</td><td>{{ $estudiante->apoderado->parentesco }}</td></tr>
+            <tr><td class="etiqueta">Celular</td><td>{{ $estudiante->apoderado->celular }}</td></tr>
         </table>
     @endif
 

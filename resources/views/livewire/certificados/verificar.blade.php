@@ -39,7 +39,7 @@ new #[Layout('layouts.guest')] class extends Component
                     <p class="font-semibold">Certificado válido</p>
                 </div>
                 <div class="mt-3 space-y-1 rounded-md border border-border bg-surface p-4 text-sm text-ink">
-                    <p><span class="text-ink-faint">Estudiante:</span> {{ $resultado->estudiante->nombreCompleto() }}</p>
+                    <p><span class="text-ink-faint">Estudiante:</span> {{ $resultado->estudiante?->nombreCompleto() ?? '—' }}</p>
                     <p><span class="text-ink-faint">N.° de certificado:</span> {{ $resultado->numero }}</p>
                     @if ($resultado->matricula)
                         <p><span class="text-ink-faint">Grado:</span> {{ $resultado->matricula->grado->nombre }}</p>

@@ -4,7 +4,6 @@ use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Cuota;
-use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Pagos\Services\BloqueoAccesoService;
 use App\Modules\Pagos\Services\CuentaBancariaService;
 use App\Modules\Pagos\Services\PagoService;
@@ -42,7 +41,7 @@ new #[Layout('layouts.app')] class extends Component
         ]);
 
         $cuota = Cuota::query()->with('planPago.matricula')->findOrFail($cuotaId);
-        abort_unless($cuota->planPago->matricula->estudiante_id === $estudiante->id, 403);
+        abort_unless($cuota->planPago->matricula?->estudiante_id === $estudiante->id, 403);
 
         $concepto = ConceptoPago::query()->where('tipo', 'mensualidad')->first()
             ?? ConceptoPago::query()->firstOrFail();

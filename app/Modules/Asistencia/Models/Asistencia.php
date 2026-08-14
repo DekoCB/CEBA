@@ -26,7 +26,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property EstadoAsistenciaEnum $estado
  * @property string|null $observacion
  * @property-read Horario $horario
- * @property-read Estudiante $estudiante
+ * @property-read Estudiante|null $estudiante
  * @property-read SolicitudJustificacion|null $solicitudJustificacion
  */
 class Asistencia extends Model implements HasMedia

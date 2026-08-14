@@ -20,8 +20,8 @@
 
     <div class="seccion">Datos del estudiante</div>
     <table>
-        <tr><td class="etiqueta">Nombres y apellidos</td><td>{{ $pago->estudiante->nombreCompleto() }}</td></tr>
-        <tr><td class="etiqueta">DNI</td><td>{{ $pago->estudiante->dni }}</td></tr>
+        <tr><td class="etiqueta">Nombres y apellidos</td><td>{{ $pago->estudiante?->nombreCompleto() ?? '—' }}</td></tr>
+        <tr><td class="etiqueta">DNI</td><td>{{ $pago->estudiante?->dni ?? '—' }}</td></tr>
     </table>
 
     <div class="seccion">Datos del pago</div>

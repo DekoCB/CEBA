@@ -233,8 +233,8 @@ class CertificadoService
             : 'se encuentra registrado(a) en esta institución,';
 
         return [
-            'estudiante' => $certificado->estudiante->nombreCompleto(),
-            'dni' => $certificado->estudiante->dni,
+            'estudiante' => $certificado->estudiante?->nombreCompleto() ?? '—',
+            'dni' => $certificado->estudiante->dni ?? '—',
             'detalle_matricula' => $detalleMatricula,
             'numero' => $certificado->numero,
             'fecha_emision' => $certificado->fecha_emision->format('d/m/Y'),

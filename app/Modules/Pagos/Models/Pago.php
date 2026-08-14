@@ -29,7 +29,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property Carbon $fecha_pago
  * @property Carbon|null $fecha_aprobacion
  * @property string|null $motivo_rechazo
- * @property-read Estudiante $estudiante
+ * @property-read Estudiante|null $estudiante
  * @property-read ConceptoPago $concepto
  * @property-read Cuota|null $cuota
  */

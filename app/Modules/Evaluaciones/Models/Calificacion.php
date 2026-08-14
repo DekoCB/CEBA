@@ -20,7 +20,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property float $nota_numerica
  * @property string|null $observaciones
  * @property-read Evaluacion $evaluacion
- * @property-read Estudiante $estudiante
+ * @property-read Estudiante|null $estudiante
  */
 class Calificacion extends Model
 {

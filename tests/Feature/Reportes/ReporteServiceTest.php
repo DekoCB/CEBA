@@ -40,6 +40,19 @@ class ReporteServiceTest extends TestCase
         $this->assertCount(0, $reporte['filas']);
     }
 
+    public function test_reporte_de_matricula_no_falla_si_el_estudiante_fue_eliminado(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'fecha_matricula' => now()]);
+        $estudiante->delete();
+
+        $reporte = app(ReporteService::class)->matricula(null, null);
+
+        $this->assertCount(1, $reporte['filas']);
+        $this->assertSame('—', $reporte['filas'][0][0]);
+        $this->assertSame('—', $reporte['filas'][0][1]);
+    }
+
     public function test_reporte_academico_marca_aprobado_desde_once(): void
     {
         $evaluacion = Evaluacion::factory()->create(['fecha' => now()]);
@@ -88,6 +101,20 @@ class ReporteServiceTest extends TestCase
         Asistencia::factory()->create(['horario_id' => $horarioB->id]);
 
         $reporte = app(ReporteService::class)->operativo(null, null, $horarioA->id);
+
+        $this->assertCount(1, $reporte['filas']);
+    }
+
+    public function test_reporte_operativo_omite_asistencias_de_un_estudiante_eliminado(): void
+    {
+        $horario = Horario::factory()->create();
+        $estudianteVigente = Estudiante::factory()->create();
+        $estudianteEliminado = Estudiante::factory()->create();
+        Asistencia::factory()->create(['horario_id' => $horario->id, 'estudiante_id' => $estudianteVigente->id]);
+        Asistencia::factory()->create(['horario_id' => $horario->id, 'estudiante_id' => $estudianteEliminado->id]);
+        $estudianteEliminado->delete();
+
+        $reporte = app(ReporteService::class)->operativo(null, null, $horario->id);
 
         $this->assertCount(1, $reporte['filas']);
     }

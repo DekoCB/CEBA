@@ -20,7 +20,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property int $estudiante_id
  * @property int $ciclo_id
  * @property Carbon|null $generado_en
- * @property-read Estudiante $estudiante
+ * @property-read Estudiante|null $estudiante
  * @property-read Ciclo $ciclo
  */
 class Libreta extends Model implements HasMedia

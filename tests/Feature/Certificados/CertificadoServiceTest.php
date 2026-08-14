@@ -55,6 +55,20 @@ class CertificadoServiceTest extends TestCase
         $this->assertNotSame($original->numero, $duplicado->numero);
     }
 
+    public function test_duplicar_no_falla_si_el_estudiante_del_original_fue_eliminado(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $emisor = User::factory()->create();
+
+        $original = app(CertificadoService::class)->emitir($estudiante, null, null, null, $emisor);
+        $estudiante->delete();
+
+        $duplicado = app(CertificadoService::class)->duplicar($original, 'Extravío', $emisor);
+
+        $this->assertTrue($duplicado->es_duplicado);
+        $this->assertNotNull($duplicado->getFirstMedia('pdf'));
+    }
+
     public function test_verificar_encuentra_el_certificado_original_por_codigo(): void
     {
         $estudiante = Estudiante::factory()->create();

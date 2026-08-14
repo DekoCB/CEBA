@@ -85,7 +85,7 @@ class TareaService
             'estado' => EstadoEntregaEnum::CALIFICADO,
         ]);
 
-        $usuario = $entrega->estudiante->user;
+        $usuario = $entrega->estudiante?->user;
 
         if ($usuario) {
             $this->notificaciones->notificar(
