@@ -1,7 +1,7 @@
 @props(['iconOnly' => false])
 
 <div {{ $attributes->merge(['class' => 'flex items-center gap-2 font-display text-xl text-ink']) }}>
-    <span class="flex h-8 w-8 items-center justify-center rounded-md bg-accent text-sm font-bold text-white">C</span>
+    <img src="{{ asset('images/Logo.png') }}" alt="CEBA" class="h-8 w-8 shrink-0 rounded-md object-contain">
     @unless($iconOnly)
         <span class="sidebar-label">CEBA</span>
     @endunless

@@ -208,8 +208,11 @@
     position: absolute;
     inset: 0;
     z-index: 0;
-    background: linear-gradient(180deg, rgb(0 0 0 / 55%) 0%, rgb(0 0 0 / 72%) 55%, rgb(0 0 0 / 88%) 100%);
     pointer-events: none;
+}
+
+.dark .fondo-modulo-overlay {
+    background: linear-gradient(180deg, rgb(0 0 0 / 55%) 0%, rgb(0 0 0 / 72%) 55%, rgb(0 0 0 / 88%) 100%);
 }
 
 @keyframes fondo-modulo-pan {
