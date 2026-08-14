@@ -31,6 +31,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property EstadoEstudianteEnum $estado
  * @property-read Apoderado|null $apoderado
  * @property-read InstitucionProcedencia|null $institucionProcedencia
+ * @property-read User|null $user
  */
 class Estudiante extends Model implements HasMedia
 {

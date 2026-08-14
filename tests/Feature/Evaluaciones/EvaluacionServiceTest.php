@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Evaluaciones;
 
+use App\Models\User;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
@@ -9,6 +10,7 @@ use App\Modules\Evaluaciones\Enums\EstadoEvaluacionEnum;
 use App\Modules\Evaluaciones\Services\EvaluacionService;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Notificaciones\Models\Notificacion;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -175,6 +177,44 @@ class EvaluacionServiceTest extends TestCase
         $service->calificar($evaluacionSinPublicar, $estudiante, 0.0, null, null);
 
         $this->assertSame(17.0, $service->promedioDelEstudiante($estudiante, $horario));
+    }
+
+    public function test_publicar_notifica_a_los_estudiantes_matriculados_con_usuario_vinculado(): void
+    {
+        $horario = Horario::factory()->create();
+        $usuario = User::factory()->create();
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+        $service = $this->service();
+        $evaluacion = $service->crear($horario, 'Evaluación', '2026-07-15');
+
+        $service->publicar($evaluacion);
+
+        $this->assertDatabaseHas('notificaciones', [
+            'user_id' => $usuario->id,
+            'tipo' => 'evaluacion_publicada',
+        ]);
+    }
+
+    public function test_publicar_no_notifica_a_estudiantes_sin_usuario_vinculado(): void
+    {
+        $horario = Horario::factory()->create();
+        $estudiante = Estudiante::factory()->create(['user_id' => null]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+        $service = $this->service();
+        $evaluacion = $service->crear($horario, 'Evaluación', '2026-07-15');
+
+        $service->publicar($evaluacion);
+
+        $this->assertSame(0, Notificacion::query()->count());
     }
 
     public function test_horarios_del_estudiante_solo_incluye_la_seccion_asignada(): void

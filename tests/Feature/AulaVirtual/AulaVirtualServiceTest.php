@@ -15,6 +15,7 @@ use App\Modules\AulaVirtual\Services\MaterialService;
 use App\Modules\AulaVirtual\Services\TareaService;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Notificaciones\Models\Notificacion;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -325,6 +326,46 @@ class AulaVirtualServiceTest extends TestCase
 
         $this->assertEquals(18.5, $calificada->nota);
         $this->assertSame(EstadoEntregaEnum::CALIFICADO, $calificada->estado);
+    }
+
+    public function test_calificar_una_entrega_notifica_al_estudiante_con_usuario_vinculado(): void
+    {
+        $curso = CursoVirtual::factory()->create();
+        $tarea = $this->app->make(TareaService::class)->crear($curso, [
+            'titulo' => 'Ensayo',
+            'descripcion' => null,
+            'fecha_limite' => now()->addDay(),
+            'puntaje_max' => 20,
+        ]);
+        $usuario = User::factory()->create();
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+        $service = $this->app->make(TareaService::class);
+        $entrega = $service->entregar($tarea, $estudiante, null, null);
+
+        $service->calificar($entrega, 18.5);
+
+        $this->assertDatabaseHas('notificaciones', [
+            'user_id' => $usuario->id,
+            'tipo' => 'tarea_calificada',
+        ]);
+    }
+
+    public function test_calificar_una_entrega_sin_usuario_vinculado_no_falla_ni_notifica(): void
+    {
+        $curso = CursoVirtual::factory()->create();
+        $tarea = $this->app->make(TareaService::class)->crear($curso, [
+            'titulo' => 'Ensayo',
+            'descripcion' => null,
+            'fecha_limite' => now()->addDay(),
+            'puntaje_max' => 20,
+        ]);
+        $estudiante = Estudiante::factory()->create(['user_id' => null]);
+        $service = $this->app->make(TareaService::class);
+        $entrega = $service->entregar($tarea, $estudiante, null, null);
+
+        $service->calificar($entrega, 18.5);
+
+        $this->assertSame(0, Notificacion::query()->count());
     }
 
     public function test_crear_foro_persiste_la_semana_indicada(): void

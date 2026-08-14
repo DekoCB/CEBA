@@ -10,11 +10,17 @@ use App\Modules\Evaluaciones\Models\Calificacion;
 use App\Modules\Evaluaciones\Models\Evaluacion;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Notificaciones\Enums\TipoNotificacionEnum;
+use App\Modules\Notificaciones\Services\NotificacionService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
 
 class EvaluacionService
 {
+    public function __construct(
+        private readonly NotificacionService $notificaciones,
+    ) {}
+
     /**
      * Estudiantes matriculados (aprobados) en el grado y ciclo de un horario.
      * Si el grado tiene varias secciones (Grupo A/B) y la matrícula ya tiene
@@ -169,6 +175,17 @@ class EvaluacionService
     public function publicar(Evaluacion $evaluacion): void
     {
         $evaluacion->update(['estado' => EstadoEvaluacionEnum::PUBLICADA]);
+
+        $usuarios = $this->estudiantesDelHorario($evaluacion->horario)
+            ->map(fn (Estudiante $estudiante) => $estudiante->user)
+            ->filter();
+
+        $this->notificaciones->notificarVarios(
+            $usuarios,
+            TipoNotificacionEnum::EVALUACION_PUBLICADA,
+            "Se publicó la evaluación \"{$evaluacion->nombre}\"",
+            route('evaluaciones.show', $evaluacion->horario),
+        );
     }
 
     /**

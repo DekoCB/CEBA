@@ -9,6 +9,8 @@ use App\Modules\AulaVirtual\Models\CursoVirtual;
 use App\Modules\AulaVirtual\Models\EntregaTarea;
 use App\Modules\AulaVirtual\Models\Tarea;
 use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Notificaciones\Enums\TipoNotificacionEnum;
+use App\Modules\Notificaciones\Services\NotificacionService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +19,7 @@ class TareaService
 {
     public function __construct(
         private readonly CursoVirtualService $cursos,
+        private readonly NotificacionService $notificaciones,
     ) {}
 
     /**
@@ -80,6 +83,17 @@ class TareaService
             'nota' => $nota,
             'estado' => EstadoEntregaEnum::CALIFICADO,
         ]);
+
+        $usuario = $entrega->estudiante->user;
+
+        if ($usuario) {
+            $this->notificaciones->notificar(
+                $usuario,
+                TipoNotificacionEnum::TAREA_CALIFICADA,
+                "Tu tarea \"{$entrega->tarea->titulo}\" fue calificada: {$nota}/{$entrega->tarea->puntaje_max}",
+                route('aula-virtual.tarea', [$entrega->tarea->cursoVirtual, $entrega->tarea]),
+            );
+        }
 
         return $entrega;
     }
