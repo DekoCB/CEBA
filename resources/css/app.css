@@ -88,6 +88,15 @@
     transition: opacity 200ms ease, max-width 300ms ease;
 }
 
+/*
+ * El nombre completo de la institución ("CEBA Peruano Británico") no
+ * entra en los 12rem que alcanzan los enlaces del menú -- se recortaría
+ * a la mitad. Mismo comportamiento de colapso, solo con más espacio.
+ */
+.sidebar-desktop .sidebar-label-brand {
+    max-width: 16rem;
+}
+
 .sidebar-desktop .sidebar-section-title {
     max-height: 1.5rem;
     overflow: hidden;

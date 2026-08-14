@@ -70,7 +70,7 @@ new class extends Component
             </button>
 
             <a href="{{ route('dashboard') }}" wire:navigate class="md:hidden">
-                <x-application-logo />
+                <x-application-logo :icon-only="true" />
             </a>
         </div>
 
