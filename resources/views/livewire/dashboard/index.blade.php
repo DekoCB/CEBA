@@ -24,6 +24,7 @@ use App\Modules\Pagos\Services\BloqueoAccesoService;
 use App\Shared\Enums\EstadoUsuarioEnum;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
@@ -75,10 +76,19 @@ new #[Layout('layouts.app')] class extends Component
 
     public int $misCursosVirtuales = 0;
 
-    public int $misTareasPendientes = 0;
-
     /** @var Collection<int, Tarea> */
     public Collection $misTareasLista;
+
+    /**
+     * Mes mostrado en el calendario de "Mis tareas", formato "Y-m".
+     */
+    public string $mesCalendarioTareas = '';
+
+    /**
+     * Día seleccionado en el calendario (formato "Y-m-d") para mostrar el
+     * detalle de sus tareas debajo de la grilla; null si ninguno.
+     */
+    public ?string $diaCalendarioSeleccionado = null;
 
     /**
      * La tarea pendiente más próxima de cada curso virtual matriculado, para
@@ -91,8 +101,6 @@ new #[Layout('layouts.app')] class extends Component
 
     /** @var SupportCollection<int, array<string, mixed>> */
     public SupportCollection $misCalificacionesPorCiclo;
-
-    public ?float $promedioGeneralActual = null;
 
     public ?int $miEstudianteId = null;
 
@@ -139,6 +147,7 @@ new #[Layout('layouts.app')] class extends Component
         $this->misTareasLista = new Collection;
         $this->proximosVencimientos = new Collection;
         $this->misCalificacionesPorCiclo = collect();
+        $this->mesCalendarioTareas = now()->format('Y-m');
 
         $this->puedeVerUsuarios = Gate::allows('usuarios.ver');
         $this->puedeVerAuditoria = Gate::allows('auditoria.ver');
@@ -185,11 +194,6 @@ new #[Layout('layouts.app')] class extends Component
             $misCursos = $cursosVirtuales->delEstudiante($estudiante);
             $this->misCursosVirtuales = $misCursos->count();
 
-            $this->misTareasPendientes = Tarea::query()
-                ->whereIn('curso_virtual_id', $misCursos->pluck('id'))
-                ->whereDoesntHave('entregas', fn ($query) => $query->where('estudiante_id', $estudiante->id))
-                ->count();
-
             $this->miEstudianteId = $estudiante->id;
             $this->misTareasLista = $tareas->delEstudiante($estudiante);
             $this->proximosVencimientos = $this->misTareasLista
@@ -199,7 +203,6 @@ new #[Layout('layouts.app')] class extends Component
                 ->sortBy(fn (Tarea $tarea) => $tarea->fecha_limite)
                 ->values();
             $this->misCalificacionesPorCiclo = $evaluaciones->resumenDelEstudiantePorCiclo($estudiante);
-            $this->promedioGeneralActual = $this->misCalificacionesPorCiclo->first()['promedioGeneral'] ?? null;
 
             [$this->rendimientoMensualLabels, $this->rendimientoMensualDatos] = $this->calcularRendimientoMensualDelEstudiante($estudiante);
         }
@@ -235,6 +238,85 @@ new #[Layout('layouts.app')] class extends Component
         }
 
         $this->notificaciones = $this->construirNotificaciones();
+    }
+
+    public function mesCalendarioTareasAnterior(): void
+    {
+        $this->mesCalendarioTareas = Carbon::createFromFormat('Y-m-d', $this->mesCalendarioTareas.'-01')
+            ->subMonthNoOverflow()
+            ->format('Y-m');
+        $this->diaCalendarioSeleccionado = null;
+    }
+
+    public function mesCalendarioTareasSiguiente(): void
+    {
+        $this->mesCalendarioTareas = Carbon::createFromFormat('Y-m-d', $this->mesCalendarioTareas.'-01')
+            ->addMonthNoOverflow()
+            ->format('Y-m');
+        $this->diaCalendarioSeleccionado = null;
+    }
+
+    public function seleccionarDiaCalendarioTareas(string $fecha): void
+    {
+        $this->diaCalendarioSeleccionado = $this->diaCalendarioSeleccionado === $fecha ? null : $fecha;
+    }
+
+    public function nombreMesCalendarioTareas(): string
+    {
+        return ucfirst(Carbon::createFromFormat('Y-m-d', $this->mesCalendarioTareas.'-01')->translatedFormat('F Y'));
+    }
+
+    /**
+     * La grilla de semanas del mes mostrado, cada día con las tareas cuya
+     * fecha_limite cae ahí — se recalcula en cada render a partir de
+     * misTareasLista (ya cargada una sola vez en mount), así que cambiar de
+     * mes o seleccionar un día no dispara consultas nuevas.
+     *
+     * @return array<int, array<int, array{fecha: string, numero: int, esMesActual: bool, esHoy: bool, tareas: Collection<int, Tarea>}>>
+     */
+    public function calendarioTareasSemanas(): array
+    {
+        $mes = Carbon::createFromFormat('Y-m-d', $this->mesCalendarioTareas.'-01')->startOfMonth();
+        $inicioGrilla = $mes->copy()->startOfWeek(Carbon::MONDAY);
+        $finGrilla = $mes->copy()->endOfMonth()->endOfWeek(Carbon::MONDAY);
+
+        $tareasPorDia = $this->misTareasLista->groupBy(fn (Tarea $tarea) => $tarea->fecha_limite->format('Y-m-d'));
+
+        $semanas = [];
+        $semana = [];
+
+        for ($dia = $inicioGrilla->copy(); $dia->lte($finGrilla); $dia->addDay()) {
+            $clave = $dia->format('Y-m-d');
+
+            $semana[] = [
+                'fecha' => $clave,
+                'numero' => $dia->day,
+                'esMesActual' => $dia->month === $mes->month,
+                'esHoy' => $dia->isToday(),
+                'tareas' => $tareasPorDia->get($clave, new Collection),
+            ];
+
+            if ($dia->dayOfWeekIso === 7) {
+                $semanas[] = $semana;
+                $semana = [];
+            }
+        }
+
+        return $semanas;
+    }
+
+    /**
+     * @return Collection<int, Tarea>
+     */
+    public function tareasDelDiaSeleccionado(): Collection
+    {
+        if (! $this->diaCalendarioSeleccionado) {
+            return new Collection;
+        }
+
+        return $this->misTareasLista
+            ->filter(fn (Tarea $tarea) => $tarea->fecha_limite->format('Y-m-d') === $this->diaCalendarioSeleccionado)
+            ->values();
     }
 
     /**
@@ -550,7 +632,7 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
             @endif
 
-            <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <a href="{{ route('asistencia.marcar') }}" wire:navigate class="rounded-lg border border-accent/30 bg-accent-soft p-4 transition hover:border-accent">
                     <p class="font-mono text-xs uppercase tracking-wide text-accent">Marcar asistencia</p>
                     <p class="mt-1 font-display text-sm text-accent">Con tu DNI →</p>
@@ -568,19 +650,19 @@ new #[Layout('layouts.app')] class extends Component
                     <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Mis cursos virtuales</p>
                     <p class="mt-1 font-display text-2xl text-ink">{{ $misCursosVirtuales }}</p>
                 </a>
-                <button type="button" x-data x-on:click="$dispatch('open-modal', 'mis-tareas')" class="rounded-lg border border-border bg-surface p-4 text-left transition hover:border-accent">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Tareas pendientes</p>
-                    <p class="mt-1 font-display text-2xl {{ $misTareasPendientes > 0 ? 'text-warn' : 'text-ink' }}">{{ $misTareasPendientes }}</p>
-                </button>
-                <button type="button" x-data x-on:click="$dispatch('open-modal', 'mis-calificaciones')" class="rounded-lg border border-border bg-surface p-4 text-left transition hover:border-accent">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Mis notas</p>
-                    @if ($promedioGeneralActual !== null)
-                        <p class="mt-1 font-display text-2xl text-ink">{{ number_format($promedioGeneralActual, 2) }}</p>
-                    @else
-                        <p class="mt-1 font-display text-sm text-accent">Ver notas →</p>
-                    @endif
-                </button>
             </div>
+
+            @if (array_sum($rendimientoMensualDatos) > 0)
+                <div class="rounded-lg border border-border bg-surface p-4">
+                    <h2 class="mb-3 text-sm font-semibold text-ink">Mi rendimiento — promedio de notas por mes</h2>
+                    <x-chart-canvas
+                        type="line"
+                        :labels="$rendimientoMensualLabels"
+                        :data="$rendimientoMensualDatos"
+                        label="Promedio"
+                    />
+                </div>
+            @endif
 
             @if ($proximosVencimientos->isNotEmpty())
                 <div class="rounded-lg border border-border bg-surface">
@@ -607,41 +689,82 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
             @endif
 
-            @if (array_sum($rendimientoMensualDatos) > 0)
-                <div class="rounded-lg border border-border bg-surface p-4">
-                    <h2 class="mb-3 text-sm font-semibold text-ink">Mi rendimiento — promedio de notas por mes</h2>
-                    <x-chart-canvas
-                        type="line"
-                        :labels="$rendimientoMensualLabels"
-                        :data="$rendimientoMensualDatos"
-                        label="Promedio"
-                    />
-                </div>
-            @endif
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch">
+                <div class="flex flex-col rounded-lg border border-border bg-surface p-4 lg:h-[30rem]">
+                    <div class="mb-4 flex shrink-0 items-center justify-between">
+                        <h2 class="text-sm font-semibold text-ink">Mis tareas — {{ $this->nombreMesCalendarioTareas() }}</h2>
+                        <div class="flex items-center gap-1">
+                            <button type="button" wire:click="mesCalendarioTareasAnterior" class="rounded-md p-1.5 text-ink-faint transition hover:bg-surface-2 hover:text-ink" aria-label="Mes anterior">
+                                <x-heroicon-o-chevron-left class="h-4 w-4" />
+                            </button>
+                            <button type="button" wire:click="mesCalendarioTareasSiguiente" class="rounded-md p-1.5 text-ink-faint transition hover:bg-surface-2 hover:text-ink" aria-label="Mes siguiente">
+                                <x-heroicon-o-chevron-right class="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>
 
-            <x-modal name="mis-tareas" max-width="2xl">
-                <div class="flex items-center justify-between border-b border-border px-6 py-4">
-                    <h2 class="font-display text-lg text-ink">Mis tareas</h2>
-                    <button type="button" x-on:click="$dispatch('close')" class="rounded-md p-1.5 text-ink-faint transition hover:bg-surface-2 hover:text-ink" aria-label="Cerrar">
-                        <x-heroicon-o-x-mark class="h-5 w-5" />
-                    </button>
-                </div>
-                <div class="max-h-[75vh] overflow-y-auto p-6">
-                    <x-aula-virtual.lista-tareas :tareas="$misTareasLista" />
-                </div>
-            </x-modal>
+                    <div class="grid shrink-0 grid-cols-7 gap-1 text-center font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                        <span>Lun</span>
+                        <span>Mar</span>
+                        <span>Mié</span>
+                        <span>Jue</span>
+                        <span>Vie</span>
+                        <span>Sáb</span>
+                        <span>Dom</span>
+                    </div>
 
-            <x-modal name="mis-calificaciones" max-width="2xl">
-                <div class="flex items-center justify-between border-b border-border px-6 py-4">
-                    <h2 class="font-display text-lg text-ink">Mis calificaciones</h2>
-                    <button type="button" x-on:click="$dispatch('close')" class="rounded-md p-1.5 text-ink-faint transition hover:bg-surface-2 hover:text-ink" aria-label="Cerrar">
-                        <x-heroicon-o-x-mark class="h-5 w-5" />
-                    </button>
+                    <div class="mt-1 grid shrink-0 grid-cols-7 gap-1">
+                        @foreach ($this->calendarioTareasSemanas() as $semana)
+                            @foreach ($semana as $dia)
+                                <button
+                                    type="button"
+                                    wire:click="seleccionarDiaCalendarioTareas('{{ $dia['fecha'] }}')"
+                                    @class([
+                                        'flex min-h-16 flex-col items-center gap-1 rounded-md border p-1.5 text-xs transition hover:bg-surface-2',
+                                        'border-accent bg-accent-soft hover:bg-accent-soft' => $diaCalendarioSeleccionado === $dia['fecha'],
+                                        'border-border' => $diaCalendarioSeleccionado !== $dia['fecha'],
+                                        'opacity-40' => ! $dia['esMesActual'],
+                                    ])
+                                >
+                                    <span @class(['font-medium', 'text-accent' => $dia['esHoy'], 'text-ink' => ! $dia['esHoy']])>{{ $dia['numero'] }}</span>
+                                    @if ($dia['tareas']->isNotEmpty())
+                                        <span class="flex flex-wrap justify-center gap-0.5">
+                                            @foreach ($dia['tareas']->take(4) as $tarea)
+                                                <span @class([
+                                                    'h-1.5 w-1.5 rounded-full',
+                                                    'bg-ok' => $tarea->entregas->isNotEmpty(),
+                                                    'bg-danger' => $tarea->entregas->isEmpty() && $tarea->fecha_limite->isPast(),
+                                                    'bg-warn' => $tarea->entregas->isEmpty() && ! $tarea->fecha_limite->isPast(),
+                                                ])></span>
+                                            @endforeach
+                                        </span>
+                                    @endif
+                                </button>
+                            @endforeach
+                        @endforeach
+                    </div>
+
+                    @if ($diaCalendarioSeleccionado)
+                        <div class="mt-4 min-h-0 flex-1 overflow-y-auto border-t border-border pt-4">
+                            <h3 class="mb-2 font-mono text-xs uppercase tracking-wide text-ink-faint">
+                                Tareas del {{ Carbon::parse($diaCalendarioSeleccionado)->format('d/m/Y') }}
+                            </h3>
+                            @if ($this->tareasDelDiaSeleccionado()->isNotEmpty())
+                                <x-aula-virtual.lista-tareas :tareas="$this->tareasDelDiaSeleccionado()" />
+                            @else
+                                <p class="text-sm text-ink-faint">No tienes tareas con vencimiento este día.</p>
+                            @endif
+                        </div>
+                    @endif
                 </div>
-                <div class="max-h-[75vh] overflow-y-auto p-6">
-                    <x-evaluaciones.lista-calificaciones :por-ciclo="$misCalificacionesPorCiclo" :mi-estudiante-id="$miEstudianteId" />
+
+                <div class="flex flex-col rounded-lg border border-border bg-surface p-4 lg:h-[30rem]">
+                    <h2 class="mb-4 shrink-0 text-sm font-semibold text-ink">Mis evaluaciones</h2>
+                    <div class="min-h-0 flex-1 overflow-y-auto">
+                        <x-evaluaciones.lista-calificaciones :por-ciclo="$misCalificacionesPorCiclo" :mi-estudiante-id="$miEstudianteId" />
+                    </div>
                 </div>
-            </x-modal>
+            </div>
         @endif
 
         @if ($puedeVerUsuarios)

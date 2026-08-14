@@ -75,4 +75,38 @@ class LibretaServiceTest extends TestCase
 
         $this->assertDatabaseCount('libretas', 1);
     }
+
+    public function test_resumen_por_cursos_devuelve_el_promedio_y_la_letra_por_curso(): void
+    {
+        $ciclo = Ciclo::factory()->create();
+        $estudiante = Estudiante::factory()->create();
+        $horario = Horario::factory()->create(['ciclo_id' => $ciclo->id]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => $horario->grado_id,
+        ]);
+
+        $evaluacionService = $this->app->make(EvaluacionService::class);
+        $evaluacion = $evaluacionService->crear($horario, 'Evaluación', '2026-07-15');
+        $evaluacionService->calificar($evaluacion, $estudiante, 18.0, null, null);
+        $evaluacionService->publicar($evaluacion);
+
+        $resumen = $this->libretaService()->resumenPorCursos($estudiante, $ciclo);
+
+        $this->assertCount(1, $resumen);
+        $this->assertSame($horario->curso->nombre, $resumen->first()['nombre']);
+        $this->assertSame(18.0, $resumen->first()['promedio']);
+        $this->assertSame('AD', $resumen->first()['letra']);
+    }
+
+    public function test_resumen_por_cursos_esta_vacio_sin_matricula_aprobada(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $ciclo = Ciclo::factory()->create();
+
+        $resumen = $this->libretaService()->resumenPorCursos($estudiante, $ciclo);
+
+        $this->assertTrue($resumen->isEmpty());
+    }
 }

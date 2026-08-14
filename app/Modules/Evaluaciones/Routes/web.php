@@ -10,7 +10,7 @@ Route::middleware(['auth'])->prefix('evaluaciones')->name('evaluaciones.')->grou
 
     Volt::route('libreta/{estudiante}/{ciclo}', 'evaluaciones.libreta')->name('libreta');
 
-    Volt::route('mis-calificaciones', 'evaluaciones.mis-calificaciones')->name('mis-calificaciones');
+    Volt::route('mi-libreta', 'evaluaciones.mi-libreta')->name('mi-libreta');
 
     Volt::route('{horario}', 'evaluaciones.show')->name('show');
 });

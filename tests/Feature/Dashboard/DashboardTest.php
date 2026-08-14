@@ -364,6 +364,147 @@ class DashboardTest extends TestCase
             ->assertDontSee('Próximos vencimientos');
     }
 
+    public function test_estudiante_ve_el_calendario_de_mis_tareas_en_el_dashboard(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        Estudiante::factory()->create(['user_id' => $usuario->id]);
+
+        $this->actingAs($usuario)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Mis tareas — '.ucfirst(now()->translatedFormat('F Y')))
+            ->assertDontSee('Tareas pendientes');
+    }
+
+    public function test_la_tarea_del_mes_actual_aparece_en_el_dia_correcto_del_calendario(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+        $horario = Horario::factory()->create();
+        $curso = CursoVirtual::factory()->create(['horario_id' => $horario->id]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+        $tarea = $this->app->make(TareaService::class)->crear($curso, [
+            'titulo' => 'Ensayo de mitad de mes',
+            'descripcion' => null,
+            'fecha_limite' => now()->startOfMonth()->addDays(14),
+            'puntaje_max' => 20,
+        ]);
+
+        $this->actingAs($usuario);
+
+        $semanas = Volt::test('dashboard.index')->instance()->calendarioTareasSemanas();
+
+        $diaEsperado = $tarea->fecha_limite->format('Y-m-d');
+        $celda = collect($semanas)->flatten(1)->firstWhere('fecha', $diaEsperado);
+
+        $this->assertNotNull($celda);
+        $this->assertTrue($celda['tareas']->contains('id', $tarea->id));
+    }
+
+    public function test_seleccionar_un_dia_muestra_sus_tareas_debajo_del_calendario(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+        $horario = Horario::factory()->create();
+        $curso = CursoVirtual::factory()->create(['horario_id' => $horario->id]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+        $tarea = $this->app->make(TareaService::class)->crear($curso, [
+            'titulo' => 'Tarea del día seleccionado',
+            'descripcion' => null,
+            'fecha_limite' => now()->addDays(3),
+            'puntaje_max' => 20,
+        ]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('dashboard.index')
+            ->call('seleccionarDiaCalendarioTareas', $tarea->fecha_limite->format('Y-m-d'))
+            ->assertSee('Tarea del día seleccionado');
+    }
+
+    public function test_seleccionar_el_mismo_dia_dos_veces_lo_deselecciona(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        Estudiante::factory()->create(['user_id' => $usuario->id]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('dashboard.index')
+            ->call('seleccionarDiaCalendarioTareas', '2026-08-15')
+            ->assertSet('diaCalendarioSeleccionado', '2026-08-15')
+            ->call('seleccionarDiaCalendarioTareas', '2026-08-15')
+            ->assertSet('diaCalendarioSeleccionado', null);
+    }
+
+    public function test_navegar_al_mes_siguiente_y_anterior_cambia_el_mes_mostrado(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        Estudiante::factory()->create(['user_id' => $usuario->id]);
+
+        $this->actingAs($usuario);
+
+        $mesSiguienteEsperado = ucfirst(now()->addMonthNoOverflow()->translatedFormat('F Y'));
+
+        Volt::test('dashboard.index')
+            ->call('mesCalendarioTareasSiguiente')
+            ->assertSee('Mis tareas — '.$mesSiguienteEsperado)
+            ->call('mesCalendarioTareasAnterior')
+            ->assertSee('Mis tareas — '.ucfirst(now()->translatedFormat('F Y')));
+    }
+
+    public function test_estudiante_ve_la_seccion_mis_evaluaciones_junto_al_calendario(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+        $horario = Horario::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+        $evaluacion = Evaluacion::factory()->publicada()->create(['horario_id' => $horario->id]);
+        Calificacion::factory()->create([
+            'evaluacion_id' => $evaluacion->id,
+            'estudiante_id' => $estudiante->id,
+            'nota_numerica' => 17,
+        ]);
+
+        $this->actingAs($usuario)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Mis evaluaciones')
+            ->assertSee($horario->curso->nombre)
+            ->assertSee('17.00')
+            ->assertDontSee('Mis notas');
+    }
+
+    public function test_estudiante_sin_calificaciones_ve_el_mensaje_vacio_en_mis_evaluaciones(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        Estudiante::factory()->create(['user_id' => $usuario->id]);
+
+        $this->actingAs($usuario)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Mis evaluaciones')
+            ->assertSee('Todavía no tienes calificaciones registradas.');
+    }
+
     public function test_un_usuario_sin_rol_reconocido_ve_el_mensaje_de_bienvenida(): void
     {
         $usuario = User::factory()->create();

@@ -2,9 +2,8 @@
 
 {{--
     Lista de tareas de un estudiante con su estado (pendiente/entregada/
-    entregada tarde/vencida/calificada). La usan tanto la página "Mis
-    tareas" como el modal del mismo nombre en el dashboard, para no
-    duplicar este bloque en los dos lugares.
+    entregada tarde/vencida/calificada). La usa el detalle del día
+    seleccionado en el calendario de tareas del dashboard.
 --}}
 <div class="divide-y divide-border rounded-lg border border-border bg-surface">
     @forelse ($tareas as $tarea)

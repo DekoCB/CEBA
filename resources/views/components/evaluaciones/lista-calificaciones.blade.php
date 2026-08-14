@@ -2,9 +2,8 @@
 
 {{--
     Notas del estudiante agrupadas por ciclo, con promedio general y
-    detalle por curso/evaluación. La usan tanto la página "Mis
-    calificaciones" como el modal del mismo nombre en el dashboard, para
-    no duplicar este bloque en los dos lugares.
+    detalle por curso/evaluación. La usa la sección "Mis evaluaciones"
+    del dashboard del estudiante.
 --}}
 <div class="space-y-8">
     @forelse ($porCiclo as $grupo)

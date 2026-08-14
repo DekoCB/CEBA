@@ -24,8 +24,9 @@ class TareaService
 
     /**
      * Todas las tareas de los cursos virtuales donde el estudiante está
-     * matriculado, con su propia entrega precargada (si existe), para la
-     * vista transversal "Mis tareas" — sin tener que entrar curso por curso.
+     * matriculado, con su propia entrega precargada (si existe), usada por
+     * el calendario de tareas y el widget de próximos vencimientos del
+     * dashboard — sin tener que entrar curso por curso.
      *
      * @return Collection<int, Tarea>
      */

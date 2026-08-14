@@ -50,13 +50,13 @@ class CampanaNotificacionesTest extends TestCase
     public function test_marcar_leida_redirige_a_la_url_de_la_notificacion(): void
     {
         $usuario = User::factory()->create();
-        $notificacion = Notificacion::factory()->for($usuario)->create(['url' => '/aula-virtual/mis-tareas']);
+        $notificacion = Notificacion::factory()->for($usuario)->create(['url' => '/dashboard']);
 
         $this->actingAs($usuario);
 
         Volt::test('layout.navigation')
             ->call('marcarLeida', $notificacion)
-            ->assertRedirect('/aula-virtual/mis-tareas');
+            ->assertRedirect('/dashboard');
     }
 
     public function test_marcar_todas_leidas_deja_sin_pendientes_al_usuario(): void

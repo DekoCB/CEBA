@@ -161,42 +161,4 @@ class EvaluacionesPermisosTest extends TestCase
 
         $this->assertDatabaseHas('evaluaciones', ['id' => $evaluacion->id, 'estado' => 'borrador']);
     }
-
-    public function test_un_estudiante_ve_sus_calificaciones_de_todos_sus_cursos_en_mis_calificaciones(): void
-    {
-        $usuario = User::factory()->create();
-        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
-        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
-
-        $docente = User::factory()->create();
-        $docente->assignRole(RolEnum::DOCENTE->value);
-        $horario = $this->cursoDelDocente($docente);
-
-        Matricula::factory()->create([
-            'estudiante_id' => $estudiante->id,
-            'grado_id' => $horario->grado_id,
-            'ciclo_id' => $horario->ciclo_id,
-        ]);
-
-        $service = $this->app->make(EvaluacionService::class);
-        $evaluacion = $service->crear($horario, 'Evaluación mensual', '2026-07-15');
-        $service->publicar($evaluacion);
-        $service->calificar($evaluacion, $estudiante, 16.0, null, null);
-
-        $this->actingAs($usuario)
-            ->get(route('evaluaciones.mis-calificaciones'))
-            ->assertOk()
-            ->assertSee($horario->curso->nombre)
-            ->assertSee('16.00');
-    }
-
-    public function test_un_docente_no_puede_ver_mis_calificaciones_porque_no_es_estudiante(): void
-    {
-        $docente = User::factory()->create();
-        $docente->assignRole(RolEnum::DOCENTE->value);
-
-        $this->actingAs($docente)
-            ->get(route('evaluaciones.mis-calificaciones'))
-            ->assertForbidden();
-    }
 }

@@ -1,0 +1,37 @@
+@props(['cursos'])
+
+{{--
+    Promedio por curso del estudiante en un ciclo, en formato tabla. La usan
+    tanto "Mi libreta" (el estudiante viendo su propia libreta) como la
+    libreta de un estudiante específico que consulta el personal.
+--}}
+<div class="overflow-hidden rounded-lg border border-border bg-surface">
+    <table class="min-w-full divide-y divide-border text-sm">
+        <thead class="bg-surface-2">
+            <tr>
+                <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Curso</th>
+                <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Promedio</th>
+                <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Escala</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-border">
+            @forelse ($cursos as $curso)
+                <tr>
+                    <td class="px-4 py-3 text-ink">{{ $curso['nombre'] }}</td>
+                    <td class="px-4 py-3 text-ink">{{ $curso['promedio'] !== null ? number_format($curso['promedio'], 2) : '—' }}</td>
+                    <td class="px-4 py-3">
+                        @if ($curso['letra'])
+                            <span class="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">{{ $curso['letra'] }}</span>
+                        @else
+                            <span class="text-ink-faint">—</span>
+                        @endif
+                    </td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="3" class="px-4 py-8 text-center text-sm text-ink-faint">No hay cursos registrados para este ciclo.</td>
+                </tr>
+            @endforelse
+        </tbody>
+    </table>
+</div>

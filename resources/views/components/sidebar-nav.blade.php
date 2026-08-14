@@ -52,21 +52,6 @@
             <x-heroicon-o-computer-desktop class="h-5 w-5 shrink-0" />
             <span class="sidebar-label">Cursos virtuales</span>
         </a>
-
-        @can('aula_virtual.ver_propio')
-            <a
-                href="{{ route('aula-virtual.mis-tareas') }}"
-                wire:navigate
-                @class([
-                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('aula-virtual.mis-tareas'),
-                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('aula-virtual.mis-tareas'),
-                ])
-            >
-                <x-heroicon-o-clipboard-document-list class="h-5 w-5 shrink-0" />
-                <span class="sidebar-label">Mis tareas</span>
-            </a>
-        @endcan
     @endcanany
 
     @canany(['asistencia.ver', 'asistencia.registrar', 'asistencia.ver_propio'])
@@ -98,20 +83,20 @@
             <span class="sidebar-label">Evaluaciones</span>
         </a>
 
-        @can('evaluaciones.ver_propio')
+        @if (auth()->user()->can('evaluaciones.ver_propio') && auth()->user()->estudiante)
             <a
-                href="{{ route('evaluaciones.mis-calificaciones') }}"
+                href="{{ route('evaluaciones.mi-libreta') }}"
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('evaluaciones.mis-calificaciones'),
-                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('evaluaciones.mis-calificaciones'),
+                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('evaluaciones.mi-libreta'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('evaluaciones.mi-libreta'),
                 ])
             >
-                <x-heroicon-o-chart-bar class="h-5 w-5 shrink-0" />
-                <span class="sidebar-label">Mis calificaciones</span>
+                <x-heroicon-o-book-open class="h-5 w-5 shrink-0" />
+                <span class="sidebar-label">Mi libreta</span>
             </a>
-        @endcan
+        @endif
     @endcanany
 
     @canany(['incidencias.ver', 'incidencias.crear', 'incidencias.gestionar_propio', 'incidencias.ver_propio'])

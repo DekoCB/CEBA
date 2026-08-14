@@ -242,8 +242,8 @@ class EvaluacionService
 
     /**
      * Notas del estudiante en todos sus cursos matriculados (de cualquier
-     * ciclo), para la vista transversal "Mis calificaciones" — sin tener
-     * que entrar horario por horario a revisar cada uno.
+     * ciclo), usada por la sección "Mis evaluaciones" del dashboard — sin
+     * tener que entrar horario por horario a revisar cada uno.
      *
      * Cada elemento es un array con las claves "horario" (Horario),
      * "calificaciones" (Collection<int, Calificacion>) y "promedio" (?float).
@@ -262,9 +262,8 @@ class EvaluacionService
 
     /**
      * El resumen anterior, agrupado por ciclo (más reciente primero) con el
-     * promedio general de cada uno — usado tanto por "Mis calificaciones"
-     * como por el resumen del dashboard del estudiante, para no repetir el
-     * agrupamiento en cada lugar que lo necesita.
+     * promedio general de cada uno — usado por la sección "Mis evaluaciones"
+     * del dashboard del estudiante.
      *
      * Cada elemento es un array con las claves "ciclo" (Ciclo), "cursos"
      * (la Collection que devuelve resumenDelEstudiante(), ya filtrada a ese

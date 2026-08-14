@@ -46,7 +46,7 @@ new #[Layout('layouts.app')] class extends Component
         $service->generar($this->estudiante, $this->ciclo);
     }
 
-    public function with(): array
+    public function with(LibretaService $service): array
     {
         $libreta = Libreta::query()
             ->where('estudiante_id', $this->estudiante->id)
@@ -56,6 +56,7 @@ new #[Layout('layouts.app')] class extends Component
         return [
             'libreta' => $libreta,
             'urlPdf' => $libreta?->getFirstMediaUrl('pdf'),
+            'cursos' => $service->resumenPorCursos($this->estudiante, $this->ciclo),
         ];
     }
 }; ?>
@@ -94,6 +95,10 @@ new #[Layout('layouts.app')] class extends Component
                     {{ $libreta ? 'Actualizar libreta' : 'Generar libreta' }}
                 </x-primary-button>
             </div>
+        </div>
+
+        <div class="mt-6">
+            <x-evaluaciones.resumen-libreta :cursos="$cursos" />
         </div>
     @endif
 </div>
