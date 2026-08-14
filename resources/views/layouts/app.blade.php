@@ -83,8 +83,14 @@
                     </header>
                 @endif
 
-                <main class="flex-1 overflow-y-auto p-4 sm:p-6">
-                    {{ $slot }}
+                <main class="relative flex-1 overflow-hidden">
+                    <div class="fondo-modulo fondo-modulo--light" aria-hidden="true" style="background-image: url('{{ asset('images/fondo-mod-light.png') }}')"></div>
+                    <div class="fondo-modulo fondo-modulo--dark" aria-hidden="true" style="background-image: url('{{ asset('images/fondo-mod-dark.png') }}')"></div>
+                    <div class="fondo-modulo-overlay" aria-hidden="true"></div>
+
+                    <div class="relative z-10 h-full overflow-y-auto p-4 sm:p-6">
+                        {{ $slot }}
+                    </div>
                 </main>
             </div>
         </div>
