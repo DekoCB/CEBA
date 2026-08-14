@@ -349,4 +349,91 @@ class EvaluacionServiceTest extends TestCase
 
         $this->assertFalse($evaluacion->refresh()->enlaceDisponible());
     }
+
+    public function test_resumen_del_estudiante_incluye_promedio_y_calificaciones_por_curso(): void
+    {
+        $horario = Horario::factory()->create();
+        $estudiante = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+
+        $service = $this->service();
+        $evaluacion = $service->crear($horario, 'Evaluación mensual', '2026-07-15');
+        $service->publicar($evaluacion);
+        $service->calificar($evaluacion, $estudiante, 17.5, 'Buen desempeño', null);
+
+        $resumen = $service->resumenDelEstudiante($estudiante);
+
+        $this->assertCount(1, $resumen);
+        $this->assertSame($horario->id, $resumen->first()['horario']->id);
+        $this->assertSame(17.5, $resumen->first()['promedio']);
+        $this->assertCount(1, $resumen->first()['calificaciones']);
+    }
+
+    public function test_resumen_del_estudiante_no_incluye_cursos_ajenos(): void
+    {
+        $horario = Horario::factory()->create();
+        $estudiante = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+
+        Horario::factory()->create();
+
+        $resumen = $this->service()->resumenDelEstudiante($estudiante);
+
+        $this->assertCount(1, $resumen);
+    }
+
+    public function test_resumen_del_estudiante_sin_notas_deja_el_promedio_nulo(): void
+    {
+        $horario = Horario::factory()->create();
+        $estudiante = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+
+        $resumen = $this->service()->resumenDelEstudiante($estudiante);
+
+        $this->assertNull($resumen->first()['promedio']);
+        $this->assertTrue($resumen->first()['calificaciones']->isEmpty());
+    }
+
+    public function test_resumen_por_ciclo_agrupa_los_cursos_de_cada_ciclo_por_separado(): void
+    {
+        $grado = Grado::factory()->create();
+        $cicloAnterior = Ciclo::factory()->create();
+        $cicloActual = Ciclo::factory()->create();
+
+        $horarioAnterior = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $cicloAnterior->id]);
+        $horarioActual = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $cicloActual->id]);
+
+        $estudiante = Estudiante::factory()->create();
+        Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'grado_id' => $grado->id, 'ciclo_id' => $cicloAnterior->id]);
+        Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'grado_id' => $grado->id, 'ciclo_id' => $cicloActual->id]);
+
+        $service = $this->service();
+        $evaluacionAnterior = $service->crear($horarioAnterior, 'Evaluación', '2026-03-15');
+        $service->publicar($evaluacionAnterior);
+        $service->calificar($evaluacionAnterior, $estudiante, 12.0, null, null);
+
+        $evaluacionActual = $service->crear($horarioActual, 'Evaluación', '2026-07-15');
+        $service->publicar($evaluacionActual);
+        $service->calificar($evaluacionActual, $estudiante, 18.0, null, null);
+
+        $porCiclo = $service->resumenDelEstudiantePorCiclo($estudiante);
+
+        $this->assertCount(2, $porCiclo);
+        $this->assertSame($cicloActual->id, $porCiclo->first()['ciclo']->id);
+        $this->assertSame(18.0, $porCiclo->first()['promedioGeneral']);
+        $this->assertSame($cicloAnterior->id, $porCiclo->last()['ciclo']->id);
+        $this->assertSame(12.0, $porCiclo->last()['promedioGeneral']);
+    }
 }

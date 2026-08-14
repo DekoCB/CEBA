@@ -90,13 +90,28 @@
             wire:navigate
             @class([
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('evaluaciones.*'),
-                'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('evaluaciones.*'),
+                'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('evaluaciones.index', 'evaluaciones.show', 'evaluaciones.libreta'),
+                'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('evaluaciones.index', 'evaluaciones.show', 'evaluaciones.libreta'),
             ])
         >
             <x-heroicon-o-pencil-square class="h-5 w-5 shrink-0" />
             <span class="sidebar-label">Evaluaciones</span>
         </a>
+
+        @can('evaluaciones.ver_propio')
+            <a
+                href="{{ route('evaluaciones.mis-calificaciones') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('evaluaciones.mis-calificaciones'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('evaluaciones.mis-calificaciones'),
+                ])
+            >
+                <x-heroicon-o-chart-bar class="h-5 w-5 shrink-0" />
+                <span class="sidebar-label">Mis calificaciones</span>
+            </a>
+        @endcan
     @endcanany
 
     @canany(['incidencias.ver', 'incidencias.crear', 'incidencias.gestionar_propio', 'incidencias.ver_propio'])

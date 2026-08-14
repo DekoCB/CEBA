@@ -6,10 +6,12 @@ use App\Modules\Academico\Models\Horario;
 use App\Modules\Asistencia\Models\Asistencia;
 use App\Modules\AulaVirtual\Models\Tarea;
 use App\Modules\AulaVirtual\Services\CursoVirtualService;
+use App\Modules\AulaVirtual\Services\TareaService;
 use App\Modules\Evaluaciones\Enums\EstadoEvaluacionEnum;
 use App\Modules\Evaluaciones\Enums\NotaLetraEnum;
 use App\Modules\Evaluaciones\Models\Calificacion;
 use App\Modules\Evaluaciones\Models\Evaluacion;
+use App\Modules\Evaluaciones\Services\EvaluacionService;
 use App\Modules\Identidad\Models\AuditLog;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
@@ -21,6 +23,8 @@ use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Pagos\Services\BloqueoAccesoService;
 use App\Shared\Enums\EstadoUsuarioEnum;
 use App\Shared\Enums\RolEnum;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
@@ -73,6 +77,16 @@ new #[Layout('layouts.app')] class extends Component
 
     public int $misTareasPendientes = 0;
 
+    /** @var Collection<int, Tarea> */
+    public Collection $misTareasLista;
+
+    /** @var SupportCollection<int, array<string, mixed>> */
+    public SupportCollection $misCalificacionesPorCiclo;
+
+    public ?float $promedioGeneralActual = null;
+
+    public ?int $miEstudianteId = null;
+
     public bool $esCoordinador = false;
 
     public int $estudiantesActivos = 0;
@@ -109,9 +123,12 @@ new #[Layout('layouts.app')] class extends Component
      */
     public array $notificaciones = [];
 
-    public function mount(BloqueoAccesoService $bloqueos, CursoVirtualService $cursosVirtuales): void
+    public function mount(BloqueoAccesoService $bloqueos, CursoVirtualService $cursosVirtuales, TareaService $tareas, EvaluacionService $evaluaciones): void
     {
         $user = Auth::user();
+
+        $this->misTareasLista = new Collection;
+        $this->misCalificacionesPorCiclo = collect();
 
         $this->puedeVerUsuarios = Gate::allows('usuarios.ver');
         $this->puedeVerAuditoria = Gate::allows('auditoria.ver');
@@ -162,6 +179,11 @@ new #[Layout('layouts.app')] class extends Component
                 ->whereIn('curso_virtual_id', $misCursos->pluck('id'))
                 ->whereDoesntHave('entregas', fn ($query) => $query->where('estudiante_id', $estudiante->id))
                 ->count();
+
+            $this->miEstudianteId = $estudiante->id;
+            $this->misTareasLista = $tareas->delEstudiante($estudiante);
+            $this->misCalificacionesPorCiclo = $evaluaciones->resumenDelEstudiantePorCiclo($estudiante);
+            $this->promedioGeneralActual = $this->misCalificacionesPorCiclo->first()['promedioGeneral'] ?? null;
 
             [$this->rendimientoMensualLabels, $this->rendimientoMensualDatos] = $this->calcularRendimientoMensualDelEstudiante($estudiante);
         }
@@ -530,14 +552,18 @@ new #[Layout('layouts.app')] class extends Component
                     <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Mis cursos virtuales</p>
                     <p class="mt-1 font-display text-2xl text-ink">{{ $misCursosVirtuales }}</p>
                 </a>
-                <a href="{{ route('aula-virtual.index') }}" wire:navigate class="rounded-lg border border-border bg-surface p-4 transition hover:border-accent">
+                <button type="button" x-data x-on:click="$dispatch('open-modal', 'mis-tareas')" class="rounded-lg border border-border bg-surface p-4 text-left transition hover:border-accent">
                     <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Tareas pendientes</p>
                     <p class="mt-1 font-display text-2xl {{ $misTareasPendientes > 0 ? 'text-warn' : 'text-ink' }}">{{ $misTareasPendientes }}</p>
-                </a>
-                <a href="{{ route('evaluaciones.index') }}" wire:navigate class="rounded-lg border border-border bg-surface p-4 transition hover:border-accent">
+                </button>
+                <button type="button" x-data x-on:click="$dispatch('open-modal', 'mis-calificaciones')" class="rounded-lg border border-border bg-surface p-4 text-left transition hover:border-accent">
                     <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Mis notas</p>
-                    <p class="mt-1 font-display text-sm text-accent">Ver evaluaciones →</p>
-                </a>
+                    @if ($promedioGeneralActual !== null)
+                        <p class="mt-1 font-display text-2xl text-ink">{{ number_format($promedioGeneralActual, 2) }}</p>
+                    @else
+                        <p class="mt-1 font-display text-sm text-accent">Ver notas →</p>
+                    @endif
+                </button>
             </div>
 
             @if (array_sum($rendimientoMensualDatos) > 0)
@@ -551,6 +577,30 @@ new #[Layout('layouts.app')] class extends Component
                     />
                 </div>
             @endif
+
+            <x-modal name="mis-tareas" max-width="2xl">
+                <div class="flex items-center justify-between border-b border-border px-6 py-4">
+                    <h2 class="font-display text-lg text-ink">Mis tareas</h2>
+                    <button type="button" x-on:click="$dispatch('close')" class="rounded-md p-1.5 text-ink-faint transition hover:bg-surface-2 hover:text-ink" aria-label="Cerrar">
+                        <x-heroicon-o-x-mark class="h-5 w-5" />
+                    </button>
+                </div>
+                <div class="max-h-[75vh] overflow-y-auto p-6">
+                    <x-aula-virtual.lista-tareas :tareas="$misTareasLista" />
+                </div>
+            </x-modal>
+
+            <x-modal name="mis-calificaciones" max-width="2xl">
+                <div class="flex items-center justify-between border-b border-border px-6 py-4">
+                    <h2 class="font-display text-lg text-ink">Mis calificaciones</h2>
+                    <button type="button" x-on:click="$dispatch('close')" class="rounded-md p-1.5 text-ink-faint transition hover:bg-surface-2 hover:text-ink" aria-label="Cerrar">
+                        <x-heroicon-o-x-mark class="h-5 w-5" />
+                    </button>
+                </div>
+                <div class="max-h-[75vh] overflow-y-auto p-6">
+                    <x-evaluaciones.lista-calificaciones :por-ciclo="$misCalificacionesPorCiclo" :mi-estudiante-id="$miEstudianteId" />
+                </div>
+            </x-modal>
         @endif
 
         @if ($puedeVerUsuarios)

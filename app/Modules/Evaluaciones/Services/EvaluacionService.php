@@ -11,6 +11,7 @@ use App\Modules\Evaluaciones\Models\Evaluacion;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 
 class EvaluacionService
 {
@@ -220,5 +221,52 @@ class EvaluacionService
         }
 
         return round((float) $notas->avg(), 2);
+    }
+
+    /**
+     * Notas del estudiante en todos sus cursos matriculados (de cualquier
+     * ciclo), para la vista transversal "Mis calificaciones" — sin tener
+     * que entrar horario por horario a revisar cada uno.
+     *
+     * Cada elemento es un array con las claves "horario" (Horario),
+     * "calificaciones" (Collection<int, Calificacion>) y "promedio" (?float).
+     * Sin generics en el @return: el TValue de Collection no es covariante
+     * (ver https://phpstan.org/blog/whats-up-with-template-covariant), así
+     * que ninguna anotación de forma de array sobrevive a un ->map().
+     */
+    public function resumenDelEstudiante(Estudiante $estudiante): SupportCollection
+    {
+        return collect($this->horariosDelEstudiante($estudiante))->map(fn (Horario $horario) => [
+            'horario' => $horario,
+            'calificaciones' => $this->misCalificaciones($estudiante, $horario),
+            'promedio' => $this->promedioDelEstudiante($estudiante, $horario),
+        ]);
+    }
+
+    /**
+     * El resumen anterior, agrupado por ciclo (más reciente primero) con el
+     * promedio general de cada uno — usado tanto por "Mis calificaciones"
+     * como por el resumen del dashboard del estudiante, para no repetir el
+     * agrupamiento en cada lugar que lo necesita.
+     *
+     * Cada elemento es un array con las claves "ciclo" (Ciclo), "cursos"
+     * (la Collection que devuelve resumenDelEstudiante(), ya filtrada a ese
+     * ciclo) y "promedioGeneral" (?float).
+     */
+    public function resumenDelEstudiantePorCiclo(Estudiante $estudiante): SupportCollection
+    {
+        return $this->resumenDelEstudiante($estudiante)
+            ->groupBy(fn (array $item) => $item['horario']->ciclo->id)
+            ->map(function ($cursos) {
+                $promedios = $cursos->pluck('promedio')->filter();
+
+                return [
+                    'ciclo' => $cursos->first()['horario']->ciclo,
+                    'cursos' => $cursos,
+                    'promedioGeneral' => $promedios->isNotEmpty() ? round((float) $promedios->avg(), 2) : null,
+                ];
+            })
+            ->sortByDesc(fn (array $grupo) => $grupo['ciclo']->id)
+            ->values();
     }
 }
