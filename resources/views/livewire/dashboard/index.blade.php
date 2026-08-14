@@ -80,6 +80,15 @@ new #[Layout('layouts.app')] class extends Component
     /** @var Collection<int, Tarea> */
     public Collection $misTareasLista;
 
+    /**
+     * La tarea pendiente más próxima de cada curso virtual matriculado, para
+     * el widget "Próximos vencimientos" — a diferencia de misTareasLista
+     * (todas las tareas), aquí solo entra una por curso: la más urgente.
+     *
+     * @var Collection<int, Tarea>
+     */
+    public Collection $proximosVencimientos;
+
     /** @var SupportCollection<int, array<string, mixed>> */
     public SupportCollection $misCalificacionesPorCiclo;
 
@@ -128,6 +137,7 @@ new #[Layout('layouts.app')] class extends Component
         $user = Auth::user();
 
         $this->misTareasLista = new Collection;
+        $this->proximosVencimientos = new Collection;
         $this->misCalificacionesPorCiclo = collect();
 
         $this->puedeVerUsuarios = Gate::allows('usuarios.ver');
@@ -182,6 +192,12 @@ new #[Layout('layouts.app')] class extends Component
 
             $this->miEstudianteId = $estudiante->id;
             $this->misTareasLista = $tareas->delEstudiante($estudiante);
+            $this->proximosVencimientos = $this->misTareasLista
+                ->filter(fn (Tarea $tarea) => $tarea->entregas->isEmpty())
+                ->groupBy('curso_virtual_id')
+                ->map(fn (Collection $tareasDelCurso) => $tareasDelCurso->first())
+                ->sortBy(fn (Tarea $tarea) => $tarea->fecha_limite)
+                ->values();
             $this->misCalificacionesPorCiclo = $evaluaciones->resumenDelEstudiantePorCiclo($estudiante);
             $this->promedioGeneralActual = $this->misCalificacionesPorCiclo->first()['promedioGeneral'] ?? null;
 
@@ -565,6 +581,31 @@ new #[Layout('layouts.app')] class extends Component
                     @endif
                 </button>
             </div>
+
+            @if ($proximosVencimientos->isNotEmpty())
+                <div class="rounded-lg border border-border bg-surface">
+                    <div class="border-b border-border px-4 py-3">
+                        <h2 class="text-sm font-semibold text-ink">Próximos vencimientos</h2>
+                    </div>
+                    <div class="divide-y divide-border">
+                        @foreach ($proximosVencimientos as $tarea)
+                            <a
+                                href="{{ route('aula-virtual.tarea', [$tarea->cursoVirtual, $tarea]) }}"
+                                wire:navigate
+                                class="flex items-center justify-between gap-3 px-4 py-3 text-sm transition hover:bg-surface-2"
+                            >
+                                <div>
+                                    <p class="font-medium text-ink">{{ $tarea->titulo }}</p>
+                                    <p class="text-xs text-ink-faint">{{ $tarea->cursoVirtual->horario->curso->nombre }}</p>
+                                </div>
+                                <span class="shrink-0 font-mono text-xs uppercase tracking-wide {{ $tarea->fecha_limite->isPast() ? 'text-danger' : ($tarea->fecha_limite->isToday() ? 'text-warn' : 'text-ink-dim') }}">
+                                    {{ $tarea->fecha_limite->isPast() ? 'Vencida' : ($tarea->fecha_limite->isToday() ? 'Vence hoy' : $tarea->fecha_limite->format('d/m')) }}
+                                </span>
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
 
             @if (array_sum($rendimientoMensualDatos) > 0)
                 <div class="rounded-lg border border-border bg-surface p-4">

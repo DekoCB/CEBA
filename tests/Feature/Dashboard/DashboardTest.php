@@ -7,6 +7,8 @@ use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Asistencia\Models\Asistencia;
+use App\Modules\AulaVirtual\Models\CursoVirtual;
+use App\Modules\AulaVirtual\Services\TareaService;
 use App\Modules\Evaluaciones\Models\Calificacion;
 use App\Modules\Evaluaciones\Models\Evaluacion;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
@@ -18,6 +20,7 @@ use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Pagos\Services\BloqueoAccesoService;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 class DashboardTest extends TestCase
@@ -260,6 +263,105 @@ class DashboardTest extends TestCase
             ->assertOk()
             ->assertSee('Asistencia por grado')
             ->assertSee('1ro de Secundaria');
+    }
+
+    public function test_estudiante_ve_solo_la_tarea_mas_proxima_de_cada_curso_en_vencimientos(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+        $horario = Horario::factory()->create();
+        $curso = CursoVirtual::factory()->create(['horario_id' => $horario->id]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+        $tareaService = $this->app->make(TareaService::class);
+        $tareaProxima = $tareaService->crear($curso, [
+            'titulo' => 'Tarea próxima',
+            'descripcion' => null,
+            'fecha_limite' => now()->addDay(),
+            'puntaje_max' => 20,
+        ]);
+        $tareaService->crear($curso, [
+            'titulo' => 'Tarea lejana',
+            'descripcion' => null,
+            'fecha_limite' => now()->addWeek(),
+            'puntaje_max' => 20,
+        ]);
+
+        $this->actingAs($usuario);
+
+        $vencimientos = Volt::test('dashboard.index')->get('proximosVencimientos');
+
+        $this->assertCount(1, $vencimientos);
+        $this->assertSame($tareaProxima->id, $vencimientos->first()->id);
+    }
+
+    public function test_una_tarea_ya_entregada_no_aparece_en_vencimientos(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+        $horario = Horario::factory()->create();
+        $curso = CursoVirtual::factory()->create(['horario_id' => $horario->id]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+        $tareaService = $this->app->make(TareaService::class);
+        $tarea = $tareaService->crear($curso, [
+            'titulo' => 'Tarea ya entregada',
+            'descripcion' => null,
+            'fecha_limite' => now()->addDay(),
+            'puntaje_max' => 20,
+        ]);
+        $tareaService->entregar($tarea, $estudiante, 'Mi respuesta', null);
+
+        $this->actingAs($usuario)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('Próximos vencimientos');
+    }
+
+    public function test_una_tarea_vencida_se_marca_como_vencida_en_el_widget(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+        $horario = Horario::factory()->create();
+        $curso = CursoVirtual::factory()->create(['horario_id' => $horario->id]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+        $this->app->make(TareaService::class)->crear($curso, [
+            'titulo' => 'Tarea vencida',
+            'descripcion' => null,
+            'fecha_limite' => now()->subDay(),
+            'puntaje_max' => 20,
+        ]);
+
+        $this->actingAs($usuario)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Tarea vencida')
+            ->assertSee('Vencida');
+    }
+
+    public function test_estudiante_sin_tareas_pendientes_no_ve_el_widget_de_vencimientos(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        Estudiante::factory()->create(['user_id' => $usuario->id]);
+
+        $this->actingAs($usuario)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('Próximos vencimientos');
     }
 
     public function test_un_usuario_sin_rol_reconocido_ve_el_mensaje_de_bienvenida(): void
