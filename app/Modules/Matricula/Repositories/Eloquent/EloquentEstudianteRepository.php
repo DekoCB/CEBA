@@ -20,7 +20,7 @@ class EloquentEstudianteRepository extends BaseRepository implements EstudianteR
      */
     protected function query(): Builder
     {
-        return Estudiante::query()->with('gradoActual');
+        return Estudiante::query()->with(['gradoActual', 'media']);
     }
 
     public function buscar(?string $termino, ?string $estado, int $perPage = 15): LengthAwarePaginator

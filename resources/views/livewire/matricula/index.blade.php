@@ -124,7 +124,18 @@ new #[Layout('layouts.app')] class extends Component
                 @forelse ($estudiantes as $estudiante)
                     <tr wire:key="estudiante-{{ $estudiante->id }}">
                         <td class="px-4 py-3 font-mono text-ink-dim">{{ $estudiante->dni }}</td>
-                        <td class="px-4 py-3 font-medium text-ink">{{ $estudiante->nombreCompleto() }}</td>
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-3">
+                                @if ($estudiante->getFirstMediaUrl('foto'))
+                                    <img src="{{ $estudiante->getFirstMediaUrl('foto') }}" alt="" class="h-9 w-9 shrink-0 rounded-full object-cover">
+                                @else
+                                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-dashed border-border bg-surface-2 text-ink-faint">
+                                        <x-heroicon-o-user class="h-4 w-4" />
+                                    </span>
+                                @endif
+                                <span class="font-medium text-ink">{{ $estudiante->nombreCompleto() }}</span>
+                            </div>
+                        </td>
                         <td class="px-4 py-3 text-ink-dim">{{ $estudiante->gradoActual?->nombre ?? '—' }}</td>
                         <td class="px-4 py-3">
                             <span @class([
