@@ -15,20 +15,24 @@ use App\Modules\Pagos\Models\Cuota;
  */
 class RecordatorioCuotaService
 {
-    public function enviarRecordatorios(int $diasAntes = 3): int
+    public function enviarRecordatorios(int $diasAntes = 7): int
     {
-        // Cuota (módulo Pagos) no conoce a Notificaciones, así que el filtro
-        // "ya se le recordó" se resuelve desde este lado con whereNotIn, en
-        // vez de una relación whereDoesntHave en el modelo Cuota.
-        $cuotasYaRecordadas = MensajeWhatsapp::query()
+        // El recordatorio se repite a diario mientras la cuota siga
+        // pendiente (incluso ya vencida), hasta que el estudiante pague, así
+        // que el único caso a evitar es notificar dos veces el mismo día si
+        // el comando se corre más de una vez. Cuota (módulo Pagos) no conoce
+        // a Notificaciones, así que ese filtro se resuelve desde este lado
+        // con whereNotIn, en vez de una relación whereDoesntHave.
+        $cuotasYaRecordadasHoy = MensajeWhatsapp::query()
             ->where('tipo', TipoMensajeWhatsappEnum::RECORDATORIO)
             ->whereNotNull('cuota_id')
+            ->whereDate('created_at', now()->toDateString())
             ->pluck('cuota_id');
 
         $cuotas = Cuota::query()
             ->where('estado', 'pendiente')
-            ->whereBetween('fecha_vencimiento', [now()->startOfDay(), now()->addDays($diasAntes)->endOfDay()])
-            ->whereNotIn('id', $cuotasYaRecordadas)
+            ->where('fecha_vencimiento', '<=', now()->addDays($diasAntes)->endOfDay())
+            ->whereNotIn('id', $cuotasYaRecordadasHoy)
             ->with('planPago.matricula.estudiante')
             ->get();
 
@@ -47,13 +51,21 @@ class RecordatorioCuotaService
                 continue;
             }
 
-            $contenido = sprintf(
-                'Hola, recordamos que la cuota %d de %s vence el %s por S/ %s. Evita el bloqueo de la libreta de notas regularizando a tiempo.',
-                $cuota->numero,
-                $estudiante->nombreCompleto(),
-                $cuota->fecha_vencimiento->format('d/m/Y'),
-                number_format((float) $cuota->monto, 2),
-            );
+            $contenido = $cuota->fecha_vencimiento->isPast()
+                ? sprintf(
+                    'Hola, la cuota %d de %s venció el %s por S/ %s y sigue pendiente de pago. Regulariza cuanto antes para evitar el bloqueo de la libreta de notas.',
+                    $cuota->numero,
+                    $estudiante->nombreCompleto(),
+                    $cuota->fecha_vencimiento->format('d/m/Y'),
+                    number_format((float) $cuota->monto, 2),
+                )
+                : sprintf(
+                    'Hola, recordamos que la cuota %d de %s vence el %s por S/ %s. Evita el bloqueo de la libreta de notas regularizando a tiempo.',
+                    $cuota->numero,
+                    $estudiante->nombreCompleto(),
+                    $cuota->fecha_vencimiento->format('d/m/Y'),
+                    number_format((float) $cuota->monto, 2),
+                );
 
             /** @var MensajeWhatsapp $mensaje */
             $mensaje = MensajeWhatsapp::query()->create([

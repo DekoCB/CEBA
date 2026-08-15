@@ -58,7 +58,7 @@ class RecordatorioCuotaServiceTest extends TestCase
         Queue::assertNotPushed(EnviarMensajeWhatsappJob::class);
     }
 
-    public function test_no_repite_el_recordatorio_para_una_cuota_ya_notificada(): void
+    public function test_no_repite_el_recordatorio_el_mismo_dia(): void
     {
         Queue::fake();
 
@@ -72,5 +72,85 @@ class RecordatorioCuotaServiceTest extends TestCase
         $enviados = app(RecordatorioCuotaService::class)->enviarRecordatorios(diasAntes: 3);
 
         $this->assertSame(0, $enviados);
+    }
+
+    public function test_repite_el_recordatorio_al_dia_siguiente_mientras_siga_pendiente(): void
+    {
+        Queue::fake();
+
+        $cuota = $this->cuotaPorVencerEn(1);
+
+        MensajeWhatsapp::factory()->create([
+            'cuota_id' => $cuota->id,
+            'tipo' => TipoMensajeWhatsappEnum::RECORDATORIO,
+            'created_at' => now()->subDay(),
+        ]);
+
+        $enviados = app(RecordatorioCuotaService::class)->enviarRecordatorios(diasAntes: 3);
+
+        $this->assertSame(1, $enviados);
+    }
+
+    public function test_sigue_recordando_una_cuota_ya_vencida_y_pendiente(): void
+    {
+        Queue::fake();
+
+        $cuota = $this->cuotaPorVencerEn(-5);
+
+        $enviados = app(RecordatorioCuotaService::class)->enviarRecordatorios(diasAntes: 3);
+
+        $this->assertSame(1, $enviados);
+        $mensaje = MensajeWhatsapp::where('cuota_id', $cuota->id)->first();
+        $this->assertNotNull($mensaje);
+        $this->assertStringContainsString('venció el', $mensaje->contenido);
+    }
+
+    public function test_el_mensaje_de_una_cuota_por_vencer_no_dice_que_ya_vencio(): void
+    {
+        Queue::fake();
+
+        $cuota = $this->cuotaPorVencerEn(2);
+
+        app(RecordatorioCuotaService::class)->enviarRecordatorios(diasAntes: 3);
+
+        $mensaje = MensajeWhatsapp::where('cuota_id', $cuota->id)->first();
+        $this->assertNotNull($mensaje);
+        $this->assertStringContainsString('vence el', $mensaje->contenido);
+        $this->assertStringNotContainsString('venció el', $mensaje->contenido);
+    }
+
+    public function test_deja_de_recordar_una_cuota_ya_pagada(): void
+    {
+        Queue::fake();
+
+        $estudiante = Estudiante::factory()->create();
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
+
+        Cuota::factory()->pagada()->create([
+            'plan_pago_id' => $plan->id,
+            'fecha_vencimiento' => now()->addDay()->format('Y-m-d'),
+        ]);
+
+        $enviados = app(RecordatorioCuotaService::class)->enviarRecordatorios(diasAntes: 3);
+
+        $this->assertSame(0, $enviados);
+        Queue::assertNotPushed(EnviarMensajeWhatsappJob::class);
+    }
+
+    public function test_usa_siete_dias_de_anticipacion_por_defecto(): void
+    {
+        Queue::fake();
+
+        $cuotaDentroDelRango = $this->cuotaPorVencerEn(6);
+        $this->cuotaPorVencerEn(10);
+
+        $enviados = app(RecordatorioCuotaService::class)->enviarRecordatorios();
+
+        $this->assertSame(1, $enviados);
+        $this->assertDatabaseHas('mensajes_whatsapp', [
+            'cuota_id' => $cuotaDentroDelRango->id,
+            'tipo' => TipoMensajeWhatsappEnum::RECORDATORIO->value,
+        ]);
     }
 }

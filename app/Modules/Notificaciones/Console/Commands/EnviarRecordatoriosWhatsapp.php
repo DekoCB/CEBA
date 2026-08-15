@@ -9,7 +9,7 @@ use Illuminate\Console\Command;
 
 class EnviarRecordatoriosWhatsapp extends Command
 {
-    protected $signature = 'whatsapp:recordatorios {--dias=3 : Días de anticipación antes del vencimiento}';
+    protected $signature = 'whatsapp:recordatorios {--dias=7 : Días de anticipación antes del vencimiento}';
 
     protected $description = 'Envía recordatorios de WhatsApp para cuotas próximas a vencer';
 

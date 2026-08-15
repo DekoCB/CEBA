@@ -184,11 +184,12 @@
 
 /*
  * Fondo del área de contenido de los módulos (dentro de <main>, ver
- * layouts/app.blade.php): a diferencia del login, el paneo no alterna —
- * se desplaza siempre hacia abajo y vuelve a arriba de golpe al reiniciar
- * el ciclo. Hay una imagen distinta por tema (fondo-mod-light.png /
- * fondo-mod-dark.png, ambas como <div> separados en el Blade) y solo se
- * muestra la que corresponde al tema activo.
+ * layouts/app.blade.php). Igual que el fondo del login, el paneo alterna
+ * (baja y vuelve a subir) en vez de reiniciar de golpe: con animation
+ * normal + infinite (sin alternate) el salto de "abajo" a "arriba" al
+ * reiniciar el ciclo se veía tosco. Hay una imagen distinta por tema
+ * (fondo-mod-light.png / fondo-mod-dark.png, ambas como <div> separados
+ * en el Blade) y solo se muestra la que corresponde al tema activo.
  */
 .fondo-modulo {
     position: absolute;
@@ -198,7 +199,7 @@
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center top;
-    animation: fondo-modulo-pan 22s linear infinite;
+    animation: fondo-modulo-pan 22s ease-in-out infinite alternate;
 }
 
 .fondo-modulo--light {
