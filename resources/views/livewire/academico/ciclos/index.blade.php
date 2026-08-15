@@ -117,7 +117,12 @@ new #[Layout('layouts.app')] class extends Component
                             </span>
                         </td>
                         <td class="px-4 py-3 text-right">
-                            <a href="{{ route('academico.ciclos.show', $ciclo) }}" wire:navigate class="text-sm font-medium text-accent hover:underline">Ver</a>
+                            <button
+                                type="button"
+                                x-data
+                                x-on:click="$dispatch('ver-ciclo', { cicloId: {{ $ciclo->id }} }); $dispatch('open-modal', 'ver-ciclo')"
+                                class="text-sm font-medium text-accent hover:underline"
+                            >Ver</button>
                         </td>
                     </tr>
                 @empty
@@ -198,4 +203,6 @@ new #[Layout('layouts.app')] class extends Component
             </form>
         </div>
     </div>
+
+    <livewire:academico.ciclos.ficha-modal wire:key="ficha-ciclo-modal" />
 </div>

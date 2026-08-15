@@ -84,9 +84,12 @@ new #[Layout('layouts.app')] class extends Component
         <div class="mb-4 flex items-center justify-between rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">
             <span>{{ session('status') }}</span>
             @if (session('estudianteRegistradoId'))
-                <a href="{{ route('matricula.show', session('estudianteRegistradoId')) }}" wire:navigate class="font-medium underline">
-                    Ver ficha →
-                </a>
+                <button
+                    type="button"
+                    x-data
+                    x-on:click="$dispatch('ver-estudiante', { estudianteId: {{ session('estudianteRegistradoId') }} }); $dispatch('open-modal', 'ver-ficha')"
+                    class="font-medium underline"
+                >Ver ficha →</button>
             @endif
         </div>
     @endif
@@ -147,7 +150,12 @@ new #[Layout('layouts.app')] class extends Component
                             </span>
                         </td>
                         <td class="px-4 py-3 text-right">
-                            <a href="{{ route('matricula.show', $estudiante) }}" wire:navigate class="text-sm font-medium text-accent hover:underline">Ver</a>
+                            <button
+                                type="button"
+                                x-data
+                                x-on:click="$dispatch('ver-estudiante', { estudianteId: {{ $estudiante->id }} }); $dispatch('open-modal', 'ver-ficha')"
+                                class="text-sm font-medium text-accent hover:underline"
+                            >Ver</button>
                         </td>
                     </tr>
                 @empty
@@ -158,4 +166,6 @@ new #[Layout('layouts.app')] class extends Component
     </div>
 
     <div class="mt-4">{{ $estudiantes->links() }}</div>
+
+    <livewire:matricula.ficha-modal wire:key="ficha-modal" />
 </div>
