@@ -58,6 +58,7 @@ new #[Layout('layouts.app')] class extends Component
                 wire:navigate
                 class="block rounded-lg border border-border bg-surface p-4 transition hover:border-accent"
             >
+                <x-curso-portada :curso="$curso->horario->curso" class="mb-3" />
                 <p class="font-display text-lg text-ink">{{ $curso->horario->curso->nombre }}</p>
                 <p class="mt-1 text-sm text-ink-dim">{{ $curso->horario->grado->nombre }} · {{ $curso->horario->ciclo->nombre }}</p>
                 <p class="mt-3 text-xs text-ink-faint">{{ $curso->horario->docente->name }} · {{ $curso->horario->dia_semana->label() }}</p>
