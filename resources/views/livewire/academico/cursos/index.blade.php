@@ -53,9 +53,50 @@ new #[Layout('layouts.app')] class extends Component
         $this->mostrarModal = true;
     }
 
+    public function updatedNombre(CursoService $service): void
+    {
+        $this->sugerirCodigo($service);
+    }
+
+    public function updatedGradoId(CursoService $service): void
+    {
+        $this->sugerirCodigo($service);
+    }
+
+    /**
+     * Solo sugiere el código para un curso nuevo: si se está editando uno
+     * existente, su código ya fue asignado y no debe pisarse sin querer al
+     * corregir el nombre o el grado.
+     */
+    private function sugerirCodigo(CursoService $service): void
+    {
+        if ($this->editandoId || trim($this->nombre) === '' || $this->gradoId === '') {
+            return;
+        }
+
+        $grado = Grado::query()->find($this->gradoId);
+
+        if (! $grado) {
+            return;
+        }
+
+        $this->codigo = $service->generarCodigo($this->nombre, $grado);
+    }
+
     public function guardar(CursoService $service): void
     {
         Gate::authorize('academico.gestionar');
+
+        // El código se recalcula aquí (no solo en los hooks updated*) para
+        // que un envío antes de que el debounce del nombre dispare no deje
+        // el campo vacío: al crear, el código nunca lo escribe la persona.
+        if (! $this->editandoId && $this->gradoId !== '') {
+            $grado = Grado::query()->find($this->gradoId);
+
+            if ($grado) {
+                $this->codigo = $service->generarCodigo($this->nombre, $grado);
+            }
+        }
 
         $this->validate([
             'nombre' => 'required|string|max:100',
@@ -182,14 +223,31 @@ new #[Layout('layouts.app')] class extends Component
                 <form wire:submit="guardar" class="mt-4 space-y-4">
                     <div>
                         <x-input-label for="nombre" value="Nombre" />
-                        <x-text-input wire:model="nombre" id="nombre" class="mt-1 block w-full" />
+                        <x-text-input wire:model.live.debounce.400ms="nombre" id="nombre" class="mt-1 block w-full" />
                         <x-input-error :messages="$errors->get('nombre')" class="mt-1" />
+                    </div>
+
+                    <div>
+                        <x-input-label for="gradoId" value="Grado" />
+                        <x-select-input
+                            wire:model.live="gradoId"
+                            id="gradoId"
+                            class="mt-1 block w-full"
+                            :options="collect($grados)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])"
+                        />
+                        <x-input-error :messages="$errors->get('gradoId')" class="mt-1" />
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <x-input-label for="codigo" value="Código" />
-                            <x-text-input wire:model="codigo" id="codigo" class="mt-1 block w-full uppercase" />
+                            @if ($editandoId)
+                                <x-text-input wire:model="codigo" id="codigo" class="mt-1 block w-full uppercase" />
+                            @else
+                                <div id="codigo" class="mt-1 flex h-[42px] items-center rounded-md border border-border bg-surface-2 px-3 font-mono text-sm text-ink-dim">
+                                    {{ $codigo !== '' ? $codigo : 'Se genera automáticamente' }}
+                                </div>
+                            @endif
                             <x-input-error :messages="$errors->get('codigo')" class="mt-1" />
                         </div>
                         <div>
@@ -197,17 +255,6 @@ new #[Layout('layouts.app')] class extends Component
                             <x-text-input wire:model="horas" id="horas" type="number" min="1" class="mt-1 block w-full" />
                             <x-input-error :messages="$errors->get('horas')" class="mt-1" />
                         </div>
-                    </div>
-
-                    <div>
-                        <x-input-label for="gradoId" value="Grado" />
-                        <x-select-input
-                            wire:model="gradoId"
-                            id="gradoId"
-                            class="mt-1 block w-full"
-                            :options="collect($grados)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])"
-                        />
-                        <x-input-error :messages="$errors->get('gradoId')" class="mt-1" />
                     </div>
 
                     @if ($editandoId)
