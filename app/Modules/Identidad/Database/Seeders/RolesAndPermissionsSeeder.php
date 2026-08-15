@@ -31,7 +31,7 @@ class RolesAndPermissionsSeeder extends Seeder
         RolEnum::COORDINADOR->value => [
             'academico.ver', 'academico.gestionar',
             'matricula.crear', 'matricula.ver', 'matricula.editar', 'matricula.anular',
-            'aula_virtual.ver',
+            'aula_virtual.ver', 'aula_virtual.gestionar_propio',
             'evaluaciones.ver', 'evaluaciones.publicar',
             'asistencia.ver',
             'incidencias.ver', 'incidencias.crear',

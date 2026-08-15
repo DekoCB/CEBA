@@ -13,6 +13,8 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -348,6 +350,55 @@ class AulaVirtualPermisosTest extends TestCase
         $curso = $this->cursoDelDocente($docente);
 
         $this->assertTrue($direccion->can('manage', $curso));
+    }
+
+    public function test_coordinador_puede_gestionar_cualquier_curso(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $curso = $this->cursoDelDocente($docente);
+
+        $this->assertTrue($coordinador->can('manage', $curso));
+    }
+
+    public function test_coordinador_puede_subir_la_imagen_de_portada_del_curso(): void
+    {
+        Storage::fake('public');
+
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $curso = $this->cursoDelDocente($docente);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('aula-virtual.show', ['curso' => $curso])
+            ->set('nuevaPortada', UploadedFile::fake()->image('portada.jpg'))
+            ->assertHasNoErrors();
+
+        $this->assertNotNull($curso->horario->curso->fresh()->getFirstMedia('portada'));
+    }
+
+    public function test_un_docente_no_puede_subir_la_imagen_de_portada(): void
+    {
+        Storage::fake('public');
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $curso = $this->cursoDelDocente($docente);
+
+        $this->actingAs($docente);
+
+        Volt::test('aula-virtual.show', ['curso' => $curso])
+            ->set('nuevaPortada', UploadedFile::fake()->image('portada.jpg'))
+            ->assertStatus(403);
+
+        $this->assertNull($curso->horario->curso->fresh()->getFirstMedia('portada'));
     }
 
     public function test_coordinador_puede_ver_el_listado_de_cursos(): void

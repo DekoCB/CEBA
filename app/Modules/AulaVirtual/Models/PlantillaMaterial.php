@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\AulaVirtual\Models;
 
-use App\Modules\AulaVirtual\Database\Factories\MaterialFactory;
 use App\Modules\AulaVirtual\Enums\TipoMaterialEnum;
 use App\Modules\Identidad\Support\Auditable;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Spatie\MediaLibrary\HasMedia;
@@ -20,15 +18,14 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property int|null $semana
  * @property int $orden
  */
-class Material extends Model implements HasMedia
+class PlantillaMaterial extends Model implements HasMedia
 {
-    /** @use HasFactory<MaterialFactory> */
-    use Auditable, HasFactory, InteractsWithMedia;
+    use Auditable, InteractsWithMedia;
 
-    protected $table = 'materiales';
+    protected $table = 'plantilla_materiales';
 
     protected $fillable = [
-        'curso_virtual_id',
+        'plantilla_id',
         'semana',
         'tipo',
         'titulo',
@@ -43,18 +40,13 @@ class Material extends Model implements HasMedia
         ];
     }
 
-    protected static function newFactory(): MaterialFactory
-    {
-        return MaterialFactory::new();
-    }
-
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection('archivo')->singleFile();
     }
 
-    public function cursoVirtual(): BelongsTo
+    public function plantilla(): BelongsTo
     {
-        return $this->belongsTo(CursoVirtual::class);
+        return $this->belongsTo(PlantillaCursoVirtual::class, 'plantilla_id');
     }
 }

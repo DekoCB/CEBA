@@ -5,16 +5,19 @@ use App\Modules\AulaVirtual\Enums\TipoMaterialEnum;
 use App\Modules\AulaVirtual\Enums\TipoPublicacionEnum;
 use App\Modules\AulaVirtual\Models\CursoVirtual;
 use App\Modules\AulaVirtual\Models\Foro;
+use App\Modules\AulaVirtual\Models\PlantillaCursoVirtual;
 use App\Modules\AulaVirtual\Models\Publicacion;
 use App\Modules\AulaVirtual\Services\ClaseGrabadaService;
 use App\Modules\AulaVirtual\Services\ComentarioService;
 use App\Modules\AulaVirtual\Services\CursoVirtualService;
 use App\Modules\AulaVirtual\Services\ForoService;
 use App\Modules\AulaVirtual\Services\MaterialService;
+use App\Modules\AulaVirtual\Services\PlantillaCursoVirtualService;
 use App\Modules\AulaVirtual\Services\PublicacionService;
 use App\Modules\AulaVirtual\Services\TareaService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Collection as SupportCollection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -94,6 +97,12 @@ new #[Layout('layouts.app')] class extends Component
 
     /** @var array<int, string> */
     public array $nuevaRespuestaForo = [];
+
+    // Imagen de portada del curso (coordinador/dirección)
+    public $nuevaPortada = null;
+
+    // Plantillas de aula virtual
+    public string $nombrePlantilla = '';
 
     public function mount(CursoVirtual $curso): void
     {
@@ -284,6 +293,62 @@ new #[Layout('layouts.app')] class extends Component
         unset($this->nuevaRespuestaForo[$foroId]);
     }
 
+    public function updatedNuevaPortada(): void
+    {
+        $user = Auth::user();
+        abort_unless($user->hasRole('coordinador') || $user->hasRole('direccion'), 403);
+
+        $this->validate(['nuevaPortada' => 'image|max:4096']);
+
+        $cursoAcademico = $this->curso->horario->curso;
+        $cursoAcademico->addMedia($this->nuevaPortada->getRealPath())
+            ->usingFileName('portada-'.$cursoAcademico->id.'.'.$this->nuevaPortada->getClientOriginalExtension())
+            ->toMediaCollection('portada');
+
+        $this->nuevaPortada = null;
+        session()->flash('status', 'Imagen de portada actualizada.');
+    }
+
+    public function guardarPlantilla(PlantillaCursoVirtualService $service): void
+    {
+        Gate::authorize('manage', $this->curso);
+
+        $this->validate(['nombrePlantilla' => 'required|string|max:150']);
+
+        $service->guardarDesdeCursoVirtual($this->curso, $this->nombrePlantilla, Auth::user());
+
+        $this->reset(['nombrePlantilla']);
+        $this->dispatch('close-modal', 'guardar-plantilla');
+        session()->flash('status', 'Plantilla guardada correctamente.');
+    }
+
+    public function aplicarPlantilla(int $plantillaId, PlantillaCursoVirtualService $service): void
+    {
+        Gate::authorize('manage', $this->curso);
+
+        $plantilla = PlantillaCursoVirtual::query()
+            ->where('curso_id', $this->curso->horario->curso_id)
+            ->findOrFail($plantillaId);
+
+        $aplicados = $service->aplicar($plantilla, $this->curso, Auth::user());
+
+        $this->dispatch('close-modal', 'aplicar-plantilla');
+        session()->flash('status', "Plantilla aplicada: {$aplicados} elementos agregados.");
+    }
+
+    public function eliminarPlantilla(int $plantillaId, PlantillaCursoVirtualService $service): void
+    {
+        Gate::authorize('manage', $this->curso);
+
+        $plantilla = PlantillaCursoVirtual::query()
+            ->where('curso_id', $this->curso->horario->curso_id)
+            ->findOrFail($plantillaId);
+
+        $service->eliminar($plantilla);
+
+        session()->flash('status', 'Plantilla eliminada.');
+    }
+
     /**
      * Agrupa por número de semana (clave 0 = "Bienvenida", antes de la
      * Semana 1, para el contenido sin clasificar) y ordena las semanas de
@@ -297,10 +362,13 @@ new #[Layout('layouts.app')] class extends Component
         return $items->groupBy(fn ($item) => $item->semana ?? 0)->sortKeys();
     }
 
-    public function with(CursoVirtualService $cursos): array
+    public function with(CursoVirtualService $cursos, PlantillaCursoVirtualService $plantillas): array
     {
+        $user = Auth::user();
+
         return [
             'puedeGestionar' => Gate::allows('manage', $this->curso),
+            'puedeGestionarPortada' => $user->hasRole('coordinador') || $user->hasRole('direccion'),
             'materialesPorSemana' => $this->agruparPorSemana($this->curso->materiales),
             'clasesGrabadasPorSemana' => $this->agruparPorSemana($this->curso->clasesGrabadas),
             'tareasPorSemana' => $this->agruparPorSemana($this->curso->tareas()->latest('fecha_limite')->get()),
@@ -310,6 +378,7 @@ new #[Layout('layouts.app')] class extends Component
             'tiposClaseGrabada' => TipoClaseGrabadaEnum::cases(),
             'tiposPublicacion' => TipoPublicacionEnum::cases(),
             'misCursosParaMaterial' => $cursos->delDocente($this->curso->horario->docente_id),
+            'plantillasDisponibles' => $plantillas->listarPorCurso($this->curso->horario->curso),
         ];
     }
 }; ?>
@@ -320,6 +389,48 @@ new #[Layout('layouts.app')] class extends Component
         <h1 class="mt-1 font-display text-2xl text-ink">{{ $curso->horario->curso->nombre }}</h1>
         <p class="mt-1 text-sm text-ink-dim">{{ $curso->horario->grado->nombre }} · {{ $curso->horario->ciclo->nombre }} · {{ $curso->horario->docente->name }}</p>
     </x-slot>
+
+    @if (session('status'))
+        <div class="mb-4 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">{{ session('status') }}</div>
+    @endif
+
+    {{-- Portada del curso: antes que nada, incluida la "Bienvenida" de cada pestaña. --}}
+    @if ($curso->horario->curso->getFirstMediaUrl('portada') || $puedeGestionarPortada)
+        <div class="mb-6">
+            @if ($curso->horario->curso->getFirstMediaUrl('portada'))
+                <img src="{{ $curso->horario->curso->getFirstMediaUrl('portada') }}" alt="" class="h-48 w-full rounded-lg object-cover">
+            @else
+                <div class="flex h-32 items-center justify-center rounded-lg border border-dashed border-border bg-surface-2 text-sm text-ink-faint">
+                    Sin imagen de portada
+                </div>
+            @endif
+
+            @if ($puedeGestionarPortada)
+                <div class="mt-2 flex items-center gap-3">
+                    <label class="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:bg-surface-2">
+                        <x-heroicon-o-photo class="h-4 w-4" />
+                        {{ $curso->horario->curso->getFirstMediaUrl('portada') ? 'Cambiar imagen' : 'Subir imagen' }}
+                        <input type="file" wire:model="nuevaPortada" accept="image/*" class="hidden">
+                    </label>
+                    <span wire:loading wire:target="nuevaPortada" class="text-xs text-ink-faint">Subiendo…</span>
+                    <x-input-error :messages="$errors->get('nuevaPortada')" class="text-xs" />
+                </div>
+            @endif
+        </div>
+    @endif
+
+    @can('manage', $curso)
+        <div class="mb-4 flex flex-wrap items-center justify-end gap-3">
+            @if ($plantillasDisponibles->isNotEmpty())
+                <x-secondary-button type="button" x-data x-on:click="$dispatch('open-modal', 'aplicar-plantilla')">
+                    Aplicar plantilla
+                </x-secondary-button>
+            @endif
+            <x-secondary-button type="button" x-data x-on:click="$dispatch('open-modal', 'guardar-plantilla')">
+                Guardar como plantilla
+            </x-secondary-button>
+        </div>
+    @endcan
 
     <div class="mb-6 flex gap-1 border-b border-border">
         @foreach (['materiales' => 'Materiales', 'clases-grabadas' => 'Clases grabadas', 'tareas' => 'Tareas', 'publicaciones' => 'Publicaciones', 'foros' => 'Foros'] as $valor => $etiqueta)
@@ -763,4 +874,58 @@ new #[Layout('layouts.app')] class extends Component
             </div>
         </div>
     @endif
+
+    @can('manage', $curso)
+        <x-modal name="guardar-plantilla" focusable>
+            <div class="p-6">
+                <h2 class="font-display text-lg text-ink">Guardar como plantilla</h2>
+                <p class="mt-1 text-sm text-ink-dim">
+                    Se guardará una copia de los materiales, clases grabadas, tareas y foros actuales (con sus archivos) para reutilizarlos en otro ciclo de este curso.
+                </p>
+                <form wire:submit="guardarPlantilla" class="mt-4 space-y-3">
+                    <div>
+                        <x-input-label for="nombrePlantilla" value="Nombre de la plantilla" />
+                        <x-text-input wire:model="nombrePlantilla" id="nombrePlantilla" class="mt-1 block w-full" placeholder="Ej. Plantilla estándar" />
+                        <x-input-error :messages="$errors->get('nombrePlantilla')" class="mt-1" />
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <x-secondary-button type="button" x-on:click="$dispatch('close')">Cancelar</x-secondary-button>
+                        <x-primary-button type="submit">Guardar plantilla</x-primary-button>
+                    </div>
+                </form>
+            </div>
+        </x-modal>
+
+        <x-modal name="aplicar-plantilla" focusable max-width="lg">
+            <div class="p-6">
+                <h2 class="font-display text-lg text-ink">Aplicar plantilla</h2>
+                <p class="mt-1 text-sm text-ink-dim">
+                    Se agrega el contenido de la plantilla elegida a este curso; no se borra lo que ya existe. La fecha límite de las tareas se recalcula según el inicio de este ciclo.
+                </p>
+                <div class="mt-4 max-h-80 divide-y divide-border overflow-y-auto rounded-lg border border-border">
+                    @forelse ($plantillasDisponibles as $plantilla)
+                        <div class="flex items-center justify-between px-4 py-3 text-sm">
+                            <div>
+                                <p class="text-ink">{{ $plantilla->nombre }}</p>
+                                <p class="text-xs text-ink-faint">{{ $plantilla->creador?->name ?? 'Usuario eliminado' }} · {{ $plantilla->created_at->format('d/m/Y') }}</p>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <button type="button" wire:click="aplicarPlantilla({{ $plantilla->id }})" wire:confirm="¿Aplicar «{{ $plantilla->nombre }}» a este curso?" class="text-xs font-medium text-accent hover:underline">
+                                    Aplicar
+                                </button>
+                                <button type="button" wire:click="eliminarPlantilla({{ $plantilla->id }})" wire:confirm="¿Eliminar la plantilla «{{ $plantilla->nombre }}»?" class="text-xs font-medium text-danger hover:underline">
+                                    Eliminar
+                                </button>
+                            </div>
+                        </div>
+                    @empty
+                        <p class="px-4 py-8 text-center text-sm text-ink-faint">Todavía no hay plantillas guardadas para este curso.</p>
+                    @endforelse
+                </div>
+                <div class="mt-4 flex justify-end">
+                    <x-secondary-button type="button" x-on:click="$dispatch('close')">Cerrar</x-secondary-button>
+                </div>
+            </div>
+        </x-modal>
+    @endcan
 </div>

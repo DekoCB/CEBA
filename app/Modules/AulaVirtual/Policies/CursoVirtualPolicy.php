@@ -28,13 +28,13 @@ class CursoVirtualPolicy
     }
 
     /**
-     * Solo el docente dueño del curso puede administrar su contenido
-     * (materiales, tareas, publicaciones, foros); Dirección puede
-     * intervenir como excepción administrativa.
+     * El docente dueño del curso administra su contenido (materiales,
+     * tareas, publicaciones, foros); Dirección y Coordinador pueden
+     * intervenir en cualquier curso, dada su supervisión curricular.
      */
     public function manage(User $user, CursoVirtual $curso): bool
     {
-        if ($user->hasRole('direccion')) {
+        if ($user->hasRole('direccion') || $user->hasRole('coordinador')) {
             return true;
         }
 
