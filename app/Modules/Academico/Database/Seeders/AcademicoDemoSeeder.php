@@ -80,15 +80,17 @@ class AcademicoDemoSeeder extends Seeder
         $docente = User::query()->where('email', 'docente@ceba.test')->first();
 
         if ($docente) {
-            Horario::query()->create([
+            $horario = Horario::query()->create([
                 'curso_id' => $cursoComunicacion->id,
                 'docente_id' => $docente->id,
                 'aula_id' => $aulas[0]->id,
                 'ciclo_id' => $ciclo->id,
                 'grado_id' => $grados[0]->id,
-                'dia_semana' => DiaSemanaEnum::LUN_MIE,
-                'hora_inicio' => '18:00:00',
-                'hora_fin' => '20:00:00',
+            ]);
+
+            $horario->dias()->createMany([
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+                ['dia_semana' => DiaSemanaEnum::MIERCOLES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
             ]);
         }
     }

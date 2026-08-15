@@ -83,7 +83,7 @@ new #[Layout('layouts.app')] class extends Component
                     @if ($rol !== 'docente')
                         {{ $horario->docente->name }} ·
                     @endif
-                    {{ $horario->dia_semana->label() }} {{ substr($horario->hora_inicio, 0, 5) }}–{{ substr($horario->hora_fin, 0, 5) }}
+                    {{ $horario->diasResumen() }}
                 </p>
             </a>
         @empty

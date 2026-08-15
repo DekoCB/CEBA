@@ -6,7 +6,6 @@ use App\Modules\Reportes\Services\ReporteService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 use Maatwebsite\Excel\Excel as ExcelFormat;
@@ -137,7 +136,7 @@ new #[Layout('layouts.app')] class extends Component
         }
 
         return Horario::query()
-            ->with(['curso', 'grado', 'docente'])
+            ->with(['curso', 'grado', 'docente', 'dias'])
             ->when(
                 $this->tipo === 'propio',
                 fn ($query) => $query->where('docente_id', Auth::id()),
@@ -146,12 +145,10 @@ new #[Layout('layouts.app')] class extends Component
             ->map(fn (Horario $horario) => [
                 'value' => $horario->id,
                 'label' => trim(sprintf(
-                    '%s · %s · %s %s–%s%s',
+                    '%s · %s · %s%s',
                     $horario->curso->nombre,
                     $horario->grado->nombre,
-                    $horario->dia_semana->label(),
-                    Str::substr((string) $horario->hora_inicio, 0, 5),
-                    Str::substr((string) $horario->hora_fin, 0, 5),
+                    $horario->diasResumen(),
                     $this->tipo === 'propio' ? '' : " · {$horario->docente->name}",
                 )),
             ])

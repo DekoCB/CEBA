@@ -124,7 +124,7 @@ new class extends Component
         return Horario::query()
             ->where('ciclo_id', (int) $this->cicloId)
             ->where('grado_id', (int) $this->gradoId)
-            ->with(['docente', 'aula'])
+            ->with(['docente', 'aula', 'dias'])
             ->get();
     }
 
@@ -614,7 +614,7 @@ new class extends Component
                             wire:model="horarioId"
                             id="horarioId"
                             class="mt-1 block w-full"
-                            :options="collect($this->horariosDelGrado)->mapWithKeys(fn ($horario) => [$horario->id => trim(($horario->seccion ? 'Sección '.$horario->seccion.' · ' : '').$horario->dia_semana->label().' '.substr($horario->hora_inicio, 0, 5).'–'.substr($horario->hora_fin, 0, 5).' · '.$horario->docente->name)])"
+                            :options="collect($this->horariosDelGrado)->mapWithKeys(fn ($horario) => [$horario->id => trim(($horario->seccion ? 'Sección '.$horario->seccion.' · ' : '').$horario->diasResumen().' · '.$horario->docente->name)])"
                         />
                         <p class="mt-1 text-xs text-ink-faint">Este grado tiene más de una sección en el ciclo elegido: selecciona a cuál se matricula el estudiante.</p>
                         <x-input-error :messages="$errors->get('horarioId')" class="mt-1" />

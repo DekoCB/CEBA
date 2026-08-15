@@ -28,9 +28,22 @@ class HorarioFactory extends Factory
             'aula_id' => Aula::factory(),
             'ciclo_id' => Ciclo::factory(),
             'grado_id' => Grado::factory(),
-            'dia_semana' => $this->faker->randomElement(DiaSemanaEnum::cases()),
-            'hora_inicio' => '18:00:00',
-            'hora_fin' => '20:00:00',
         ];
+    }
+
+    /**
+     * Un día por defecto (con horario 18:00–20:00) para que $horario->dias
+     * nunca quede vacío en pruebas que no les importa qué día específico
+     * es, solo que el horario exista.
+     */
+    public function configure(): static
+    {
+        return $this->afterCreating(function (Horario $horario) {
+            $horario->dias()->create([
+                'dia_semana' => $this->faker->randomElement(DiaSemanaEnum::cases()),
+                'hora_inicio' => '18:00:00',
+                'hora_fin' => '20:00:00',
+            ]);
+        });
     }
 }

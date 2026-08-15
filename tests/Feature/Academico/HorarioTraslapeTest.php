@@ -30,9 +30,10 @@ class HorarioTraslapeTest extends TestCase
             'aula_id' => Aula::factory()->create()->id,
             'ciclo_id' => Ciclo::factory()->create()->id,
             'grado_id' => Grado::factory()->create()->id,
-            'dia_semana' => DiaSemanaEnum::LUN_MIE,
-            'hora_inicio' => '18:00:00',
-            'hora_fin' => '20:00:00',
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+                ['dia_semana' => DiaSemanaEnum::MIERCOLES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+            ],
         ];
     }
 
@@ -47,9 +48,32 @@ class HorarioTraslapeTest extends TestCase
             ...$base,
             'curso_id' => Curso::factory()->create()->id,
             'docente_id' => User::factory()->create()->id,
-            'hora_inicio' => '19:00:00',
-            'hora_fin' => '21:00:00',
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '19:00:00', 'hora_fin' => '21:00:00'],
+            ],
         ]);
+    }
+
+    public function test_el_error_de_cruce_de_aula_va_bajo_la_clave_dias_y_sin_segundos(): void
+    {
+        $base = $this->datosBase();
+        $this->service()->crear($base);
+
+        try {
+            $this->service()->crear([
+                ...$base,
+                'curso_id' => Curso::factory()->create()->id,
+                'docente_id' => User::factory()->create()->id,
+                'dias' => [
+                    ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '19:00:00', 'hora_fin' => '21:00:00'],
+                ],
+            ]);
+            $this->fail('Se esperaba una ValidationException.');
+        } catch (ValidationException $e) {
+            $mensaje = $e->errors()['dias'][0];
+            $this->assertStringContainsString('18:00–20:00', $mensaje);
+            $this->assertStringNotContainsString('18:00:00', $mensaje);
+        }
     }
 
     public function test_no_permite_al_mismo_docente_en_dos_aulas_a_la_misma_hora(): void
@@ -63,8 +87,9 @@ class HorarioTraslapeTest extends TestCase
             ...$base,
             'curso_id' => Curso::factory()->create()->id,
             'aula_id' => Aula::factory()->create()->id,
-            'hora_inicio' => '19:30:00',
-            'hora_fin' => '21:00:00',
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '19:30:00', 'hora_fin' => '21:00:00'],
+            ],
         ]);
     }
 
@@ -77,10 +102,32 @@ class HorarioTraslapeTest extends TestCase
             ...$base,
             'curso_id' => Curso::factory()->create()->id,
             'docente_id' => User::factory()->create()->id,
-            'dia_semana' => DiaSemanaEnum::MAR_JUE,
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::MARTES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+                ['dia_semana' => DiaSemanaEnum::JUEVES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+            ],
         ]);
 
         $this->assertDatabaseHas('horarios', ['id' => $horario->id]);
+    }
+
+    public function test_un_horario_con_varios_dias_no_puede_cruzarse_en_solo_uno_de_ellos(): void
+    {
+        $base = $this->datosBase();
+        $this->service()->crear($base);
+
+        $this->expectException(ValidationException::class);
+
+        // El lunes se cruza con $base (misma aula), aunque el martes esté libre.
+        $this->service()->crear([
+            ...$base,
+            'curso_id' => Curso::factory()->create()->id,
+            'docente_id' => User::factory()->create()->id,
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::MARTES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+            ],
+        ]);
     }
 
     public function test_permite_horarios_consecutivos_sin_cruce_real(): void
@@ -92,8 +139,10 @@ class HorarioTraslapeTest extends TestCase
             ...$base,
             'curso_id' => Curso::factory()->create()->id,
             'docente_id' => User::factory()->create()->id,
-            'hora_inicio' => '20:00:00',
-            'hora_fin' => '22:00:00',
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '20:00:00', 'hora_fin' => '22:00:00'],
+                ['dia_semana' => DiaSemanaEnum::MIERCOLES, 'hora_inicio' => '20:00:00', 'hora_fin' => '22:00:00'],
+            ],
         ]);
 
         $this->assertDatabaseHas('horarios', ['id' => $horario->id]);
@@ -109,7 +158,10 @@ class HorarioTraslapeTest extends TestCase
             'curso_id' => Curso::factory()->create()->id,
             'docente_id' => User::factory()->create()->id,
             'aula_id' => Aula::factory()->create()->id,
-            'dia_semana' => DiaSemanaEnum::MAR_JUE,
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::MARTES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+                ['dia_semana' => DiaSemanaEnum::JUEVES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+            ],
             'seccion' => 'B',
         ]);
 
@@ -123,8 +175,45 @@ class HorarioTraslapeTest extends TestCase
 
         $this->service()->crear([
             ...$this->datosBase(),
-            'hora_inicio' => '18:00:00',
-            'hora_fin' => '18:00:00',
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '18:00:00'],
+            ],
         ]);
+    }
+
+    public function test_rechaza_crear_un_horario_sin_ningun_dia(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $this->service()->crear([
+            ...$this->datosBase(),
+            'dias' => [],
+        ]);
+    }
+
+    public function test_crear_un_horario_activa_su_aula_virtual_automaticamente(): void
+    {
+        $horario = $this->service()->crear($this->datosBase());
+
+        $this->assertDatabaseHas('aula_virtual_cursos', ['horario_id' => $horario->id]);
+    }
+
+    public function test_actualizar_reemplaza_los_dias_del_horario(): void
+    {
+        $horario = $this->service()->crear($this->datosBase());
+
+        $actualizado = $this->service()->actualizar($horario, [
+            'curso_id' => $horario->curso_id,
+            'docente_id' => $horario->docente_id,
+            'aula_id' => $horario->aula_id,
+            'ciclo_id' => $horario->ciclo_id,
+            'grado_id' => $horario->grado_id,
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::VIERNES, 'hora_inicio' => '16:00:00', 'hora_fin' => '18:00:00'],
+            ],
+        ]);
+
+        $this->assertCount(1, $actualizado->dias);
+        $this->assertSame(DiaSemanaEnum::VIERNES, $actualizado->dias->first()->dia_semana);
     }
 }

@@ -200,10 +200,12 @@ class DemoRobustoSeeder extends Seeder
         $ocupacionAula = [];
         $ocupacionDocente = [];
 
-        foreach (Horario::query()->where('ciclo_id', $ciclo->id)->get() as $existente) {
-            $bloqueIdx = $existente->hora_inicio === '18:00:00' ? 0 : 1;
-            $ocupacionAula["{$existente->aula_id}|{$existente->dia_semana->value}|{$bloqueIdx}"] = true;
-            $ocupacionDocente["{$existente->docente_id}|{$existente->dia_semana->value}|{$bloqueIdx}"] = true;
+        foreach (Horario::query()->where('ciclo_id', $ciclo->id)->with('dias')->get() as $existente) {
+            foreach ($existente->dias as $diaExistente) {
+                $bloqueIdx = $diaExistente->hora_inicio === '18:00:00' ? 0 : 1;
+                $ocupacionAula["{$existente->aula_id}|{$diaExistente->dia_semana->value}|{$bloqueIdx}"] = true;
+                $ocupacionDocente["{$existente->docente_id}|{$diaExistente->dia_semana->value}|{$bloqueIdx}"] = true;
+            }
         }
 
         $cursosSinHorario = Curso::query()
@@ -241,12 +243,15 @@ class DemoRobustoSeeder extends Seeder
                             continue;
                         }
 
-                        Horario::query()->create([
+                        $horario = Horario::query()->create([
                             'curso_id' => $curso->id,
                             'docente_id' => $docente->id,
                             'aula_id' => $aula->id,
                             'ciclo_id' => $ciclo->id,
                             'grado_id' => $curso->grado_id,
+                        ]);
+
+                        $horario->dias()->create([
                             'dia_semana' => $dia,
                             'hora_inicio' => $bloque[0],
                             'hora_fin' => $bloque[1],

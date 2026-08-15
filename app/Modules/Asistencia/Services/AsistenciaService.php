@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Asistencia\Services;
 
-use App\Modules\Academico\Enums\DiaSemanaEnum;
 use App\Modules\Academico\Models\Horario;
+use App\Modules\Academico\Models\HorarioDia;
 use App\Modules\Asistencia\Enums\EstadoAsistenciaEnum;
 use App\Modules\Asistencia\Models\Asistencia;
 use App\Modules\Matricula\Models\Estudiante;
@@ -28,29 +28,13 @@ class AsistenciaService
     private const MINUTOS_DE_TOLERANCIA = 15;
 
     /**
-     * Días de la semana (0 = domingo, según Carbon::dayOfWeek) en que cae
-     * cada franja horaria. lun_mie y mar_jue dictan clase dos veces por
-     * semana, no una sola.
-     *
-     * @return list<int>
-     */
-    private function diasDeLaFranja(DiaSemanaEnum $franja): array
-    {
-        return match ($franja) {
-            DiaSemanaEnum::DOMINGO => [0],
-            DiaSemanaEnum::LUN_MIE => [1, 3],
-            DiaSemanaEnum::MAR_JUE => [2, 4],
-        };
-    }
-
-    /**
      * @return Collection<int, Horario>
      */
     public function horariosDelDocente(int $docenteId): Collection
     {
         return Horario::query()
             ->where('docente_id', $docenteId)
-            ->with(['curso', 'grado', 'ciclo'])
+            ->with(['curso', 'grado', 'ciclo', 'dias'])
             ->get();
     }
 
@@ -75,7 +59,7 @@ class AsistenciaService
                     });
                 }
             })
-            ->with(['curso', 'grado', 'ciclo', 'docente'])
+            ->with(['curso', 'grado', 'ciclo', 'docente', 'dias'])
             ->get();
     }
 
@@ -84,7 +68,7 @@ class AsistenciaService
      */
     public function todos(): Collection
     {
-        return Horario::query()->with(['curso', 'grado', 'ciclo', 'docente'])->get();
+        return Horario::query()->with(['curso', 'grado', 'ciclo', 'docente', 'dias'])->get();
     }
 
     /**
@@ -136,7 +120,7 @@ class AsistenciaService
      */
     public function fechasDeClase(Horario $horario, int $cantidad = 8): SupportCollection
     {
-        $diasValidos = $this->diasDeLaFranja($horario->dia_semana);
+        $diasValidos = $horario->dias->map(fn (HorarioDia $dia) => $dia->dia_semana->numeroCarbon())->all();
 
         $cursor = now()->min($horario->ciclo->fecha_fin)->copy()->startOfDay();
         $inicio = $horario->ciclo->fecha_inicio->copy()->startOfDay();
@@ -231,13 +215,15 @@ class AsistenciaService
         $ahora = now();
 
         foreach ($this->horariosDelEstudiante($estudiante) as $horario) {
-            if (! in_array($ahora->dayOfWeek, $this->diasDeLaFranja($horario->dia_semana), true)) {
+            $diaDeHoy = $horario->diaParaFecha($ahora);
+
+            if (! $diaDeHoy) {
                 continue;
             }
 
-            $inicio = Carbon::parse($ahora->format('Y-m-d').' '.$horario->hora_inicio)
+            $inicio = Carbon::parse($ahora->format('Y-m-d').' '.$diaDeHoy->hora_inicio)
                 ->subMinutes(self::MINUTOS_ANTES_PARA_INGRESAR);
-            $fin = Carbon::parse($ahora->format('Y-m-d').' '.$horario->hora_fin);
+            $fin = Carbon::parse($ahora->format('Y-m-d').' '.$diaDeHoy->hora_fin);
 
             if ($ahora->between($inicio, $fin)) {
                 return $horario;
@@ -267,8 +253,11 @@ class AsistenciaService
             return $existente;
         }
 
+        $diaDeHoy = $horario->diaParaFecha(now());
+        $horaInicio = $diaDeHoy->hora_inicio ?? '00:00:00';
+
         $llegoTarde = now()->greaterThan(
-            Carbon::parse($fecha.' '.$horario->hora_inicio)->addMinutes(self::MINUTOS_DE_TOLERANCIA)
+            Carbon::parse($fecha.' '.$horaInicio)->addMinutes(self::MINUTOS_DE_TOLERANCIA)
         );
 
         return Asistencia::query()->create([

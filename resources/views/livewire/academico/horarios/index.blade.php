@@ -29,11 +29,14 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $seccion = '';
 
-    public string $diaSemana = '';
+    /** @var array<int, string> */
+    public array $diasSeleccionados = [];
 
-    public string $horaInicio = '';
+    /** @var array<string, string> */
+    public array $horaInicioPorDia = [];
 
-    public string $horaFin = '';
+    /** @var array<string, string> */
+    public array $horaFinPorDia = [];
 
     public function mount(): void
     {
@@ -48,7 +51,7 @@ new #[Layout('layouts.app')] class extends Component
         Gate::authorize('academico.gestionar');
 
         $this->resetValidation();
-        $this->reset(['cursoId', 'docenteId', 'aulaId', 'gradoId', 'seccion', 'diaSemana', 'horaInicio', 'horaFin']);
+        $this->reset(['cursoId', 'docenteId', 'aulaId', 'gradoId', 'seccion', 'diasSeleccionados', 'horaInicioPorDia', 'horaFinPorDia']);
         $this->cicloId = $this->cicloFiltro;
         $this->mostrarModal = true;
     }
@@ -64,10 +67,28 @@ new #[Layout('layouts.app')] class extends Component
             'cicloId' => 'required|integer|exists:ciclos,id',
             'gradoId' => 'required|integer|exists:grados,id',
             'seccion' => 'nullable|string|max:10',
-            'diaSemana' => 'required|string|in:'.implode(',', array_column(DiaSemanaEnum::cases(), 'value')),
-            'horaInicio' => 'required|date_format:H:i',
-            'horaFin' => 'required|date_format:H:i',
+            'diasSeleccionados' => 'required|array|min:1',
+            'diasSeleccionados.*' => 'string|in:'.implode(',', array_column(DiaSemanaEnum::cases(), 'value')),
         ]);
+
+        $dias = [];
+
+        foreach ($this->diasSeleccionados as $diaValor) {
+            $horaInicio = $this->horaInicioPorDia[$diaValor] ?? '';
+            $horaFin = $this->horaFinPorDia[$diaValor] ?? '';
+
+            if ($horaInicio === '' || $horaFin === '') {
+                $this->addError('diasSeleccionados', 'Completa la hora de inicio y fin de cada día elegido.');
+
+                return;
+            }
+
+            $dias[] = [
+                'dia_semana' => DiaSemanaEnum::from($diaValor),
+                'hora_inicio' => $horaInicio.':00',
+                'hora_fin' => $horaFin.':00',
+            ];
+        }
 
         $service->crear([
             'curso_id' => (int) $this->cursoId,
@@ -76,9 +97,7 @@ new #[Layout('layouts.app')] class extends Component
             'ciclo_id' => (int) $this->cicloId,
             'grado_id' => (int) $this->gradoId,
             'seccion' => $this->seccion ?: null,
-            'dia_semana' => DiaSemanaEnum::from($this->diaSemana),
-            'hora_inicio' => $this->horaInicio.':00',
-            'hora_fin' => $this->horaFin.':00',
+            'dias' => $dias,
         ]);
 
         $this->mostrarModal = false;
@@ -94,7 +113,7 @@ new #[Layout('layouts.app')] class extends Component
             'docentes' => User::role('docente')->orderBy('name')->get(),
             'aulas' => Aula::query()->where('activa', true)->orderBy('nombre')->get(),
             'grados' => Grado::query()->where('activo', true)->orderBy('nombre')->get(),
-            'dias' => DiaSemanaEnum::cases(),
+            'dias' => DiaSemanaEnum::ordenSemana(),
         ];
     }
 }; ?>
@@ -137,8 +156,7 @@ new #[Layout('layouts.app')] class extends Component
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Aula</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Grado</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Sección</th>
-                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Día</th>
-                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Horario</th>
+                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Días y horario</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-border">
@@ -149,11 +167,10 @@ new #[Layout('layouts.app')] class extends Component
                         <td class="px-4 py-3 text-ink-dim">{{ $horario->aula->nombre }}</td>
                         <td class="px-4 py-3 text-ink-dim">{{ $horario->grado->nombre }}</td>
                         <td class="px-4 py-3 text-ink-dim">{{ $horario->seccion ?? '—' }}</td>
-                        <td class="px-4 py-3 text-ink-dim">{{ $horario->dia_semana->label() }}</td>
-                        <td class="px-4 py-3 font-mono text-ink-dim">{{ substr($horario->hora_inicio, 0, 5) }}–{{ substr($horario->hora_fin, 0, 5) }}</td>
+                        <td class="px-4 py-3 font-mono text-ink-dim">{{ $horario->diasResumen() }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="px-4 py-8 text-center text-sm text-ink-faint">{{ $cicloFiltro ? 'Este ciclo no tiene horarios todavía.' : 'Selecciona un ciclo para ver sus horarios.' }}</td></tr>
+                    <tr><td colspan="6" class="px-4 py-8 text-center text-sm text-ink-faint">{{ $cicloFiltro ? 'Este ciclo no tiene horarios todavía.' : 'Selecciona un ciclo para ver sus horarios.' }}</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -173,7 +190,7 @@ new #[Layout('layouts.app')] class extends Component
     >
         <div
             x-show="$wire.mostrarModal"
-            class="w-full max-w-lg rounded-lg border border-border bg-surface p-6 shadow-lg"
+            class="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-lg border border-border bg-surface p-6 shadow-lg"
             x-transition:enter="ease-out duration-300"
             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
@@ -248,27 +265,43 @@ new #[Layout('layouts.app')] class extends Component
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-3 gap-4">
-                        <div>
-                            <x-input-label for="diaSemana" value="Día" />
-                            <x-select-input
-                                wire:model="diaSemana"
-                                id="diaSemana"
-                                class="mt-1 block w-full"
-                                :options="collect($dias)->mapWithKeys(fn ($dia) => [$dia->value => $dia->label()])"
-                            />
-                            <x-input-error :messages="$errors->get('diaSemana')" class="mt-1" />
+                    <div>
+                        <x-input-label value="Días de clase" />
+                        <p class="mt-1 text-xs text-ink-faint">Elige los días en que se dicta esta clase; cada uno puede tener su propio horario.</p>
+
+                        <div class="mt-2 space-y-2">
+                            @foreach ($dias as $dia)
+                                <div class="rounded-md border border-border p-3">
+                                    <label class="flex items-center gap-2 text-sm text-ink">
+                                        <input
+                                            type="checkbox"
+                                            value="{{ $dia->value }}"
+                                            wire:model.live="diasSeleccionados"
+                                            class="rounded border-border text-accent focus:ring-accent"
+                                        >
+                                        {{ $dia->label() }}
+                                    </label>
+
+                                    @if (in_array($dia->value, $diasSeleccionados))
+                                        <div class="mt-2 grid grid-cols-2 gap-3 pl-6">
+                                            <div>
+                                                <x-input-label :for="'horaInicio-'.$dia->value" value="Hora inicio" />
+                                                <x-text-input wire:model="horaInicioPorDia.{{ $dia->value }}" :id="'horaInicio-'.$dia->value" type="time" class="mt-1 block w-full" />
+                                            </div>
+                                            <div>
+                                                <x-input-label :for="'horaFin-'.$dia->value" value="Hora fin" />
+                                                <x-text-input wire:model="horaFinPorDia.{{ $dia->value }}" :id="'horaFin-'.$dia->value" type="time" class="mt-1 block w-full" />
+                                            </div>
+                                        </div>
+                                    @endif
+                                </div>
+                            @endforeach
                         </div>
-                        <div>
-                            <x-input-label for="horaInicio" value="Hora inicio" />
-                            <x-text-input wire:model="horaInicio" id="horaInicio" type="time" class="mt-1 block w-full" />
-                            <x-input-error :messages="$errors->get('horaInicio')" class="mt-1" />
-                        </div>
-                        <div>
-                            <x-input-label for="horaFin" value="Hora fin" />
-                            <x-text-input wire:model="horaFin" id="horaFin" type="time" class="mt-1 block w-full" />
-                            <x-input-error :messages="$errors->get('horaFin')" class="mt-1" />
-                        </div>
+
+                        <x-input-error :messages="$errors->get('diasSeleccionados')" class="mt-1" />
+                        <x-input-error :messages="$errors->get('diasSeleccionados.*')" class="mt-1" />
+                        {{-- Los choques de aula/docente los valida HorarioService::crear(), que lanza sus errores bajo la clave "dias". --}}
+                        <x-input-error :messages="$errors->get('dias')" class="mt-1" />
                     </div>
 
                     <div class="flex justify-end gap-3 pt-2">

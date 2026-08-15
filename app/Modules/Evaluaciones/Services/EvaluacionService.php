@@ -54,7 +54,7 @@ class EvaluacionService
     {
         return Horario::query()
             ->where('docente_id', $docenteId)
-            ->with(['curso', 'grado', 'ciclo'])
+            ->with(['curso', 'grado', 'ciclo', 'dias'])
             ->get();
     }
 
@@ -87,7 +87,7 @@ class EvaluacionService
                     });
                 }
             })
-            ->with(['curso', 'grado', 'ciclo', 'docente'])
+            ->with(['curso', 'grado', 'ciclo', 'docente', 'dias'])
             ->get();
     }
 
@@ -96,7 +96,7 @@ class EvaluacionService
      */
     public function todos(): Collection
     {
-        return Horario::query()->with(['curso', 'grado', 'ciclo', 'docente'])->get();
+        return Horario::query()->with(['curso', 'grado', 'ciclo', 'docente', 'dias'])->get();
     }
 
     public function crear(Horario $horario, string $nombre, string $fecha, ?string $enlaceExterno = null, ?string $disponibleHasta = null, ?int $semana = null): Evaluacion

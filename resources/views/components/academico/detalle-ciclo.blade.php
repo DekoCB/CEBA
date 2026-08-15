@@ -55,7 +55,7 @@
             @forelse ($horarios as $horario)
                 <div class="py-3 text-sm">
                     <p class="text-ink">{{ $horario->curso->nombre }} · {{ $horario->grado->nombre }}</p>
-                    <p class="text-ink-faint">{{ $horario->docente->name }} · {{ $horario->aula->nombre }} · {{ $horario->dia_semana->label() }} {{ substr($horario->hora_inicio, 0, 5) }}–{{ substr($horario->hora_fin, 0, 5) }}</p>
+                    <p class="text-ink-faint">{{ $horario->docente->name }} · {{ $horario->aula->nombre }} · {{ $horario->diasResumen() }}</p>
                 </div>
             @empty
                 <p class="py-4 text-sm text-ink-faint">Todavía no hay horarios asignados a este ciclo.</p>

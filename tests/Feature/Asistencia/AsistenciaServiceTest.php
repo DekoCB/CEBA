@@ -25,6 +25,26 @@ class AsistenciaServiceTest extends TestCase
         return $this->app->make(AsistenciaService::class);
     }
 
+    /**
+     * @param  array<string, mixed>  $atributosHorario
+     * @param  list<DiaSemanaEnum>  $dias
+     */
+    private function horarioConDias(array $atributosHorario, array $dias, string $horaInicio = '18:00:00', string $horaFin = '20:00:00'): Horario
+    {
+        $horario = Horario::factory()->create($atributosHorario);
+        $horario->dias()->delete();
+
+        foreach ($dias as $dia) {
+            $horario->dias()->create([
+                'dia_semana' => $dia,
+                'hora_inicio' => $horaInicio,
+                'hora_fin' => $horaFin,
+            ]);
+        }
+
+        return $horario->fresh(['dias']);
+    }
+
     public function test_estudiantes_del_horario_solo_incluye_matriculados_aprobados(): void
     {
         $horario = Horario::factory()->create();
@@ -200,16 +220,13 @@ class AsistenciaServiceTest extends TestCase
         $this->assertSame(['2026-09-03', '2026-09-01'], $fechas->all());
     }
 
-    public function test_fechas_de_clase_solo_devuelve_domingos_para_una_franja_de_domingo(): void
+    public function test_fechas_de_clase_solo_devuelve_domingos_cuando_el_horario_es_solo_domingo(): void
     {
         $ciclo = Ciclo::factory()->create([
             'fecha_inicio' => now()->subMonths(2)->format('Y-m-d'),
             'fecha_fin' => now()->addMonths(2)->format('Y-m-d'),
         ]);
-        $horario = Horario::factory()->create([
-            'ciclo_id' => $ciclo->id,
-            'dia_semana' => DiaSemanaEnum::DOMINGO,
-        ]);
+        $horario = $this->horarioConDias(['ciclo_id' => $ciclo->id], [DiaSemanaEnum::DOMINGO]);
 
         $fechas = $this->service()->fechasDeClase($horario, 4);
 
@@ -220,16 +237,13 @@ class AsistenciaServiceTest extends TestCase
         $this->assertSame($fechas->all(), $fechas->sortDesc()->values()->all());
     }
 
-    public function test_fechas_de_clase_respeta_los_dos_dias_de_una_franja_lun_mie(): void
+    public function test_fechas_de_clase_respeta_los_dos_dias_cuando_el_horario_tiene_dos_dias(): void
     {
         $ciclo = Ciclo::factory()->create([
             'fecha_inicio' => now()->subMonths(2)->format('Y-m-d'),
             'fecha_fin' => now()->addMonths(2)->format('Y-m-d'),
         ]);
-        $horario = Horario::factory()->create([
-            'ciclo_id' => $ciclo->id,
-            'dia_semana' => DiaSemanaEnum::LUN_MIE,
-        ]);
+        $horario = $this->horarioConDias(['ciclo_id' => $ciclo->id], [DiaSemanaEnum::LUNES, DiaSemanaEnum::MIERCOLES]);
 
         $fechas = $this->service()->fechasDeClase($horario, 6);
 
@@ -245,10 +259,7 @@ class AsistenciaServiceTest extends TestCase
             'fecha_inicio' => now()->subMonths(6)->format('Y-m-d'),
             'fecha_fin' => now()->subMonths(3)->format('Y-m-d'),
         ]);
-        $horario = Horario::factory()->create([
-            'ciclo_id' => $ciclo->id,
-            'dia_semana' => DiaSemanaEnum::DOMINGO,
-        ]);
+        $horario = $this->horarioConDias(['ciclo_id' => $ciclo->id], [DiaSemanaEnum::DOMINGO]);
 
         $fechas = $this->service()->fechasDeClase($horario, 8);
 
@@ -269,12 +280,7 @@ class AsistenciaServiceTest extends TestCase
             'fecha_inicio' => $domingo->copy()->subMonth()->format('Y-m-d'),
             'fecha_fin' => $domingo->copy()->addMonth()->format('Y-m-d'),
         ]);
-        $horario = Horario::factory()->create([
-            'ciclo_id' => $ciclo->id,
-            'dia_semana' => DiaSemanaEnum::DOMINGO,
-            'hora_inicio' => '18:00:00',
-            'hora_fin' => '20:00:00',
-        ]);
+        $horario = $this->horarioConDias(['ciclo_id' => $ciclo->id], [DiaSemanaEnum::DOMINGO]);
 
         $estudiante = Estudiante::factory()->create();
         Matricula::factory()->create([

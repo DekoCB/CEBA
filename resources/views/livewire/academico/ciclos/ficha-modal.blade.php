@@ -54,7 +54,7 @@ new class extends Component
         return [
             'ciclo' => $ciclo,
             'periodos' => $ciclo?->periodosMatricula()->latest('fecha_inicio')->get(),
-            'horarios' => $ciclo?->horarios()->with(['curso', 'docente', 'aula', 'grado'])->get(),
+            'horarios' => $ciclo?->horarios()->with(['curso', 'docente', 'aula', 'grado', 'dias'])->get(),
         ];
     }
 }; ?>

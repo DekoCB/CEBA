@@ -40,7 +40,7 @@ new #[Layout('layouts.app')] class extends Component
     {
         return [
             'periodos' => $this->ciclo->periodosMatricula()->latest('fecha_inicio')->get(),
-            'horarios' => $this->ciclo->horarios()->with(['curso', 'docente', 'aula', 'grado'])->get(),
+            'horarios' => $this->ciclo->horarios()->with(['curso', 'docente', 'aula', 'grado', 'dias'])->get(),
         ];
     }
 }; ?>

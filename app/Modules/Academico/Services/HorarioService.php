@@ -7,13 +7,16 @@ namespace App\Modules\Academico\Services;
 use App\Modules\Academico\Enums\DiaSemanaEnum;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Academico\Repositories\Contracts\HorarioRepositoryInterface;
+use App\Modules\AulaVirtual\Services\CursoVirtualService;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class HorarioService
 {
     public function __construct(
         private readonly HorarioRepositoryInterface $horarios,
+        private readonly CursoVirtualService $cursosVirtuales,
     ) {}
 
     /**
@@ -25,66 +28,112 @@ class HorarioService
     }
 
     /**
-     * @param  array{curso_id: int, docente_id: int, aula_id: int, ciclo_id: int, grado_id: int, seccion?: string|null, dia_semana: DiaSemanaEnum, hora_inicio: string, hora_fin: string}  $datos
+     * @param  array{curso_id: int, docente_id: int, aula_id: int, ciclo_id: int, grado_id: int, seccion?: string|null, dias: list<array{dia_semana: DiaSemanaEnum, hora_inicio: string, hora_fin: string}>}  $datos
      */
     public function crear(array $datos): Horario
     {
-        $this->validarSinTraslape($datos);
+        $this->validarDias($datos['dias'], $datos['aula_id'], $datos['docente_id'], $datos['ciclo_id']);
 
-        return $this->horarios->create($datos);
+        $horario = DB::transaction(function () use ($datos) {
+            $horario = $this->horarios->create([
+                'curso_id' => $datos['curso_id'],
+                'docente_id' => $datos['docente_id'],
+                'aula_id' => $datos['aula_id'],
+                'ciclo_id' => $datos['ciclo_id'],
+                'grado_id' => $datos['grado_id'],
+                'seccion' => $datos['seccion'] ?? null,
+            ]);
+
+            $horario->dias()->createMany($datos['dias']);
+
+            return $horario;
+        });
+
+        // Para que el docente encuentre su aula virtual ya lista, sin tener
+        // que "activarla" a mano después de que se le asigna el horario.
+        $this->cursosVirtuales->activarParaHorario($horario);
+
+        return $horario->load('dias');
     }
 
     /**
-     * @param  array{curso_id: int, docente_id: int, aula_id: int, ciclo_id: int, grado_id: int, dia_semana: DiaSemanaEnum, hora_inicio: string, hora_fin: string}  $datos
+     * @param  array{curso_id: int, docente_id: int, aula_id: int, ciclo_id: int, grado_id: int, seccion?: string|null, dias: list<array{dia_semana: DiaSemanaEnum, hora_inicio: string, hora_fin: string}>}  $datos
      */
     public function actualizar(Horario $horario, array $datos): Horario
     {
-        $this->validarSinTraslape($datos, $horario->id);
+        $this->validarDias($datos['dias'], $datos['aula_id'], $datos['docente_id'], $datos['ciclo_id'], $horario->id);
 
-        return $this->horarios->update($horario, $datos);
+        return DB::transaction(function () use ($horario, $datos) {
+            $this->horarios->update($horario, [
+                'curso_id' => $datos['curso_id'],
+                'docente_id' => $datos['docente_id'],
+                'aula_id' => $datos['aula_id'],
+                'ciclo_id' => $datos['ciclo_id'],
+                'grado_id' => $datos['grado_id'],
+                'seccion' => $datos['seccion'] ?? null,
+            ]);
+
+            $horario->dias()->delete();
+            $horario->dias()->createMany($datos['dias']);
+
+            return $horario->load('dias');
+        });
     }
 
     /**
-     * @param  array{aula_id: int, docente_id: int, ciclo_id: int, dia_semana: DiaSemanaEnum, hora_inicio: string, hora_fin: string}  $datos
+     * @param  list<array{dia_semana: DiaSemanaEnum, hora_inicio: string, hora_fin: string}>  $dias
      */
-    private function validarSinTraslape(array $datos, ?int $exceptoId = null): void
+    private function validarDias(array $dias, int $aulaId, int $docenteId, int $cicloId, ?int $exceptoHorarioId = null): void
     {
-        if ($datos['hora_fin'] <= $datos['hora_inicio']) {
+        if ($dias === []) {
             throw ValidationException::withMessages([
-                'hora_fin' => 'La hora de fin debe ser posterior a la hora de inicio.',
+                'dias' => 'Elige al menos un día de clase.',
             ]);
         }
 
-        $enAula = $this->horarios->enAulaQueSolapan(
-            $datos['aula_id'],
-            $datos['ciclo_id'],
-            $datos['dia_semana'],
-            $datos['hora_inicio'],
-            $datos['hora_fin'],
-            $exceptoId,
-        );
+        foreach ($dias as $dia) {
+            if ($dia['hora_fin'] <= $dia['hora_inicio']) {
+                throw ValidationException::withMessages([
+                    'dias' => "La hora de fin debe ser posterior a la hora de inicio el {$dia['dia_semana']->label()}.",
+                ]);
+            }
 
-        if ($enAula->isNotEmpty()) {
-            $choque = $enAula->first();
-            throw ValidationException::withMessages([
-                'aula_id' => "El aula ya está ocupada ese horario por el curso «{$choque->curso->nombre}» ({$choque->hora_inicio}–{$choque->hora_fin}).",
-            ]);
+            $enAula = $this->horarios->enAulaQueSolapan(
+                $aulaId,
+                $cicloId,
+                $dia['dia_semana'],
+                $dia['hora_inicio'],
+                $dia['hora_fin'],
+                $exceptoHorarioId,
+            );
+
+            if ($enAula->isNotEmpty()) {
+                $choque = $enAula->first();
+                throw ValidationException::withMessages([
+                    'dias' => "El aula ya está ocupada el {$dia['dia_semana']->label()} de {$this->horaCorta($choque->hora_inicio)}–{$this->horaCorta($choque->hora_fin)} por el curso «{$choque->horario->curso->nombre}».",
+                ]);
+            }
+
+            $delDocente = $this->horarios->delDocenteQueSolapan(
+                $docenteId,
+                $cicloId,
+                $dia['dia_semana'],
+                $dia['hora_inicio'],
+                $dia['hora_fin'],
+                $exceptoHorarioId,
+            );
+
+            if ($delDocente->isNotEmpty()) {
+                $choque = $delDocente->first();
+                throw ValidationException::withMessages([
+                    'dias' => "El docente ya tiene una clase asignada el {$dia['dia_semana']->label()} de {$this->horaCorta($choque->hora_inicio)}–{$this->horaCorta($choque->hora_fin)}: «{$choque->horario->curso->nombre}».",
+                ]);
+            }
         }
+    }
 
-        $delDocente = $this->horarios->delDocenteQueSolapan(
-            $datos['docente_id'],
-            $datos['ciclo_id'],
-            $datos['dia_semana'],
-            $datos['hora_inicio'],
-            $datos['hora_fin'],
-            $exceptoId,
-        );
-
-        if ($delDocente->isNotEmpty()) {
-            $choque = $delDocente->first();
-            throw ValidationException::withMessages([
-                'docente_id' => "El docente ya tiene una clase asignada ese horario: «{$choque->curso->nombre}» ({$choque->hora_inicio}–{$choque->hora_fin}).",
-            ]);
-        }
+    private function horaCorta(string $hora): string
+    {
+        return substr($hora, 0, 5);
     }
 }

@@ -218,7 +218,7 @@ new #[Layout('layouts.app')] class extends Component
         <h1 class="mt-1 font-display text-2xl text-ink">{{ $horario->curso->nombre }}</h1>
         <p class="mt-1 text-sm text-ink-dim">
             {{ $horario->grado->nombre }} · {{ $horario->ciclo->nombre }} · {{ $horario->docente->name }} ·
-            {{ $horario->dia_semana->label() }} {{ substr($horario->hora_inicio, 0, 5) }}–{{ substr($horario->hora_fin, 0, 5) }}
+            {{ $horario->diasResumen() }}
         </p>
     </x-slot>
 

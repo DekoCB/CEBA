@@ -75,9 +75,13 @@ new #[Layout('layouts.app')] class extends Component
             <div class="rounded-lg border border-border bg-surface p-6">
                 <p class="text-xs uppercase tracking-wide text-ink-faint">Clase en curso</p>
                 <p class="mt-1 font-display text-xl text-ink">{{ $horarioEnCurso->curso->nombre }}</p>
+                @php $diaDeHoy = $horarioEnCurso->diaParaFecha(now()); @endphp
                 <p class="mt-1 text-sm text-ink-dim">
-                    {{ $horarioEnCurso->grado->nombre }} · {{ $horarioEnCurso->dia_semana->label() }}
-                    {{ substr($horarioEnCurso->hora_inicio, 0, 5) }}–{{ substr($horarioEnCurso->hora_fin, 0, 5) }}
+                    {{ $horarioEnCurso->grado->nombre }}
+                    @if ($diaDeHoy)
+                        · {{ $diaDeHoy->dia_semana->label() }}
+                        {{ substr($diaDeHoy->hora_inicio, 0, 5) }}–{{ substr($diaDeHoy->hora_fin, 0, 5) }}
+                    @endif
                 </p>
 
                 <form wire:submit="confirmar" class="mt-6">

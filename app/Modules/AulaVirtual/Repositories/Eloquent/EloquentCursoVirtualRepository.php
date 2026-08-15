@@ -21,7 +21,7 @@ class EloquentCursoVirtualRepository extends BaseRepository implements CursoVirt
      */
     protected function query(): Builder
     {
-        return CursoVirtual::query()->with(['horario.curso', 'horario.grado', 'horario.ciclo', 'horario.docente']);
+        return CursoVirtual::query()->with(['horario.curso', 'horario.grado', 'horario.ciclo', 'horario.docente', 'horario.dias']);
     }
 
     public function delDocente(int $docenteId): Collection

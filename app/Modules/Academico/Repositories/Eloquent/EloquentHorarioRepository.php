@@ -6,6 +6,7 @@ namespace App\Modules\Academico\Repositories\Eloquent;
 
 use App\Modules\Academico\Enums\DiaSemanaEnum;
 use App\Modules\Academico\Models\Horario;
+use App\Modules\Academico\Models\HorarioDia;
 use App\Modules\Academico\Repositories\Contracts\HorarioRepositoryInterface;
 use App\Shared\Repositories\BaseRepository;
 use Illuminate\Database\Eloquent\Builder;
@@ -21,24 +22,20 @@ class EloquentHorarioRepository extends BaseRepository implements HorarioReposit
      */
     protected function query(): Builder
     {
-        return Horario::query()->with(['curso', 'docente', 'aula', 'ciclo', 'grado']);
+        return Horario::query()->with(['curso', 'docente', 'aula', 'ciclo', 'grado', 'dias']);
     }
 
-    public function enAulaQueSolapan(int $aulaId, int $cicloId, DiaSemanaEnum $dia, string $horaInicio, string $horaFin, ?int $exceptoId = null): Collection
+    public function enAulaQueSolapan(int $aulaId, int $cicloId, DiaSemanaEnum $dia, string $horaInicio, string $horaFin, ?int $exceptoHorarioId = null): Collection
     {
-        return $this->consultaSolapados($horaInicio, $horaFin, $exceptoId)
-            ->where('aula_id', $aulaId)
-            ->where('ciclo_id', $cicloId)
-            ->where('dia_semana', $dia->value)
+        return $this->consultaDiasSolapados($dia, $horaInicio, $horaFin, $exceptoHorarioId)
+            ->whereHas('horario', fn ($query) => $query->where('aula_id', $aulaId)->where('ciclo_id', $cicloId))
             ->get();
     }
 
-    public function delDocenteQueSolapan(int $docenteId, int $cicloId, DiaSemanaEnum $dia, string $horaInicio, string $horaFin, ?int $exceptoId = null): Collection
+    public function delDocenteQueSolapan(int $docenteId, int $cicloId, DiaSemanaEnum $dia, string $horaInicio, string $horaFin, ?int $exceptoHorarioId = null): Collection
     {
-        return $this->consultaSolapados($horaInicio, $horaFin, $exceptoId)
-            ->where('docente_id', $docenteId)
-            ->where('ciclo_id', $cicloId)
-            ->where('dia_semana', $dia->value)
+        return $this->consultaDiasSolapados($dia, $horaInicio, $horaFin, $exceptoHorarioId)
+            ->whereHas('horario', fn ($query) => $query->where('docente_id', $docenteId)->where('ciclo_id', $cicloId))
             ->get();
     }
 
@@ -48,13 +45,15 @@ class EloquentHorarioRepository extends BaseRepository implements HorarioReposit
     }
 
     /**
-     * @return Builder<Horario>
+     * @return Builder<HorarioDia>
      */
-    private function consultaSolapados(string $horaInicio, string $horaFin, ?int $exceptoId): Builder
+    private function consultaDiasSolapados(DiaSemanaEnum $dia, string $horaInicio, string $horaFin, ?int $exceptoHorarioId): Builder
     {
-        return $this->query()
+        return HorarioDia::query()
+            ->with('horario.curso')
+            ->where('dia_semana', $dia->value)
             ->where('hora_inicio', '<', $horaFin)
             ->where('hora_fin', '>', $horaInicio)
-            ->when($exceptoId, fn ($query) => $query->whereKeyNot($exceptoId));
+            ->when($exceptoHorarioId, fn ($query) => $query->where('horario_id', '!=', $exceptoHorarioId));
     }
 }

@@ -38,8 +38,9 @@ class MarcarAsistenciaTest extends TestCase
             'fecha_inicio' => $domingo->copy()->subMonth()->format('Y-m-d'),
             'fecha_fin' => $domingo->copy()->addMonth()->format('Y-m-d'),
         ]);
-        $horario = Horario::factory()->create([
-            'ciclo_id' => $ciclo->id,
+        $horario = Horario::factory()->create(['ciclo_id' => $ciclo->id]);
+        $horario->dias()->delete();
+        $horario->dias()->create([
             'dia_semana' => DiaSemanaEnum::DOMINGO,
             'hora_inicio' => '18:00:00',
             'hora_fin' => '20:00:00',
