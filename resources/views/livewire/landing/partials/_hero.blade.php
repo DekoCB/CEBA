@@ -87,20 +87,11 @@
     x-init="iniciarCursor()"
     class="relative flex min-h-screen flex-col overflow-hidden bg-[#0a0a0a] pt-16"
 >
-    {{-- Fondo: resplandor de respaldo + video institucional (ver nota abajo) + degradado que funde ambos bordes hacia el negro. --}}
+    {{-- Fondo: resplandor de respaldo + imagen de portada + degradado que funde ambos bordes hacia el negro. --}}
     <div class="absolute inset-0 z-0">
         <div class="hero-glow absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(220,38,38,0.16),transparent_45%),radial-gradient(circle_at_80%_10%,rgba(15,27,61,0.65),transparent_45%)]"></div>
 
-        {{--
-            TODO: coloca el video institucional en public/videos/hero-fondo.mp4
-            (o ajusta la ruta de abajo). El <source> ya está listo; mientras el
-            archivo no exista, el navegador simplemente no reproduce nada y
-            queda visible el resplandor de arriba, así que la sección nunca se
-            ve "rota" sin el video.
-        --}}
-        <video class="absolute inset-0 h-full w-full object-cover opacity-60" autoplay muted loop playsinline>
-            <source src="{{ asset('videos/hero-fondo.mp4') }}" type="video/mp4">
-        </video>
+        <img src="{{ asset('images/fondo-pri.gif') }}" alt="" class="absolute inset-0 h-full w-full object-cover opacity-40">
 
         <div class="hero-loop-fade absolute inset-0"></div>
     </div>
