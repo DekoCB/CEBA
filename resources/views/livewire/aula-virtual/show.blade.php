@@ -398,9 +398,9 @@ new #[Layout('layouts.app')] class extends Component
     @if ($curso->horario->curso->getFirstMediaUrl('portada') || $puedeGestionarPortada)
         <div class="mb-6">
             @if ($curso->horario->curso->getFirstMediaUrl('portada'))
-                <img src="{{ $curso->horario->curso->getFirstMediaUrl('portada') }}" alt="" class="h-48 w-full rounded-lg object-cover">
+                <img src="{{ $curso->horario->curso->getFirstMediaUrl('portada') }}" alt="" class="h-52 w-full rounded-lg object-cover">
             @else
-                <div class="flex h-32 items-center justify-center rounded-lg border border-dashed border-border bg-surface-2 text-sm text-ink-faint">
+                <div class="flex h-36 items-center justify-center rounded-lg border border-dashed border-border bg-surface-2 text-sm text-ink-faint">
                     Sin imagen de portada
                 </div>
             @endif
