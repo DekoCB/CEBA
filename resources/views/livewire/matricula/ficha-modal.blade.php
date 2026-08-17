@@ -35,7 +35,7 @@ new class extends Component
 
     public function with(): array
     {
-        $estudiante = $this->estudianteId ? Estudiante::query()->find($this->estudianteId) : null;
+        $estudiante = $this->estudianteId ? Estudiante::query()->with(['media', 'user.media'])->find($this->estudianteId) : null;
 
         return [
             'estudiante' => $estudiante,

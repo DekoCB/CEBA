@@ -124,8 +124,8 @@ new #[Layout('layouts.app')] class extends Component
                 </span>
 
                 <div class="flex flex-col items-center gap-3 p-6 pt-10">
-                    @if ($estudiante->getFirstMediaUrl('foto'))
-                        <img src="{{ $estudiante->getFirstMediaUrl('foto') }}" alt="" class="h-20 w-20 shrink-0 rounded-full object-cover">
+                    @if ($estudiante->fotoUrl())
+                        <img src="{{ $estudiante->fotoUrl() }}" alt="" class="h-20 w-20 shrink-0 rounded-full object-cover">
                     @else
                         <span class="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-dashed border-border bg-surface-2 text-ink-faint">
                             <x-heroicon-o-user class="h-8 w-8" />

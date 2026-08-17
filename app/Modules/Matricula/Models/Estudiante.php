@@ -131,6 +131,16 @@ class Estudiante extends Model implements HasMedia
     }
 
     /**
+     * La foto subida en la ficha de matrícula, o si no tiene, el avatar de
+     * la cuenta de acceso vinculada (la que el estudiante configura desde
+     * "Mi perfil").
+     */
+    public function fotoUrl(): ?string
+    {
+        return $this->getFirstMediaUrl('foto') ?: $this->user?->getFirstMediaUrl('avatar') ?: null;
+    }
+
+    /**
      * Número al que deben llegar las comunicaciones sobre este estudiante:
      * el del apoderado si es menor de edad y lo tiene registrado, si no el
      * propio.

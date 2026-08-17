@@ -15,7 +15,7 @@ new #[Layout('layouts.app')] class extends Component
     {
         Gate::authorize('matricula.ver');
 
-        $this->estudiante = $estudiante;
+        $this->estudiante = $estudiante->load(['media', 'user.media']);
     }
 
     public function verificarDocumento(int $documentoId, DocumentoEstudianteService $service): void

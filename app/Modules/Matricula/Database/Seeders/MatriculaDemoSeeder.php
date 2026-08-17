@@ -34,8 +34,8 @@ class MatriculaDemoSeeder extends Seeder
 
         if ($gradoMayor) {
             $estudianteMayor = $service->registrarEstudiante(new RegistrarEstudianteData(
-                nombres: 'Rosa',
-                apellidos: 'Quispe Mamani',
+                nombres: 'Estudiante',
+                apellidos: 'Demo',
                 dni: new Dni('45678912'),
                 fechaNacimiento: now()->subYears(34)->format('Y-m-d'),
                 estadoCivil: null,
