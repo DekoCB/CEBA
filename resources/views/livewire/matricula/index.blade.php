@@ -112,57 +112,44 @@ new #[Layout('layouts.app')] class extends Component
         />
     </div>
 
-    <div class="overflow-hidden rounded-lg border border-border bg-surface">
-        <table class="min-w-full divide-y divide-border text-sm">
-            <thead class="bg-surface-2">
-                <tr>
-                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">DNI</th>
-                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Nombre</th>
-                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Grado actual</th>
-                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Estado</th>
-                    <th class="px-4 py-3"></th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-border">
-                @forelse ($estudiantes as $estudiante)
-                    <tr wire:key="estudiante-{{ $estudiante->id }}">
-                        <td class="px-4 py-3 font-mono text-ink-dim">{{ $estudiante->dni }}</td>
-                        <td class="px-4 py-3">
-                            <div class="flex items-center gap-3">
-                                @if ($estudiante->getFirstMediaUrl('foto'))
-                                    <img src="{{ $estudiante->getFirstMediaUrl('foto') }}" alt="" class="h-9 w-9 shrink-0 rounded-full object-cover">
-                                @else
-                                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-dashed border-border bg-surface-2 text-ink-faint">
-                                        <x-heroicon-o-user class="h-4 w-4" />
-                                    </span>
-                                @endif
-                                <span class="font-medium text-ink">{{ $estudiante->nombreCompleto() }}</span>
-                            </div>
-                        </td>
-                        <td class="px-4 py-3 text-ink-dim">{{ $estudiante->gradoActual?->nombre ?? '—' }}</td>
-                        <td class="px-4 py-3">
-                            <span @class([
-                                'rounded-full px-2 py-0.5 text-xs font-medium',
-                                'bg-ok/10 text-ok' => $estudiante->estado->value === 'activo',
-                                'bg-ink-faint/10 text-ink-faint' => $estudiante->estado->value !== 'activo',
-                            ])>
-                                {{ $estudiante->estado->label() }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-3 text-right">
-                            <button
-                                type="button"
-                                x-data
-                                x-on:click="$dispatch('ver-estudiante', { estudianteId: {{ $estudiante->id }} }); $dispatch('open-modal', 'ver-ficha')"
-                                class="text-sm font-medium text-accent hover:underline"
-                            >Ver</button>
-                        </td>
-                    </tr>
-                @empty
-                    <tr><td colspan="5" class="px-4 py-8 text-center text-sm text-ink-faint">No se encontraron estudiantes.</td></tr>
-                @endforelse
-            </tbody>
-        </table>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        @forelse ($estudiantes as $estudiante)
+            <div wire:key="estudiante-{{ $estudiante->id }}" class="relative overflow-hidden rounded-lg border border-border bg-surface transition hover:shadow-md">
+                <span @class([
+                    'absolute left-3 top-3 rounded-full px-2 py-0.5 text-xs font-medium',
+                    'bg-ok/10 text-ok' => $estudiante->estado->value === 'activo',
+                    'bg-ink-faint/10 text-ink-faint' => $estudiante->estado->value !== 'activo',
+                ])>
+                    {{ $estudiante->estado->label() }}
+                </span>
+
+                <div class="flex flex-col items-center gap-3 p-6 pt-10">
+                    @if ($estudiante->getFirstMediaUrl('foto'))
+                        <img src="{{ $estudiante->getFirstMediaUrl('foto') }}" alt="" class="h-20 w-20 shrink-0 rounded-full object-cover">
+                    @else
+                        <span class="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-dashed border-border bg-surface-2 text-ink-faint">
+                            <x-heroicon-o-user class="h-8 w-8" />
+                        </span>
+                    @endif
+
+                    <div class="text-center">
+                        <p class="font-medium text-ink">{{ $estudiante->nombreCompleto() }}</p>
+                        <p class="font-mono text-xs text-ink-faint">{{ $estudiante->dni }}</p>
+                    </div>
+
+                    <p class="text-xs text-ink-dim">{{ $estudiante->gradoActual?->nombre ?? '—' }}</p>
+                </div>
+
+                <button
+                    type="button"
+                    x-data
+                    x-on:click="$dispatch('ver-estudiante', { estudianteId: {{ $estudiante->id }} }); $dispatch('open-modal', 'ver-ficha')"
+                    class="block w-full border-t border-border px-4 py-3 text-center text-sm font-medium text-accent transition hover:bg-surface-2"
+                >Ver ficha</button>
+            </div>
+        @empty
+            <p class="col-span-full py-8 text-center text-sm text-ink-faint">No se encontraron estudiantes.</p>
+        @endforelse
     </div>
 
     <div class="mt-4">{{ $estudiantes->links() }}</div>
