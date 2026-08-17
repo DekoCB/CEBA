@@ -8,6 +8,16 @@
     que ambos (show y index) deben exponer verificarDocumento().
 --}}
 <div class="space-y-6">
+    <div class="flex justify-center">
+        @if ($estudiante->getFirstMediaUrl('foto'))
+            <img src="{{ $estudiante->getFirstMediaUrl('foto') }}" alt="" class="h-24 w-24 shrink-0 rounded-full object-cover">
+        @else
+            <span class="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border border-dashed border-border bg-surface-2 text-ink-faint">
+                <x-heroicon-o-user class="h-10 w-10" />
+            </span>
+        @endif
+    </div>
+
     <div class="rounded-lg border border-border bg-surface p-6">
         <h2 class="text-sm font-semibold text-ink">Datos personales</h2>
         <dl class="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
