@@ -2,11 +2,14 @@
 
 use App\Models\User;
 use App\Modules\Academico\Enums\DiaSemanaEnum;
+use App\Modules\Academico\Enums\FranjaHorarioEnum;
 use App\Modules\Academico\Models\Aula;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Grado;
+use App\Modules\Academico\Models\Horario;
 use App\Modules\Academico\Services\HorarioService;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -40,27 +43,11 @@ new #[Layout('layouts.app')] class extends Component
     public string $horaFinMinuto = '';
 
     /**
-     * Los días de clase se agrupan en las 3 franjas que la institución usa
-     * en la práctica: nunca un día suelto (salvo el domingo).
-     *
-     * @var array<string, list<DiaSemanaEnum>>
-     */
-    private const FRANJAS = [
-        'lun_mie' => [DiaSemanaEnum::LUNES, DiaSemanaEnum::MIERCOLES],
-        'mar_jue' => [DiaSemanaEnum::MARTES, DiaSemanaEnum::JUEVES],
-        'domingo' => [DiaSemanaEnum::DOMINGO],
-    ];
-
-    /**
      * @return array<string, string>
      */
     public function franjasDisponibles(): array
     {
-        return [
-            'lun_mie' => 'Lunes y Miércoles',
-            'mar_jue' => 'Martes y Jueves',
-            'domingo' => 'Domingo',
-        ];
+        return collect(FranjaHorarioEnum::cases())->mapWithKeys(fn (FranjaHorarioEnum $franja) => [$franja->value => $franja->label()])->all();
     }
 
     /**
@@ -111,7 +98,7 @@ new #[Layout('layouts.app')] class extends Component
             'cicloId' => 'required|integer|exists:ciclos,id',
             'gradoId' => 'required|integer|exists:grados,id',
             'seccion' => 'nullable|string|max:10',
-            'franjaPreset' => 'required|string|in:'.implode(',', array_keys(self::FRANJAS)),
+            'franjaPreset' => 'required|string|in:'.implode(',', array_column(FranjaHorarioEnum::cases(), 'value')),
             'horaInicioHora' => 'required|string|in:'.implode(',', array_keys($this->horasDisponibles())),
             'horaInicioMinuto' => 'required|string|in:'.implode(',', array_keys($this->minutosDisponibles())),
             'horaFinHora' => 'required|string|in:'.implode(',', array_keys($this->horasDisponibles())),
@@ -125,7 +112,7 @@ new #[Layout('layouts.app')] class extends Component
             'dia_semana' => $dia,
             'hora_inicio' => $horaInicio.':00',
             'hora_fin' => $horaFin.':00',
-        ], self::FRANJAS[$this->franjaPreset]);
+        ], FranjaHorarioEnum::from($this->franjaPreset)->dias());
 
         $service->crear([
             'curso_id' => (int) $this->cursoId,
@@ -143,9 +130,11 @@ new #[Layout('layouts.app')] class extends Component
 
     public function with(HorarioService $service): array
     {
+        $horarios = $this->cicloFiltro ? $service->delCiclo((int) $this->cicloFiltro) : collect();
+
         return [
             'ciclos' => Ciclo::query()->orderByDesc('fecha_inicio')->get(),
-            'horarios' => $this->cicloFiltro ? $service->delCiclo((int) $this->cicloFiltro) : collect(),
+            'horariosPorFranja' => $this->agruparPorFranjaYGrado($horarios),
             'cursos' => Curso::query()->where('activo', true)->orderBy('nombre')->get(),
             'docentes' => User::role('docente')->orderBy('name')->get(),
             'aulas' => Aula::query()->where('activa', true)->orderBy('nombre')->get(),
@@ -154,6 +143,39 @@ new #[Layout('layouts.app')] class extends Component
             'horas' => $this->horasDisponibles(),
             'minutos' => $this->minutosDisponibles(),
         ];
+    }
+
+    /**
+     * La vista organizada como la institución realmente trabaja: primero
+     * por franja (Lunes-Miércoles / Martes-Jueves / Domingo), y dentro de
+     * cada una por grado -- así se ven de una los grupos A y B de un mismo
+     * grado, en vez de una tabla plana ordenada por curso.
+     *
+     * @param  Collection<int, Horario>  $horarios
+     * @return Collection<int, array{label: string, porGrado: Collection<string, Collection<int, Horario>>}>
+     */
+    private function agruparPorFranjaYGrado($horarios)
+    {
+        $grupos = collect(FranjaHorarioEnum::cases())
+            ->mapWithKeys(function (FranjaHorarioEnum $franja) use ($horarios) {
+                $deLaFranja = $horarios->filter(fn (Horario $horario) => $horario->franja() === $franja);
+
+                return [$franja->value => [
+                    'label' => $franja->label(),
+                    'porGrado' => $deLaFranja->groupBy(fn (Horario $horario) => $horario->grado->nombre)->sortKeys(),
+                ]];
+            });
+
+        $sinFranja = $horarios->filter(fn (Horario $horario) => $horario->franja() === null);
+
+        if ($sinFranja->isNotEmpty()) {
+            $grupos['otros'] = [
+                'label' => 'Otros días',
+                'porGrado' => $sinFranja->groupBy(fn (Horario $horario) => $horario->grado->nombre)->sortKeys(),
+            ];
+        }
+
+        return $grupos->filter(fn (array $grupo) => $grupo['porGrado']->isNotEmpty());
     }
 }; ?>
 
@@ -186,34 +208,43 @@ new #[Layout('layouts.app')] class extends Component
         />
     </div>
 
-    <div class="overflow-hidden rounded-lg border border-border bg-surface">
-        <table class="min-w-full divide-y divide-border text-sm">
-            <thead class="bg-surface-2">
-                <tr>
-                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Curso</th>
-                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Docente</th>
-                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Aula</th>
-                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Grado</th>
-                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Sección</th>
-                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Días y horario</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-border">
-                @forelse ($horarios as $horario)
-                    <tr wire:key="horario-{{ $horario->id }}">
-                        <td class="px-4 py-3 font-medium text-ink">{{ $horario->curso->nombre }}</td>
-                        <td class="px-4 py-3 text-ink-dim">{{ $horario->docente->name }}</td>
-                        <td class="px-4 py-3 text-ink-dim">{{ $horario->aula->nombre }}</td>
-                        <td class="px-4 py-3 text-ink-dim">{{ $horario->grado->nombre }}</td>
-                        <td class="px-4 py-3 text-ink-dim">{{ $horario->seccion ?? '—' }}</td>
-                        <td class="px-4 py-3 font-mono text-ink-dim">{{ $horario->diasResumen() }}</td>
-                    </tr>
-                @empty
-                    <tr><td colspan="6" class="px-4 py-8 text-center text-sm text-ink-faint">{{ $cicloFiltro ? 'Este ciclo no tiene horarios todavía.' : 'Selecciona un ciclo para ver sus horarios.' }}</td></tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
+    @forelse ($horariosPorFranja as $grupoFranja)
+        <div class="mb-6">
+            <h2 class="mb-2 font-display text-lg text-ink">{{ $grupoFranja['label'] }}</h2>
+
+            @foreach ($grupoFranja['porGrado'] as $nombreGrado => $horariosDelGrado)
+                <div class="mb-4 overflow-hidden rounded-lg border border-border bg-surface">
+                    <div class="border-b border-border bg-surface-2 px-4 py-2 font-display text-sm text-ink">{{ $nombreGrado }}</div>
+                    <table class="min-w-full divide-y divide-border text-sm">
+                        <thead class="bg-surface-2">
+                            <tr>
+                                <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Grupo</th>
+                                <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Curso</th>
+                                <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Docente</th>
+                                <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Aula</th>
+                                <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Horario</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-border">
+                            @foreach ($horariosDelGrado->sortBy('seccion') as $horario)
+                                <tr wire:key="horario-{{ $horario->id }}">
+                                    <td class="px-4 py-3 text-ink-dim">{{ $horario->seccion ?? '—' }}</td>
+                                    <td class="px-4 py-3 font-medium text-ink">{{ $horario->curso->nombre }}</td>
+                                    <td class="px-4 py-3 text-ink-dim">{{ $horario->docente->name }}</td>
+                                    <td class="px-4 py-3 text-ink-dim">{{ $horario->aula->nombre }}</td>
+                                    <td class="px-4 py-3 font-mono text-ink-dim">{{ $horario->diasResumen() }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endforeach
+        </div>
+    @empty
+        <div class="rounded-lg border border-border bg-surface px-4 py-8 text-center text-sm text-ink-faint">
+            {{ $cicloFiltro ? 'Este ciclo no tiene horarios todavía.' : 'Selecciona un ciclo para ver sus horarios.' }}
+        </div>
+    @endforelse
 
     <div
         x-show="$wire.mostrarModal"

@@ -6,6 +6,7 @@ namespace App\Modules\Academico\Models;
 
 use App\Models\User;
 use App\Modules\Academico\Database\Factories\HorarioFactory;
+use App\Modules\Academico\Enums\FranjaHorarioEnum;
 use App\Modules\Identidad\Support\Auditable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -80,6 +81,16 @@ class Horario extends Model
     public function dias(): HasMany
     {
         return $this->hasMany(HorarioDia::class)->orderBy('id');
+    }
+
+    /**
+     * A qué franja institucional (Lunes-Miércoles, Martes-Jueves, Domingo)
+     * corresponde este horario, o null si sus días no calzan con ninguna
+     * (por ejemplo, un registro antiguo con otra combinación de días).
+     */
+    public function franja(): ?FranjaHorarioEnum
+    {
+        return FranjaHorarioEnum::desdeDias($this->dias->pluck('dia_semana'));
     }
 
     /**

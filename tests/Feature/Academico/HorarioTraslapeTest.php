@@ -4,6 +4,7 @@ namespace Tests\Feature\Academico;
 
 use App\Models\User;
 use App\Modules\Academico\Enums\DiaSemanaEnum;
+use App\Modules\Academico\Enums\FranjaHorarioEnum;
 use App\Modules\Academico\Models\Aula;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Curso;
@@ -215,5 +216,24 @@ class HorarioTraslapeTest extends TestCase
 
         $this->assertCount(1, $actualizado->dias);
         $this->assertSame(DiaSemanaEnum::VIERNES, $actualizado->dias->first()->dia_semana);
+    }
+
+    public function test_franja_identifica_la_combinacion_lunes_y_miercoles(): void
+    {
+        $horario = $this->service()->crear($this->datosBase());
+
+        $this->assertSame(FranjaHorarioEnum::LUN_MIE, $horario->franja());
+    }
+
+    public function test_franja_es_null_si_los_dias_no_calzan_con_ninguna_franja_institucional(): void
+    {
+        $horario = $this->service()->crear([
+            ...$this->datosBase(),
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::VIERNES, 'hora_inicio' => '16:00:00', 'hora_fin' => '18:00:00'],
+            ],
+        ]);
+
+        $this->assertNull($horario->franja());
     }
 }

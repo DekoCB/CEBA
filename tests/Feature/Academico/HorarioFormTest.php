@@ -121,4 +121,55 @@ class HorarioFormTest extends TestCase
 
         $this->assertSame(0, Horario::query()->count());
     }
+
+    public function test_el_listado_agrupa_los_horarios_por_franja_y_luego_por_grado(): void
+    {
+        $this->actingAs($this->actorCoordinador());
+
+        $ciclo = Ciclo::factory()->create();
+        $gradoA = Grado::factory()->create(['nombre' => 'Grado 1 - Mayores']);
+        $gradoB = Grado::factory()->create(['nombre' => 'Grado 2 - Mayores']);
+        $service = $this->app->make(HorarioService::class);
+
+        $service->crear([
+            'curso_id' => Curso::factory()->create()->id,
+            'docente_id' => User::factory()->create()->id,
+            'aula_id' => Aula::factory()->create()->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => $gradoA->id,
+            'seccion' => 'A',
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+                ['dia_semana' => DiaSemanaEnum::MIERCOLES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+            ],
+        ]);
+
+        $service->crear([
+            'curso_id' => Curso::factory()->create()->id,
+            'docente_id' => User::factory()->create()->id,
+            'aula_id' => Aula::factory()->create()->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => $gradoB->id,
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::DOMINGO, 'hora_inicio' => '10:00:00', 'hora_fin' => '12:00:00'],
+            ],
+        ]);
+
+        $html = Volt::test('academico.horarios.index')
+            ->set('cicloFiltro', (string) $ciclo->id)
+            ->html();
+
+        // Se compara la PRIMERA aparición de cada texto: el listado se
+        // renderiza antes que el formulario "Nuevo horario" (que repite los
+        // mismos nombres de grado y franja en sus selects), así que si el
+        // orden real fuera otro, alguna de estas comparaciones fallaría.
+        $posicionLunMie = mb_strpos($html, 'Lunes y Miércoles');
+        $posicionGradoA = mb_strpos($html, 'Grado 1 - Mayores');
+        $posicionDomingo = mb_strpos($html, 'Domingo');
+        $posicionGradoB = mb_strpos($html, 'Grado 2 - Mayores');
+
+        $this->assertLessThan($posicionGradoA, $posicionLunMie);
+        $this->assertLessThan($posicionDomingo, $posicionGradoA);
+        $this->assertLessThan($posicionGradoB, $posicionDomingo);
+    }
 }
