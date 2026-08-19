@@ -52,6 +52,20 @@ class PlanPagoServiceTest extends TestCase
         $this->assertSame('2026-09-01', $cuotas[5]->fecha_vencimiento->format('Y-m-d'));
     }
 
+    public function test_crear_con_cuotas_personalizadas_usa_los_montos_y_fechas_dados(): void
+    {
+        $matricula = Matricula::factory()->create(['fecha_matricula' => now()]);
+
+        $plan = $this->service()->crear($matricula, NumeroCuotasEnum::UNA, 350.0, [
+            ['monto' => 350.0, 'fecha_vencimiento' => '2026-05-15'],
+        ]);
+
+        $cuota = $plan->cuotas()->firstOrFail();
+        $this->assertSame(1, $cuota->numero);
+        $this->assertSame('350.00', $cuota->monto);
+        $this->assertSame('2026-05-15', $cuota->fecha_vencimiento->format('Y-m-d'));
+    }
+
     public function test_no_permite_crear_dos_planes_para_la_misma_matricula(): void
     {
         $matricula = Matricula::factory()->create(['fecha_matricula' => now()]);

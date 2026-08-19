@@ -9,6 +9,7 @@ use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Pagos\Models\PlanPago;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -92,6 +93,114 @@ class MatriculaPermisosTest extends TestCase
         $estudiante = Estudiante::query()->where('dni', '55667788')->firstOrFail();
         $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'ciclo_id' => $ciclo->id]);
         $this->assertSame('Pendiente entregar certificado de estudios del colegio anterior.', $estudiante->observaciones);
+    }
+
+    public function test_el_wizard_configura_un_cronograma_de_pagos_personalizado_al_matricular(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+
+        $this->actingAs($usuario);
+
+        $fechaCuotaAjustada = now()->addDays(5)->format('Y-m-d');
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Marisol')
+            ->set('apellidos', 'Peña Ríos')
+            ->set('dni', '55667799')
+            ->set('fechaNacimiento', now()->subYears(30)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertSet('paso', 3)
+            ->set('dniEstudianteArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->call('avanzar')
+            ->assertSet('paso', 4)
+            ->call('avanzar')
+            ->assertSet('paso', 5)
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->call('avanzar')
+            ->assertHasNoErrors()
+            ->assertSet('paso', 6)
+            ->set('configurarCronograma', true)
+            ->set('numeroCuotasCronograma', '6')
+            ->set('montoTotalCronograma', '600')
+            ->call('generarCronogramaAutomatico')
+            ->assertHasNoErrors()
+            ->assertSet('cuotaMontos.1', '100.00')
+            // Ajusta la primera cuota a mano: distinta del reparto parejo automático.
+            ->set('cuotaMontos.1', '150')
+            ->set('cuotaFechas.1', $fechaCuotaAjustada)
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $estudiante = Estudiante::query()->where('dni', '55667799')->firstOrFail();
+        $matricula = $estudiante->matriculas()->firstOrFail();
+        $plan = PlanPago::query()->where('matricula_id', $matricula->id)->with('cuotas')->firstOrFail();
+
+        $this->assertCount(6, $plan->cuotas);
+        $primeraCuota = $plan->cuotas->firstWhere('numero', 1);
+        $this->assertSame('150.00', $primeraCuota->monto);
+        $this->assertSame($fechaCuotaAjustada, $primeraCuota->fecha_vencimiento->format('Y-m-d'));
+        // El total del plan refleja la suma real de las cuotas (con el ajuste), no el monto tipeado originalmente.
+        $this->assertSame('650.00', $plan->monto_total);
+    }
+
+    public function test_el_wizard_no_crea_plan_de_pago_si_no_se_configura_cronograma(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Renzo')
+            ->set('apellidos', 'Villar Soto')
+            ->set('dni', '55667700')
+            ->set('fechaNacimiento', now()->subYears(30)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertSet('paso', 3)
+            ->set('dniEstudianteArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->call('avanzar')
+            ->assertSet('paso', 4)
+            ->call('avanzar')
+            ->assertSet('paso', 5)
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->call('avanzar')
+            ->assertSet('paso', 6)
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $estudiante = Estudiante::query()->where('dni', '55667700')->firstOrFail();
+        $matricula = $estudiante->matriculas()->firstOrFail();
+
+        $this->assertDatabaseMissing('planes_pago', ['matricula_id' => $matricula->id]);
     }
 
     /**

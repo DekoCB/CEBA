@@ -12,6 +12,8 @@ use App\Modules\Matricula\Enums\TipoDocumentoEnum;
 use App\Modules\Matricula\Services\DocumentoEstudianteService;
 use App\Modules\Matricula\Services\ExamenUbicacionService;
 use App\Modules\Matricula\Services\MatriculaService;
+use App\Modules\Pagos\Enums\NumeroCuotasEnum;
+use App\Modules\Pagos\Services\PlanPagoService;
 use App\Shared\ValueObjects\Dni;
 use App\Shared\ValueObjects\Telefono;
 use Illuminate\Support\Collection;
@@ -95,6 +97,19 @@ new class extends Component
     public string $horarioId = '';
 
     public string $observacionesMatricula = '';
+
+    // Paso 6 — cronograma de pagos (opcional)
+    public bool $configurarCronograma = false;
+
+    public string $numeroCuotasCronograma = '6';
+
+    public string $montoTotalCronograma = '';
+
+    /** @var array<int, string> */
+    public array $cuotaMontos = [];
+
+    /** @var array<int, string> */
+    public array $cuotaFechas = [];
 
     public function mount(): void
     {
@@ -205,6 +220,50 @@ new class extends Component
             }
 
             $this->paso = 5;
+
+            return;
+        }
+
+        if ($this->paso === 5) {
+            $this->validate([
+                'cicloId' => 'required|integer|exists:ciclos,id',
+                'gradoId' => 'required|integer|exists:grados,id',
+                'horarioId' => 'nullable|integer|exists:horarios,id',
+            ]);
+
+            $this->paso = 6;
+        }
+    }
+
+    /**
+     * Reparte montoTotalCronograma en partes iguales entre las cuotas
+     * elegidas (la última absorbe el redondeo), con vencimientos mensuales
+     * desde hoy como aproximación -- la fecha real de matrícula recién se
+     * fija al confirmar. Es solo el punto de partida: cada monto y fecha
+     * queda editable después para ajustarlo caso por caso.
+     */
+    public function generarCronogramaAutomatico(): void
+    {
+        $this->validate([
+            'numeroCuotasCronograma' => 'required|in:1,6,8',
+            'montoTotalCronograma' => 'required|numeric|min:1',
+        ]);
+
+        $numero = (int) $this->numeroCuotasCronograma;
+        $total = (float) $this->montoTotalCronograma;
+        $montoPorCuota = round($total / $numero, 2);
+        $montoAcumulado = 0.0;
+
+        $this->cuotaMontos = [];
+        $this->cuotaFechas = [];
+
+        for ($i = 1; $i <= $numero; $i++) {
+            $esUltima = $i === $numero;
+            $monto = $esUltima ? round($total - $montoAcumulado, 2) : $montoPorCuota;
+            $montoAcumulado += $monto;
+
+            $this->cuotaMontos[$i] = number_format($monto, 2, '.', '');
+            $this->cuotaFechas[$i] = now()->addMonths($i)->format('Y-m-d');
         }
     }
 
@@ -228,14 +287,25 @@ new class extends Component
         MatriculaService $matriculaService,
         DocumentoEstudianteService $documentoService,
         ExamenUbicacionService $examenService,
+        PlanPagoService $planPagoService,
     ): void {
         Gate::authorize('matricula.crear');
 
-        $this->validate([
-            'cicloId' => 'required|integer|exists:ciclos,id',
-            'gradoId' => 'required|integer|exists:grados,id',
-            'horarioId' => 'nullable|integer|exists:horarios,id',
-        ]);
+        if ($this->configurarCronograma) {
+            $this->validate([
+                'numeroCuotasCronograma' => 'required|in:1,6,8',
+                'cuotaMontos' => 'required|array|min:1',
+                'cuotaMontos.*' => 'required|numeric|min:0.01',
+                'cuotaFechas' => 'required|array|min:1',
+                'cuotaFechas.*' => 'required|date',
+            ]);
+
+            if (count($this->cuotaMontos) !== (int) $this->numeroCuotasCronograma) {
+                $this->addError('numeroCuotasCronograma', 'Genera el cronograma automático antes de confirmar la matrícula.');
+
+                return;
+            }
+        }
 
         // Todo el registro (estudiante, apoderado, documentos, examen y
         // matrícula) va en una sola transacción: si matricular() falla al
@@ -244,7 +314,7 @@ new class extends Component
         // huérfano en la base de datos -- si quedara, un reintento desde
         // este mismo paso 5 (sin volver al paso 1) chocaría con el DNI ya
         // registrado y rompería con un error sin manejar.
-        $estudiante = DB::transaction(function () use ($matriculaService, $documentoService, $examenService) {
+        $estudiante = DB::transaction(function () use ($matriculaService, $documentoService, $examenService, $planPagoService) {
             $estudiante = $matriculaService->registrarEstudiante(new RegistrarEstudianteData(
                 nombres: $this->nombres,
                 apellidos: $this->apellidos,
@@ -305,13 +375,30 @@ new class extends Component
                 ]);
             }
 
-            $matriculaService->matricular($estudiante, new RegistrarMatriculaData(
+            $matricula = $matriculaService->matricular($estudiante, new RegistrarMatriculaData(
                 cicloId: (int) $this->cicloId,
                 gradoId: (int) $this->gradoId,
                 horarioId: $this->horarioId !== '' ? (int) $this->horarioId : null,
                 observaciones: $this->observacionesMatricula ?: null,
                 registradoPor: auth()->id(),
             ));
+
+            if ($this->configurarCronograma) {
+                $cuotas = collect($this->cuotaMontos)
+                    ->map(fn ($monto, $numero) => [
+                        'monto' => (float) $monto,
+                        'fecha_vencimiento' => $this->cuotaFechas[$numero],
+                    ])
+                    ->values()
+                    ->all();
+
+                $planPagoService->crear(
+                    $matricula,
+                    NumeroCuotasEnum::from((int) $this->numeroCuotasCronograma),
+                    array_sum(array_column($cuotas, 'monto')),
+                    $cuotas,
+                );
+            }
 
             return $estudiante;
         });
@@ -341,6 +428,7 @@ new class extends Component
             'gradosCompatibles' => $gradosCompatibles,
             'todosLosGrados' => Grado::query()->where('activo', true)->orderBy('orden')->get(),
             'ciclosDisponibles' => $ciclosConMatriculaAbierta,
+            'numerosCuotas' => NumeroCuotasEnum::cases(),
         ];
     }
 }; ?>
@@ -372,7 +460,7 @@ new class extends Component
         <div class="flex items-start justify-between gap-4">
             <div>
                 <h1 class="font-display text-2xl text-ink">Nueva matrícula</h1>
-                <p class="mt-1 text-sm text-ink-dim">Paso {{ $paso }} de 5</p>
+                <p class="mt-1 text-sm text-ink-dim">Paso {{ $paso }} de 6</p>
             </div>
             <button
                 type="button"
@@ -385,7 +473,7 @@ new class extends Component
         </div>
 
         <div class="mb-6 mt-4 flex gap-1">
-            @for ($i = 1; $i <= 5; $i++)
+            @for ($i = 1; $i <= 6; $i++)
                 <div @class(['h-1.5 flex-1 rounded-full', 'bg-accent' => $i <= $paso, 'bg-surface-2' => $i > $paso])></div>
             @endfor
         </div>
@@ -634,6 +722,72 @@ new class extends Component
             </div>
         @endif
 
+        {{-- Paso 6: Cronograma de pagos --}}
+        @if ($paso === 6)
+            <h2 class="font-display text-lg text-ink">Cronograma de pagos</h2>
+            <label class="mt-4 flex items-center gap-2 text-sm text-ink-dim">
+                <input type="checkbox" wire:model.live="configurarCronograma" class="rounded border-border text-accent focus:ring-accent">
+                Configurar el plan de pagos ahora
+            </label>
+            <p class="mt-1 text-xs text-ink-faint">Si lo dejas sin marcar, se puede armar después desde Pagos y Cobranza.</p>
+
+            @if ($configurarCronograma)
+                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div>
+                        <x-input-label for="numeroCuotasCronograma" value="Número de cuotas" />
+                        <x-select-input
+                            wire:model="numeroCuotasCronograma"
+                            id="numeroCuotasCronograma"
+                            class="mt-1 block w-full"
+                            :options="collect($numerosCuotas)->mapWithKeys(fn ($opcion) => [(string) $opcion->value => $opcion->label()])"
+                        />
+                        <x-input-error :messages="$errors->get('numeroCuotasCronograma')" class="mt-1" />
+                    </div>
+                    <div>
+                        <x-input-label for="montoTotalCronograma" value="Monto total (S/)" />
+                        <x-text-input wire:model="montoTotalCronograma" id="montoTotalCronograma" type="number" step="0.01" min="0" class="mt-1 block w-full" />
+                        <x-input-error :messages="$errors->get('montoTotalCronograma')" class="mt-1" />
+                    </div>
+                    <div class="flex items-end">
+                        <x-secondary-button type="button" wire:click="generarCronogramaAutomatico" class="w-full justify-center">
+                            Generar cronograma
+                        </x-secondary-button>
+                    </div>
+                </div>
+
+                @if (count($cuotaMontos) > 0)
+                    <div class="mt-4 overflow-hidden rounded-lg border border-border">
+                        <table class="min-w-full divide-y divide-border text-sm">
+                            <thead class="bg-surface-2">
+                                <tr>
+                                    <th class="px-4 py-2 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Cuota</th>
+                                    <th class="px-4 py-2 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Monto (S/)</th>
+                                    <th class="px-4 py-2 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Vencimiento</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-border">
+                                @foreach ($cuotaMontos as $numero => $monto)
+                                    <tr wire:key="cuota-{{ $numero }}">
+                                        <td class="px-4 py-2 text-ink-dim">{{ $numero }}</td>
+                                        <td class="px-4 py-2">
+                                            <input type="number" step="0.01" min="0" wire:model="cuotaMontos.{{ $numero }}" class="w-28 rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
+                                        </td>
+                                        <td class="px-4 py-2">
+                                            <x-date-input wire:model="cuotaFechas.{{ $numero }}" class="w-40" />
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="mt-2 text-xs text-ink-faint">Total del cronograma: S/ {{ number_format(array_sum(array_map('floatval', $cuotaMontos)), 2) }}</p>
+                    <x-input-error :messages="$errors->get('cuotaMontos')" class="mt-1" />
+                    <x-input-error :messages="$errors->get('cuotaMontos.*')" class="mt-1" />
+                    <x-input-error :messages="$errors->get('cuotaFechas.*')" class="mt-1" />
+                @endif
+            @endif
+        @endif
+
         <div class="mt-6 flex justify-between border-t border-border pt-4">
             @if ($paso > 1)
                 <x-secondary-button type="button" wire:click="retroceder">Atrás</x-secondary-button>
@@ -641,7 +795,7 @@ new class extends Component
                 <span></span>
             @endif
 
-            @if ($paso < 5)
+            @if ($paso < 6)
                 <x-primary-button type="button" wire:click="avanzar">Continuar</x-primary-button>
             @else
                 <x-primary-button type="button" wire:click="confirmar">Confirmar matrícula</x-primary-button>
