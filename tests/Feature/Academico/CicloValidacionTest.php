@@ -3,6 +3,7 @@
 namespace Tests\Feature\Academico;
 
 use App\Modules\Academico\Enums\TipoCicloEnum;
+use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Services\CicloService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -112,5 +113,37 @@ class CicloValidacionTest extends TestCase
         $periodo = $this->service()->crearPeriodoMatricula($ciclo, '2026-06-15', '2026-07-15');
 
         $this->assertDatabaseHas('periodos_matricula', ['id' => $periodo->id, 'ciclo_id' => $ciclo->id]);
+    }
+
+    public function test_el_tipo_anual_es_para_menores_de_edad_y_no_exige_mes_de_inicio_fijo(): void
+    {
+        $this->assertSame(TipoPublicoEnum::MENOR, TipoCicloEnum::ANUAL->publico());
+        $this->assertNull(TipoCicloEnum::ANUAL->mesInicioFijo());
+    }
+
+    public function test_un_ciclo_anual_permite_cualquier_mes_de_inicio(): void
+    {
+        $ciclo = $this->service()->crear([
+            'nombre' => 'Ciclo Anual 2026',
+            'tipo' => TipoCicloEnum::ANUAL,
+            'anio' => 2026,
+            'fecha_inicio' => '2026-03-01',
+            'fecha_fin' => '2027-03-01',
+        ]);
+
+        $this->assertDatabaseHas('ciclos', ['id' => $ciclo->id, 'tipo' => TipoCicloEnum::ANUAL->value]);
+    }
+
+    public function test_un_ciclo_anual_debe_durar_doce_meses(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $this->service()->crear([
+            'nombre' => 'Ciclo Anual corto',
+            'tipo' => TipoCicloEnum::ANUAL,
+            'anio' => 2026,
+            'fecha_inicio' => '2026-03-01',
+            'fecha_fin' => '2026-09-01',
+        ]);
     }
 }

@@ -43,6 +43,29 @@
         </tbody>
     </table>
 
+    @if ($cursos->isNotEmpty())
+        <div class="seccion">Desglose mensual</div>
+        <table>
+            <thead>
+                <tr><td>Curso</td><td>Mes</td><td>Promedio</td></tr>
+            </thead>
+            <tbody>
+                @forelse ($cursos as $curso)
+                    @forelse ($curso['porMes'] as $mes)
+                        <tr>
+                            <td>{{ $curso['nombre'] }}</td>
+                            <td>{{ ucfirst($mes['mes']) }}</td>
+                            <td>{{ number_format($mes['promedio'], 2) }}</td>
+                        </tr>
+                    @empty
+                        <tr><td>{{ $curso['nombre'] }}</td><td colspan="2" class="sin-datos">Sin calificaciones registradas por mes.</td></tr>
+                    @endforelse
+                @empty
+                @endforelse
+            </tbody>
+        </table>
+    @endif
+
     <p class="codigo">Generada el {{ now()->format('d/m/Y H:i') }}</p>
 </body>
 </html>

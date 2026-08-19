@@ -72,7 +72,7 @@ new #[Layout('layouts.app')] class extends Component
 <div>
     <x-slot name="header">
         <h1 class="font-display text-2xl text-ink">Ciclos</h1>
-        <p class="mt-1 text-sm text-ink-dim">Mayores: enero-junio y julio-diciembre. Menores: 6 u 8 meses.</p>
+        <p class="mt-1 text-sm text-ink-dim">Mayores: enero-junio y julio-diciembre. Menores: 6, 8 o 12 meses.</p>
     </x-slot>
 
     {{-- Ver academico/grados/index.blade.php: el botón no puede vivir en x-slot="header". --}}

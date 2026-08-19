@@ -13,6 +13,7 @@ use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Notificaciones\Enums\TipoNotificacionEnum;
 use App\Modules\Notificaciones\Services\NotificacionService;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection as SupportCollection;
 
 class EvaluacionService
@@ -238,6 +239,28 @@ class EvaluacionService
         }
 
         return round((float) $notas->avg(), 2);
+    }
+
+    /**
+     * El desglose mes a mes del promedio del estudiante en un horario, para
+     * la libreta de notas: cada elemento trae "mes" (label legible, ej.
+     * "Marzo 2026") y "promedio", ordenados cronológicamente. Se agrupa por
+     * la fecha de la evaluación (no de la calificación, que no tiene fecha
+     * propia), así que un mes sin evaluaciones calificadas simplemente no
+     * aparece en el desglose.
+     *
+     * @return SupportCollection<int, array{mes: string, promedio: float}>
+     */
+    public function promedioMensualDelEstudiante(Estudiante $estudiante, Horario $horario): SupportCollection
+    {
+        return $this->misCalificaciones($estudiante, $horario)
+            ->groupBy(fn (Calificacion $calificacion) => $calificacion->evaluacion->fecha->format('Y-m'))
+            ->sortKeys()
+            ->map(fn (Collection $calificaciones, string $clave) => [
+                'mes' => Carbon::createFromFormat('Y-m', $clave)->translatedFormat('F Y'),
+                'promedio' => round((float) $calificaciones->pluck('nota_numerica')->avg(), 2),
+            ])
+            ->values();
     }
 
     /**

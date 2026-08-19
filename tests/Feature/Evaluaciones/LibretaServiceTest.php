@@ -109,4 +109,32 @@ class LibretaServiceTest extends TestCase
 
         $this->assertTrue($resumen->isEmpty());
     }
+
+    public function test_resumen_por_cursos_incluye_el_desglose_mes_a_mes(): void
+    {
+        $ciclo = Ciclo::factory()->create();
+        $estudiante = Estudiante::factory()->create();
+        $horario = Horario::factory()->create(['ciclo_id' => $ciclo->id]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => $horario->grado_id,
+        ]);
+
+        $evaluacionService = $this->app->make(EvaluacionService::class);
+
+        $marzo = $evaluacionService->crear($horario, 'Evaluación de marzo', '2026-03-10');
+        $evaluacionService->calificar($marzo, $estudiante, 14.0, null, null);
+        $evaluacionService->publicar($marzo);
+
+        $abril = $evaluacionService->crear($horario, 'Evaluación de abril', '2026-04-10');
+        $evaluacionService->calificar($abril, $estudiante, 18.0, null, null);
+        $evaluacionService->publicar($abril);
+
+        $porMes = $this->libretaService()->resumenPorCursos($estudiante, $ciclo)->first()['porMes'];
+
+        $this->assertCount(2, $porMes);
+        $this->assertSame(14.0, $porMes[0]['promedio']);
+        $this->assertSame(18.0, $porMes[1]['promedio']);
+    }
 }

@@ -6,7 +6,7 @@ namespace App\Modules\Academico\Enums;
 
 /**
  * Mayores de edad cursan 2 ciclos por año (enero-junio, julio-diciembre).
- * Menores cursan ciclos de 6 u 8 meses, con fecha de inicio flexible.
+ * Menores cursan ciclos de 6, 8 o 12 meses, con fecha de inicio flexible.
  */
 enum TipoCicloEnum: string
 {
@@ -14,6 +14,7 @@ enum TipoCicloEnum: string
     case JUL_DIC = 'jul_dic';
     case SEIS_MESES = 'seis_meses';
     case OCHO_MESES = 'ocho_meses';
+    case ANUAL = 'anual';
 
     public function label(): string
     {
@@ -22,6 +23,7 @@ enum TipoCicloEnum: string
             self::JUL_DIC => 'Julio - Diciembre',
             self::SEIS_MESES => '6 meses',
             self::OCHO_MESES => '8 meses',
+            self::ANUAL => 'Anual (12 meses)',
         };
     }
 
@@ -29,7 +31,7 @@ enum TipoCicloEnum: string
     {
         return match ($this) {
             self::ENE_JUN, self::JUL_DIC => TipoPublicoEnum::MAYOR,
-            self::SEIS_MESES, self::OCHO_MESES => TipoPublicoEnum::MENOR,
+            self::SEIS_MESES, self::OCHO_MESES, self::ANUAL => TipoPublicoEnum::MENOR,
         };
     }
 
@@ -39,6 +41,7 @@ enum TipoCicloEnum: string
             self::ENE_JUN, self::JUL_DIC => 6,
             self::SEIS_MESES => 6,
             self::OCHO_MESES => 8,
+            self::ANUAL => 12,
         };
     }
 

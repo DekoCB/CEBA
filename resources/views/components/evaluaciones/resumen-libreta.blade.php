@@ -27,6 +27,21 @@
                         @endif
                     </td>
                 </tr>
+                <tr class="bg-surface-2">
+                    <td colspan="3" class="px-4 py-3">
+                        @if (($curso['porMes'] ?? collect())->isNotEmpty())
+                            <div class="flex flex-wrap gap-2">
+                                @foreach ($curso['porMes'] as $mes)
+                                    <span class="rounded-full border border-border bg-surface px-2 py-1 text-xs text-ink-dim">
+                                        {{ ucfirst($mes['mes']) }}: <span class="font-medium text-ink">{{ number_format($mes['promedio'], 2) }}</span>
+                                    </span>
+                                @endforeach
+                            </div>
+                        @else
+                            <p class="text-xs text-ink-faint">Sin calificaciones registradas por mes.</p>
+                        @endif
+                    </td>
+                </tr>
             @empty
                 <tr>
                     <td colspan="3" class="px-4 py-8 text-center text-sm text-ink-faint">No hay cursos registrados para este ciclo.</td>

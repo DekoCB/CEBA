@@ -28,8 +28,9 @@ class LibretaService
      * para mostrar contenido, no para disparar una acción.
      *
      * Cada elemento es un array con las claves "nombre" (string), "promedio"
-     * (?float) y "letra" (?string). Sin generics en el @return: el TValue de
-     * Collection no es covariante (ver
+     * (?float), "letra" (?string) y "porMes" (el desglose mes a mes, ver
+     * EvaluacionService::promedioMensualDelEstudiante()). Sin generics en el
+     * tipo de retorno: el TValue de Collection no es covariante (ver
      * https://phpstan.org/blog/whats-up-with-template-covariant), así que
      * ninguna anotación de forma de array sobrevive a un ->map().
      */
@@ -58,6 +59,7 @@ class LibretaService
                 'nombre' => $horario->curso->nombre,
                 'promedio' => $promedio,
                 'letra' => $promedio !== null ? NotaLetraEnum::desde($promedio)->value : null,
+                'porMes' => $this->evaluaciones->promedioMensualDelEstudiante($estudiante, $horario),
             ];
         });
     }
