@@ -468,6 +468,7 @@ class DemoRobustoSeeder extends Seeder
         $conceptoService->crear('Certificado de estudios', TipoConceptoEnum::CERTIFICADO, 60.00);
         $conceptoService->crear('Constancia de matrícula', TipoConceptoEnum::CONSTANCIA, 20.00);
         $conceptoService->crear('Penalidad por atraso', TipoConceptoEnum::PENALIDAD, 15.00);
+        $conceptoService->crear('Otros', TipoConceptoEnum::OTRO, 0.00);
 
         $cuentaService->crear('BCP', '194-2345678-0-12', '00219400234567801277', 'CEBA E.I.R.L.', null);
         $cuentaService->crear('Interbank', '898-3012345678-9', '00389800301234567899', 'CEBA E.I.R.L.', null);

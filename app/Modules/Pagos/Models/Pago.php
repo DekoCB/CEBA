@@ -22,6 +22,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property int $id
  * @property int $estudiante_id
  * @property int $concepto_id
+ * @property string|null $detalle
  * @property int|null $cuota_id
  * @property float $monto
  * @property MetodoPagoEnum $metodo
@@ -43,6 +44,7 @@ class Pago extends Model implements HasMedia
     protected $fillable = [
         'estudiante_id',
         'concepto_id',
+        'detalle',
         'cuota_id',
         'monto',
         'metodo',

@@ -67,6 +67,41 @@ class PagosFlujoTest extends TestCase
         $this->assertDatabaseHas('recibos', ['pago_id' => $pago->id]);
     }
 
+    public function test_registrar_un_pago_con_concepto_otro_exige_y_guarda_el_detalle_libre(): void
+    {
+        $administrativo = User::factory()->create();
+        $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create(['tipo' => 'otro']);
+
+        $this->actingAs($administrativo);
+
+        Volt::test('pagos.index')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->set('conceptoId', (string) $concepto->id)
+            ->set('monto', '25')
+            ->set('metodo', 'efectivo')
+            ->call('registrarPago')
+            ->assertHasErrors('detalle');
+
+        $this->assertDatabaseMissing('pagos', ['estudiante_id' => $estudiante->id]);
+
+        Volt::test('pagos.index')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->set('conceptoId', (string) $concepto->id)
+            ->set('detalle', 'Duplicado de constancia de matrícula')
+            ->set('monto', '25')
+            ->set('metodo', 'efectivo')
+            ->call('registrarPago')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('pagos', [
+            'estudiante_id' => $estudiante->id,
+            'detalle' => 'Duplicado de constancia de matrícula',
+        ]);
+    }
+
     public function test_tesoreria_rechaza_un_pago_con_motivo(): void
     {
         $tesoreria = User::factory()->create();

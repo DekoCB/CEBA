@@ -4,6 +4,7 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use App\Modules\Pagos\Enums\NumeroCuotasEnum;
+use App\Modules\Pagos\Enums\TipoConceptoEnum;
 use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Pago;
 use App\Modules\Pagos\Models\PlanPago;
@@ -30,6 +31,8 @@ new #[Layout('layouts.app')] class extends Component
     public string $estudianteSeleccionadoNombre = '';
 
     public string $conceptoId = '';
+
+    public string $detalle = '';
 
     public string $monto = '';
 
@@ -90,9 +93,15 @@ new #[Layout('layouts.app')] class extends Component
         $estudiante = Estudiante::query()->findOrFail($this->estudianteSeleccionadoId);
         $concepto = ConceptoPago::query()->findOrFail($this->conceptoId);
 
-        $service->registrar($estudiante, $concepto, (float) $this->monto, $this->metodo, null, $this->comprobante, Auth::id());
+        if ($concepto->tipo === TipoConceptoEnum::OTRO && trim($this->detalle) === '') {
+            $this->addError('detalle', 'Escribe el concepto específico de este cobro.');
 
-        $this->reset(['estudianteSeleccionadoId', 'estudianteSeleccionadoNombre', 'conceptoId', 'monto', 'metodo', 'comprobante']);
+            return;
+        }
+
+        $service->registrar($estudiante, $concepto, (float) $this->monto, $this->metodo, null, $this->comprobante, Auth::id(), $this->detalle ?: null);
+
+        $this->reset(['estudianteSeleccionadoId', 'estudianteSeleccionadoNombre', 'conceptoId', 'detalle', 'monto', 'metodo', 'comprobante']);
         session()->flash('status', 'Pago registrado. Queda pendiente de aprobación de Tesorería.');
     }
 
@@ -176,6 +185,8 @@ new #[Layout('layouts.app')] class extends Component
             ? $pagos->todos()->when($this->filtroEstado, fn ($coleccion) => $coleccion->where('estado', $this->filtroEstado))
             : collect();
 
+        $conceptosActivos = $conceptos->activos();
+
         return [
             'puedeAprobar' => $puedeAprobar,
             'puedeRegistrar' => $puedeRegistrar,
@@ -184,7 +195,8 @@ new #[Layout('layouts.app')] class extends Component
             'historial' => $historial,
             'resultadosBusqueda' => $resultadosBusqueda,
             'matriculasSinPlan' => $matriculasSinPlan,
-            'conceptosActivos' => $conceptos->activos(),
+            'conceptosActivos' => $conceptosActivos,
+            'mostrarDetalleLibre' => $conceptosActivos->firstWhere('id', (int) $this->conceptoId)?->tipo === TipoConceptoEnum::OTRO,
             'numerosCuotas' => NumeroCuotasEnum::cases(),
             'metodosPago' => MetodoPagoEnum::cases(),
         ];
@@ -239,7 +251,7 @@ new #[Layout('layouts.app')] class extends Component
                         <div>
                             <p class="text-ink">{{ $pago->estudiante?->nombreCompleto() ?? '—' }}</p>
                             <p class="text-xs text-ink-faint">
-                                {{ $pago->concepto->nombre }}
+                                {{ $pago->concepto->nombre }}{{ $pago->detalle ? " — {$pago->detalle}" : '' }}
                                 @if ($pago->cuota)
                                     · cuota {{ $pago->cuota->numero }}
                                 @endif
@@ -304,13 +316,21 @@ new #[Layout('layouts.app')] class extends Component
             <div>
                 <x-input-label for="conceptoId" value="Concepto" />
                 <x-select-input
-                    wire:model="conceptoId"
+                    wire:model.live="conceptoId"
                     id="conceptoId"
                     class="mt-1 block w-full"
                     :options="collect($conceptosActivos)->mapWithKeys(fn ($concepto) => [$concepto->id => $concepto->nombre.' (S/ '.number_format((float) $concepto->monto_base, 2).')'])"
                 />
                 <x-input-error :messages="$errors->get('conceptoId')" class="mt-1" />
             </div>
+
+            @if ($mostrarDetalleLibre)
+                <div>
+                    <x-input-label for="detalle" value="Detalle del concepto" />
+                    <x-text-input wire:model="detalle" id="detalle" class="mt-1 block w-full" placeholder="Ej. duplicado de constancia, exoneración…" />
+                    <x-input-error :messages="$errors->get('detalle')" class="mt-1" />
+                </div>
+            @endif
 
             <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -403,7 +423,7 @@ new #[Layout('layouts.app')] class extends Component
                     <div class="flex items-center justify-between gap-4 px-4 py-3 text-sm">
                         <div>
                             <p class="text-ink">{{ $pago->estudiante?->nombreCompleto() ?? '—' }}</p>
-                            <p class="text-xs text-ink-faint">{{ $pago->concepto->nombre }} · {{ $pago->fecha_pago->format('d/m/Y') }}</p>
+                            <p class="text-xs text-ink-faint">{{ $pago->concepto->nombre }}{{ $pago->detalle ? " — {$pago->detalle}" : '' }} · {{ $pago->fecha_pago->format('d/m/Y') }}</p>
                             @if ($pago->estado->value === 'rechazado' && $pago->motivo_rechazo)
                                 <p class="text-xs text-danger">{{ $pago->motivo_rechazo }}</p>
                             @endif

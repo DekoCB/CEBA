@@ -29,6 +29,7 @@ class PagoService
         ?Cuota $cuota,
         ?UploadedFile $comprobante,
         ?int $registradoPor,
+        ?string $detalle = null,
     ): Pago {
         if ($cuota && Pago::query()->where('cuota_id', $cuota->id)->where('estado', EstadoPagoEnum::PENDIENTE)->exists()) {
             throw ValidationException::withMessages([
@@ -40,6 +41,7 @@ class PagoService
         $pago = Pago::query()->create([
             'estudiante_id' => $estudiante->id,
             'concepto_id' => $concepto->id,
+            'detalle' => $detalle,
             'cuota_id' => $cuota?->id,
             'monto' => $monto,
             'metodo' => $metodo,
