@@ -9,7 +9,9 @@ use App\Modules\Evaluaciones\Models\Calificacion;
 use App\Modules\Evaluaciones\Models\Evaluacion;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Models\Pago;
+use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Reportes\Services\ReporteService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -72,6 +74,54 @@ class ReporteServiceTest extends TestCase
 
         $this->assertSame(['Estudiante', 'Concepto', 'Monto', 'Método', 'Estado', 'Fecha de pago'], $reporte['columnas']);
         $this->assertCount(1, $reporte['filas']);
+    }
+
+    public function test_reporte_de_morosos_agrupa_cuotas_vencidas_por_estudiante(): void
+    {
+        $estudiante = Estudiante::factory()->create(['nombres' => 'Rosa', 'apellidos' => 'Delgado']);
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
+
+        Cuota::factory()->vencida()->create([
+            'plan_pago_id' => $plan->id,
+            'numero' => 1,
+            'monto' => 100,
+            'fecha_vencimiento' => now()->subMonths(2)->format('Y-m-d'),
+        ]);
+        Cuota::factory()->vencida()->create([
+            'plan_pago_id' => $plan->id,
+            'numero' => 2,
+            'monto' => 150,
+            'fecha_vencimiento' => now()->subMonth()->format('Y-m-d'),
+        ]);
+        // No debería contar: todavía no vence.
+        Cuota::factory()->create([
+            'plan_pago_id' => $plan->id,
+            'numero' => 3,
+            'fecha_vencimiento' => now()->addMonth()->format('Y-m-d'),
+        ]);
+        // No debería contar: ya está pagada, aunque la fecha haya pasado.
+        Cuota::factory()->vencida()->pagada()->create(['plan_pago_id' => $plan->id, 'numero' => 4]);
+
+        $reporte = app(ReporteService::class)->morosos(null, null);
+
+        $this->assertSame(['Estudiante', 'DNI', 'Grado', 'Cuotas vencidas', 'Monto adeudado', 'Vencida desde'], $reporte['columnas']);
+        $this->assertCount(1, $reporte['filas']);
+        $this->assertStringContainsString('Rosa', $reporte['filas'][0][0]);
+        $this->assertSame(2, $reporte['filas'][0][3]);
+        $this->assertSame('250.00', $reporte['filas'][0][4]);
+        $this->assertSame(now()->subMonths(2)->format('d/m/Y'), $reporte['filas'][0][5]);
+    }
+
+    public function test_reporte_de_morosos_no_incluye_estudiantes_al_dia(): void
+    {
+        $matricula = Matricula::factory()->create();
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
+        Cuota::factory()->pagada()->create(['plan_pago_id' => $plan->id]);
+
+        $reporte = app(ReporteService::class)->morosos(null, null);
+
+        $this->assertSame([], $reporte['filas']);
     }
 
     public function test_reporte_de_certificados_esta_vacio_sin_datos(): void

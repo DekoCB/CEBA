@@ -37,7 +37,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'incidencias.ver', 'incidencias.crear',
             'pagos.ver', 'pagos.gestionar',
             'certificados.ver', 'certificados.emitir', 'certificados.duplicar', 'certificados.gestionar_plantilla',
-            'reportes.academicos', 'reportes.matricula', 'reportes.financieros', 'reportes.certificados', 'reportes.exportar',
+            'reportes.academicos', 'reportes.matricula', 'reportes.financieros', 'reportes.morosos', 'reportes.certificados', 'reportes.exportar',
             'whatsapp.ver', 'whatsapp.enviar',
         ],
 
@@ -55,7 +55,7 @@ class RolesAndPermissionsSeeder extends Seeder
         RolEnum::TESORERIA->value => [
             'pagos.ver', 'pagos.aprobar', 'pagos.rechazar',
             'tesoreria.gestionar',
-            'reportes.financieros', 'reportes.exportar',
+            'reportes.financieros', 'reportes.morosos', 'reportes.exportar',
         ],
 
         RolEnum::DOCENTE->value => [
@@ -91,7 +91,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'pagos.ver_propio', 'pagos.subir_comprobante',
         'tesoreria.gestionar',
         'certificados.emitir', 'certificados.duplicar', 'certificados.ver', 'certificados.solicitar', 'certificados.gestionar_plantilla',
-        'reportes.academicos', 'reportes.operativos', 'reportes.financieros',
+        'reportes.academicos', 'reportes.operativos', 'reportes.financieros', 'reportes.morosos',
         'reportes.matricula', 'reportes.certificados', 'reportes.propios', 'reportes.exportar',
         'whatsapp.enviar', 'whatsapp.ver', 'notificaciones.ver_propio',
         'roles.gestionar', 'auditoria.ver',

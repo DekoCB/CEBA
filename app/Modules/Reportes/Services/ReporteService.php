@@ -10,6 +10,8 @@ use App\Modules\Certificados\Models\Certificado;
 use App\Modules\Evaluaciones\Models\Calificacion;
 use App\Modules\Evaluaciones\Models\Evaluacion;
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Pagos\Enums\EstadoCuotaEnum;
+use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Models\Pago;
 
 /**
@@ -153,6 +155,50 @@ class ReporteService
 
         return [
             'columnas' => ['Estudiante', 'Grado', 'Sesiones registradas', 'Asistencias', '% Asistencia'],
+            'filas' => $filas,
+        ];
+    }
+
+    /**
+     * Un estudiante por fila, con sus cuotas vencidas sin pagar agrupadas:
+     * cuántas, cuánto suman y desde cuándo la más antigua está vencida.
+     * $desde/$hasta filtran por fecha de vencimiento de la cuota, no por
+     * cuándo se generó el reporte.
+     *
+     * @return array{columnas: list<string>, filas: list<array<int, string|int|float>>}
+     */
+    public function morosos(?string $desde, ?string $hasta): array
+    {
+        $cuotasVencidas = Cuota::query()
+            ->where('estado', EstadoCuotaEnum::PENDIENTE)
+            ->where('fecha_vencimiento', '<', now()->toDateString())
+            ->when($desde, fn ($query) => $query->whereDate('fecha_vencimiento', '>=', $desde))
+            ->when($hasta, fn ($query) => $query->whereDate('fecha_vencimiento', '<=', $hasta))
+            ->with('planPago.matricula.estudiante', 'planPago.matricula.grado')
+            ->get()
+            ->filter(fn (Cuota $cuota) => $cuota->planPago->matricula?->estudiante !== null)
+            ->groupBy(fn (Cuota $cuota) => $cuota->planPago->matricula->estudiante_id);
+
+        $filas = $cuotasVencidas
+            ->map(function ($cuotas) {
+                $matricula = $cuotas->first()->planPago->matricula;
+                $estudiante = $matricula->estudiante;
+
+                return [
+                    $estudiante->nombreCompleto(),
+                    $estudiante->dni,
+                    $matricula->grado->nombre,
+                    $cuotas->count(),
+                    number_format((float) $cuotas->sum('monto'), 2),
+                    $cuotas->min('fecha_vencimiento')->format('d/m/Y'),
+                ];
+            })
+            ->sortByDesc(fn (array $fila) => $fila[3])
+            ->values()
+            ->all();
+
+        return [
+            'columnas' => ['Estudiante', 'DNI', 'Grado', 'Cuotas vencidas', 'Monto adeudado', 'Vencida desde'],
             'filas' => $filas,
         ];
     }
