@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Academico\Models\Aula;
+use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Services\AulaService;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
@@ -20,9 +21,14 @@ new #[Layout('layouts.app')] class extends Component
 
     public bool $activa = true;
 
+    public string $cicloFiltro = '';
+
     public function mount(): void
     {
         Gate::authorize('academico.ver');
+
+        $activo = Ciclo::query()->where('estado', 'activo')->first();
+        $this->cicloFiltro = $activo ? (string) $activo->id : '';
     }
 
     public function abrirModal(?int $aulaId = null): void
@@ -74,7 +80,11 @@ new #[Layout('layouts.app')] class extends Component
 
     public function with(AulaService $service): array
     {
-        return ['aulas' => $service->todas()];
+        return [
+            'aulas' => $service->todas(),
+            'ciclos' => Ciclo::query()->orderByDesc('fecha_inicio')->get(),
+            'ocupacion' => $this->cicloFiltro ? $service->ocupacion((int) $this->cicloFiltro) : collect(),
+        ];
     }
 }; ?>
 
@@ -98,6 +108,68 @@ new #[Layout('layouts.app')] class extends Component
         <div class="mb-4 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">{{ session('status') }}</div>
     @endif
 
+    <div class="mb-8">
+        <h2 class="mb-2 font-display text-lg text-ink">Ocupación por turno</h2>
+        <p class="mb-3 text-sm text-ink-dim">Estudiantes matriculados por aula en cada turno (Lunes-Miércoles, Martes-Jueves, Domingo), frente a su capacidad.</p>
+
+        <x-select-input
+            wire:model.live="cicloFiltro"
+            placeholder="Selecciona un ciclo…"
+            class="mb-4 w-full sm:max-w-xs"
+            :options="collect($ciclos)->mapWithKeys(fn ($ciclo) => [$ciclo->id => $ciclo->nombre])"
+        />
+
+        @if (! $cicloFiltro)
+            <div class="rounded-lg border border-border bg-surface px-4 py-8 text-center text-sm text-ink-faint">
+                Selecciona un ciclo para ver la ocupación de las aulas.
+            </div>
+        @else
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                @foreach ($ocupacion as $fila)
+                    <div class="overflow-hidden rounded-lg border border-border bg-surface">
+                        <div class="flex items-center justify-between border-b border-border bg-surface-2 px-4 py-2">
+                            <span class="font-display text-sm text-ink">{{ $fila['aula']->nombre }}</span>
+                            <span class="text-xs text-ink-faint">Capacidad {{ $fila['aula']->capacidad }}</span>
+                        </div>
+
+                        @if ($fila['porFranja']->isEmpty())
+                            <p class="px-4 py-6 text-center text-sm text-ink-faint">Sin horarios asignados este ciclo.</p>
+                        @else
+                            <div class="divide-y divide-border">
+                                @foreach ($fila['porFranja'] as $grupoFranja)
+                                    <div class="px-4 py-3">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $grupoFranja['label'] }}</span>
+                                            <span @class([
+                                                'rounded-full px-2 py-0.5 text-xs font-medium',
+                                                'bg-danger/10 text-danger' => $grupoFranja['totalEstudiantes'] > $fila['aula']->capacidad,
+                                                'bg-ok/10 text-ok' => $grupoFranja['totalEstudiantes'] <= $fila['aula']->capacidad,
+                                            ])>
+                                                {{ $grupoFranja['totalEstudiantes'] }} / {{ $fila['aula']->capacidad }}
+                                            </span>
+                                        </div>
+                                        <div class="mt-1 space-y-0.5">
+                                            @foreach ($grupoFranja['horarios'] as $item)
+                                                <p class="text-xs text-ink-dim">
+                                                    {{ $item['horario']->curso->nombre }} · {{ $item['horario']->grado->nombre }}
+                                                    @if ($item['horario']->seccion)
+                                                        · Grupo {{ $item['horario']->seccion }}
+                                                    @endif
+                                                    <span class="text-ink-faint">— {{ $item['estudiantes'] }} estudiante{{ $item['estudiantes'] === 1 ? '' : 's' }}</span>
+                                                </p>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        @endif
+    </div>
+
+    <h2 class="mb-3 font-display text-lg text-ink">Aulas registradas</h2>
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         @forelse ($aulas as $aula)
             <div wire:key="aula-{{ $aula->id }}" class="rounded-lg border border-border bg-surface p-4">
