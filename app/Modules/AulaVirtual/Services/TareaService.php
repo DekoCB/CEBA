@@ -50,6 +50,19 @@ class TareaService
         return $curso->tareas()->create($datos);
     }
 
+    /**
+     * Crea la misma tarea en varios cursos virtuales a la vez (ej. las
+     * distintas secciones/grupos de un mismo curso).
+     *
+     * @param  Collection<int, CursoVirtual>  $cursos
+     * @param  array{titulo: string, descripcion: ?string, fecha_limite: string, puntaje_max: int, semana?: ?int}  $datos
+     * @return Collection<int, Tarea>
+     */
+    public function crearParaVarios(Collection $cursos, array $datos): Collection
+    {
+        return $cursos->map(fn (CursoVirtual $curso) => $this->crear($curso, $datos));
+    }
+
     public function entregaDe(Tarea $tarea, Estudiante $estudiante): ?EntregaTarea
     {
         return EntregaTarea::query()

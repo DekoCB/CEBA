@@ -67,6 +67,34 @@ class AulaVirtualServiceTest extends TestCase
         $this->assertFalse($cursos->contains('id', $cursoB->id));
     }
 
+    public function test_secciones_relacionadas_incluye_otros_grupos_del_mismo_curso_grado_y_ciclo(): void
+    {
+        $horarioA = Horario::factory()->create(['seccion' => 'A']);
+        $horarioB = Horario::factory()->create([
+            'curso_id' => $horarioA->curso_id,
+            'grado_id' => $horarioA->grado_id,
+            'ciclo_id' => $horarioA->ciclo_id,
+            'seccion' => 'B',
+        ]);
+        $cursoVirtualA = $this->cursoVirtualService()->activarParaHorario($horarioA);
+        $cursoVirtualB = $this->cursoVirtualService()->activarParaHorario($horarioB);
+
+        // Mismo grado y ciclo, pero otro curso académico: no es una sección
+        // relacionada, aunque coincidan grado/ciclo.
+        $otroHorario = Horario::factory()->create([
+            'grado_id' => $horarioA->grado_id,
+            'ciclo_id' => $horarioA->ciclo_id,
+        ]);
+        $cursoVirtualNoRelacionado = $this->cursoVirtualService()->activarParaHorario($otroHorario);
+
+        $relacionadas = $this->cursoVirtualService()->seccionesRelacionadas($cursoVirtualA);
+
+        $this->assertCount(2, $relacionadas);
+        $this->assertTrue($relacionadas->contains('id', $cursoVirtualA->id));
+        $this->assertTrue($relacionadas->contains('id', $cursoVirtualB->id));
+        $this->assertFalse($relacionadas->contains('id', $cursoVirtualNoRelacionado->id));
+    }
+
     public function test_material_de_tipo_pdf_requiere_archivo(): void
     {
         $curso = CursoVirtual::factory()->create();

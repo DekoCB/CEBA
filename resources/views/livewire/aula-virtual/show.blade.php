@@ -76,6 +76,9 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $tareaSemana = '';
 
+    /** @var array<int, int> */
+    public array $tareaCursosSeleccionados = [];
+
     // Nueva publicación
     public bool $mostrarFormPublicacion = false;
 
@@ -95,6 +98,9 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $foroSemana = '';
 
+    /** @var array<int, int> */
+    public array $foroCursosSeleccionados = [];
+
     /** @var array<int, string> */
     public array $nuevaRespuestaForo = [];
 
@@ -111,6 +117,24 @@ new #[Layout('layouts.app')] class extends Component
         $this->curso = $curso;
         $this->materialCursosSeleccionados = [$curso->id];
         $this->grabacionCursosSeleccionados = [$curso->id];
+        $this->tareaCursosSeleccionados = [$curso->id];
+        $this->foroCursosSeleccionados = [$curso->id];
+    }
+
+    /**
+     * Revalida cada curso elegido en un checklist "subir también a" (no solo
+     * el de la página actual): el cliente puede mandar cualquier ID, así que
+     * hay que confirmar permisos de gestión sobre cada uno antes de usarlo.
+     *
+     * @param  array<int, int>  $idsSeleccionados
+     * @return Collection<int, CursoVirtual>
+     */
+    private function cursosSeleccionadosValidos(array $idsSeleccionados): Collection
+    {
+        return CursoVirtual::query()
+            ->whereIn('id', $idsSeleccionados)
+            ->get()
+            ->filter(fn (CursoVirtual $curso) => Gate::allows('manage', $curso));
     }
 
     public function crearMaterial(MaterialService $service): void
@@ -127,14 +151,7 @@ new #[Layout('layouts.app')] class extends Component
             'materialCursosSeleccionados.*' => 'integer|exists:aula_virtual_cursos,id',
         ]);
 
-        // Se revalida cada curso elegido (no solo el de la página actual):
-        // el checklist puede incluir otras secciones del mismo docente, y no
-        // hay que confiar en los IDs que llegan del cliente sin verificar
-        // permisos sobre cada uno.
-        $cursosSeleccionados = CursoVirtual::query()
-            ->whereIn('id', $this->materialCursosSeleccionados)
-            ->get()
-            ->filter(fn (CursoVirtual $curso) => Gate::allows('manage', $curso));
+        $cursosSeleccionados = $this->cursosSeleccionadosValidos($this->materialCursosSeleccionados);
 
         abort_if($cursosSeleccionados->isEmpty(), 403);
 
@@ -172,12 +189,7 @@ new #[Layout('layouts.app')] class extends Component
             'grabacionCursosSeleccionados.*' => 'integer|exists:aula_virtual_cursos,id',
         ]);
 
-        // Misma lógica que crearMaterial(): se revalida cada curso elegido,
-        // no solo el de la página actual, sin confiar en los IDs del cliente.
-        $cursosSeleccionados = CursoVirtual::query()
-            ->whereIn('id', $this->grabacionCursosSeleccionados)
-            ->get()
-            ->filter(fn (CursoVirtual $curso) => Gate::allows('manage', $curso));
+        $cursosSeleccionados = $this->cursosSeleccionadosValidos($this->grabacionCursosSeleccionados);
 
         abort_if($cursosSeleccionados->isEmpty(), 403);
 
@@ -211,9 +223,15 @@ new #[Layout('layouts.app')] class extends Component
             'tareaFechaLimite' => 'required|date',
             'tareaPuntajeMax' => 'required|integer|min:1|max:20',
             'tareaSemana' => 'nullable|integer|min:1',
+            'tareaCursosSeleccionados' => 'required|array|min:1',
+            'tareaCursosSeleccionados.*' => 'integer|exists:aula_virtual_cursos,id',
         ]);
 
-        $service->crear($this->curso, [
+        $cursosSeleccionados = $this->cursosSeleccionadosValidos($this->tareaCursosSeleccionados);
+
+        abort_if($cursosSeleccionados->isEmpty(), 403);
+
+        $service->crearParaVarios($cursosSeleccionados, [
             'titulo' => $this->tareaTitulo,
             'descripcion' => $this->tareaDescripcion ?: null,
             'fecha_limite' => $this->tareaFechaLimite,
@@ -222,6 +240,7 @@ new #[Layout('layouts.app')] class extends Component
         ]);
 
         $this->reset(['tareaTitulo', 'tareaDescripcion', 'tareaFechaLimite', 'tareaPuntajeMax', 'tareaSemana', 'mostrarFormTarea']);
+        $this->tareaCursosSeleccionados = [$this->curso->id];
     }
 
     public function crearPublicacion(PublicacionService $service): void
@@ -263,10 +282,16 @@ new #[Layout('layouts.app')] class extends Component
             'foroTitulo' => 'required|string|max:150',
             'foroDescripcion' => 'nullable|string',
             'foroSemana' => 'nullable|integer|min:1',
+            'foroCursosSeleccionados' => 'required|array|min:1',
+            'foroCursosSeleccionados.*' => 'integer|exists:aula_virtual_cursos,id',
         ]);
 
-        $service->crear(
-            $this->curso,
+        $cursosSeleccionados = $this->cursosSeleccionadosValidos($this->foroCursosSeleccionados);
+
+        abort_if($cursosSeleccionados->isEmpty(), 403);
+
+        $service->crearParaVarios(
+            $cursosSeleccionados,
             auth()->id(),
             $this->foroTitulo,
             $this->foroDescripcion ?: null,
@@ -274,6 +299,7 @@ new #[Layout('layouts.app')] class extends Component
         );
 
         $this->reset(['foroTitulo', 'foroDescripcion', 'foroSemana', 'mostrarFormForo']);
+        $this->foroCursosSeleccionados = [$this->curso->id];
     }
 
     public function responderForo(int $foroId, ForoService $service): void
@@ -377,7 +403,7 @@ new #[Layout('layouts.app')] class extends Component
             'tiposMaterial' => TipoMaterialEnum::cases(),
             'tiposClaseGrabada' => TipoClaseGrabadaEnum::cases(),
             'tiposPublicacion' => TipoPublicacionEnum::cases(),
-            'misCursosParaMaterial' => $cursos->delDocente($this->curso->horario->docente_id),
+            'seccionesRelacionadas' => $cursos->seccionesRelacionadas($this->curso),
             'plantillasDisponibles' => $plantillas->listarPorCurso($this->curso->horario->curso),
         ];
     }
@@ -495,25 +521,7 @@ new #[Layout('layouts.app')] class extends Component
                         </div>
                     @endif
 
-                    @if ($misCursosParaMaterial->count() > 1)
-                        <div>
-                            <x-input-label value="Subir también a" />
-                            <div class="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-md border border-border bg-surface p-2">
-                                @foreach ($misCursosParaMaterial as $cursoOpcion)
-                                    <label class="flex items-center gap-2 text-sm text-ink">
-                                        <input
-                                            type="checkbox"
-                                            value="{{ $cursoOpcion->id }}"
-                                            wire:model="materialCursosSeleccionados"
-                                            class="rounded border-border text-accent focus:ring-accent"
-                                        >
-                                        {{ $cursoOpcion->horario->curso->nombre }} · {{ $cursoOpcion->horario->grado->nombre }} · {{ $cursoOpcion->horario->ciclo->nombre }}
-                                    </label>
-                                @endforeach
-                            </div>
-                            <x-input-error :messages="$errors->get('materialCursosSeleccionados')" class="mt-1" />
-                        </div>
-                    @endif
+                    <x-aula-virtual.checklist-secciones :secciones="$seccionesRelacionadas" campo="materialCursosSeleccionados" />
 
                     <div class="flex justify-end gap-2">
                         <x-secondary-button type="button" wire:click="$set('mostrarFormMaterial', false)">Cancelar</x-secondary-button>
@@ -602,25 +610,7 @@ new #[Layout('layouts.app')] class extends Component
                         </div>
                     @endif
 
-                    @if ($misCursosParaMaterial->count() > 1)
-                        <div>
-                            <x-input-label value="Subir también a" />
-                            <div class="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-md border border-border bg-surface p-2">
-                                @foreach ($misCursosParaMaterial as $cursoOpcion)
-                                    <label class="flex items-center gap-2 text-sm text-ink">
-                                        <input
-                                            type="checkbox"
-                                            value="{{ $cursoOpcion->id }}"
-                                            wire:model="grabacionCursosSeleccionados"
-                                            class="rounded border-border text-accent focus:ring-accent"
-                                        >
-                                        {{ $cursoOpcion->horario->curso->nombre }} · {{ $cursoOpcion->horario->grado->nombre }} · {{ $cursoOpcion->horario->ciclo->nombre }}
-                                    </label>
-                                @endforeach
-                            </div>
-                            <x-input-error :messages="$errors->get('grabacionCursosSeleccionados')" class="mt-1" />
-                        </div>
-                    @endif
+                    <x-aula-virtual.checklist-secciones :secciones="$seccionesRelacionadas" campo="grabacionCursosSeleccionados" />
 
                     <div class="flex justify-end gap-2">
                         <x-secondary-button type="button" wire:click="$set('mostrarFormGrabacion', false)">Cancelar</x-secondary-button>
@@ -698,6 +688,9 @@ new #[Layout('layouts.app')] class extends Component
                         <p class="mt-1 text-xs text-ink-faint">Déjalo vacío para que aparezca en «Bienvenida», antes de la Semana 1.</p>
                         <x-input-error :messages="$errors->get('tareaSemana')" class="mt-1" />
                     </div>
+
+                    <x-aula-virtual.checklist-secciones :secciones="$seccionesRelacionadas" campo="tareaCursosSeleccionados" />
+
                     <div class="flex justify-end gap-2">
                         <x-secondary-button type="button" wire:click="$set('mostrarFormTarea', false)">Cancelar</x-secondary-button>
                         <x-primary-button type="submit">Guardar</x-primary-button>
@@ -824,6 +817,9 @@ new #[Layout('layouts.app')] class extends Component
                         <p class="mt-1 text-xs text-ink-faint">Déjalo vacío para que aparezca en «Bienvenida», antes de la Semana 1.</p>
                         <x-input-error :messages="$errors->get('foroSemana')" class="mt-1" />
                     </div>
+
+                    <x-aula-virtual.checklist-secciones :secciones="$seccionesRelacionadas" campo="foroCursosSeleccionados" />
+
                     <div class="flex justify-end gap-2">
                         <x-secondary-button type="button" wire:click="$set('mostrarFormForo', false)">Cancelar</x-secondary-button>
                         <x-primary-button type="submit">Crear foro</x-primary-button>

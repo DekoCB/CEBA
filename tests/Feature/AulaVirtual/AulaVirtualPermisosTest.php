@@ -340,6 +340,86 @@ class AulaVirtualPermisosTest extends TestCase
             ->assertSeeInOrder(['Bienvenida', 'Introduccion al curso']);
     }
 
+    public function test_coordinador_puede_replicar_una_tarea_a_otra_seccion_de_otro_docente(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $horarioA = Horario::factory()->create(['seccion' => 'A']);
+        $horarioB = Horario::factory()->create([
+            'curso_id' => $horarioA->curso_id,
+            'grado_id' => $horarioA->grado_id,
+            'ciclo_id' => $horarioA->ciclo_id,
+            'seccion' => 'B',
+        ]);
+        $cursoVirtualA = CursoVirtual::factory()->create(['horario_id' => $horarioA->id]);
+        $cursoVirtualB = CursoVirtual::factory()->create(['horario_id' => $horarioB->id]);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('aula-virtual.show', ['curso' => $cursoVirtualA])
+            ->set('tareaTitulo', 'Práctica 1')
+            ->set('tareaFechaLimite', now()->addWeek()->format('Y-m-d\TH:i'))
+            ->set('tareaPuntajeMax', '20')
+            ->set('tareaCursosSeleccionados', [$cursoVirtualA->id, $cursoVirtualB->id])
+            ->call('crearTarea')
+            ->assertHasNoErrors();
+
+        $this->assertSame(1, $cursoVirtualA->tareas()->count());
+        $this->assertSame(1, $cursoVirtualB->tareas()->count());
+    }
+
+    public function test_un_docente_no_puede_replicar_una_tarea_a_la_seccion_de_otro_docente_inyectando_el_id(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $miCurso = $this->cursoDelDocente($docente);
+
+        $otroDocente = User::factory()->create();
+        $otroDocente->assignRole(RolEnum::DOCENTE->value);
+        $cursoAjeno = $this->cursoDelDocente($otroDocente);
+
+        $this->actingAs($docente);
+
+        Volt::test('aula-virtual.show', ['curso' => $miCurso])
+            ->set('tareaTitulo', 'Práctica 1')
+            ->set('tareaFechaLimite', now()->addWeek()->format('Y-m-d\TH:i'))
+            ->set('tareaPuntajeMax', '20')
+            ->set('tareaCursosSeleccionados', [$miCurso->id, $cursoAjeno->id])
+            ->call('crearTarea')
+            ->assertHasNoErrors();
+
+        $this->assertSame(1, $miCurso->tareas()->count());
+        $this->assertSame(0, $cursoAjeno->tareas()->count());
+    }
+
+    public function test_coordinador_puede_replicar_un_foro_a_otra_seccion_de_otro_docente(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $horarioA = Horario::factory()->create(['seccion' => 'A']);
+        $horarioB = Horario::factory()->create([
+            'curso_id' => $horarioA->curso_id,
+            'grado_id' => $horarioA->grado_id,
+            'ciclo_id' => $horarioA->ciclo_id,
+            'seccion' => 'B',
+        ]);
+        $cursoVirtualA = CursoVirtual::factory()->create(['horario_id' => $horarioA->id]);
+        $cursoVirtualB = CursoVirtual::factory()->create(['horario_id' => $horarioB->id]);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('aula-virtual.show', ['curso' => $cursoVirtualA])
+            ->set('foroTitulo', 'Consultas generales')
+            ->set('foroCursosSeleccionados', [$cursoVirtualA->id, $cursoVirtualB->id])
+            ->call('crearForo')
+            ->assertHasNoErrors();
+
+        $this->assertSame(1, $cursoVirtualA->foros()->count());
+        $this->assertSame(1, $cursoVirtualB->foros()->count());
+    }
+
     public function test_direccion_puede_gestionar_cualquier_curso(): void
     {
         $direccion = User::factory()->create();

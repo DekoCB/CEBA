@@ -25,6 +25,30 @@ class CursoVirtualService
     }
 
     /**
+     * Los cursos virtuales que corresponden al mismo curso académico, grado
+     * y ciclo que $curso -- es decir, sus otras secciones/grupos (A, B...),
+     * aunque las dicte otro docente -- incluido $curso mismo. Es la lista
+     * para "subir también a": replicar un material a los demás grupos del
+     * mismo curso sin tener que repetirlo uno por uno.
+     *
+     * @return Collection<int, CursoVirtual>
+     */
+    public function seccionesRelacionadas(CursoVirtual $curso): Collection
+    {
+        $horario = $curso->horario;
+
+        return CursoVirtual::query()
+            ->whereHas('horario', function ($query) use ($horario) {
+                $query->where('curso_id', $horario->curso_id)
+                    ->where('grado_id', $horario->grado_id)
+                    ->where('ciclo_id', $horario->ciclo_id);
+            })
+            ->with(['horario.curso', 'horario.grado', 'horario.ciclo', 'horario.docente'])
+            ->get()
+            ->sortBy(fn (CursoVirtual $cursoVirtual) => $cursoVirtual->horario->seccion ?? '');
+    }
+
+    /**
      * @return Collection<int, CursoVirtual>
      */
     public function delEstudiante(Estudiante $estudiante): Collection
