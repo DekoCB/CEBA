@@ -11,14 +11,24 @@ use App\Modules\Certificados\Models\PlantillaCertificado;
 use App\Modules\Certificados\Models\SolicitudCertificado;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Notificaciones\Enums\TipoNotificacionEnum;
+use App\Modules\Notificaciones\Services\NotificacionService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class CertificadoService
 {
-    public function solicitar(Estudiante $estudiante, ?Matricula $matricula, string $motivo): SolicitudCertificado
+    public function __construct(
+        private readonly NotificacionService $notificaciones,
+    ) {}
+
+    /**
+     * @param  list<UploadedFile>  $requisitos
+     */
+    public function solicitar(Estudiante $estudiante, ?Matricula $matricula, string $motivo, array $requisitos = []): SolicitudCertificado
     {
         /** @var SolicitudCertificado $solicitud */
         $solicitud = SolicitudCertificado::query()->create([
@@ -27,6 +37,10 @@ class CertificadoService
             'motivo' => $motivo,
             'estado' => EstadoSolicitudCertificadoEnum::PENDIENTE,
         ]);
+
+        foreach ($requisitos as $archivo) {
+            $solicitud->addMedia($archivo)->toMediaCollection('requisitos');
+        }
 
         return $solicitud;
     }
@@ -59,6 +73,35 @@ class CertificadoService
                 'certificado_id' => $certificado->id,
             ]);
         }
+
+        if ($estudiante->user) {
+            $this->notificaciones->notificar(
+                $estudiante->user,
+                TipoNotificacionEnum::CERTIFICADO_LISTO,
+                'Tu certificado de estudios está listo para recoger.',
+                route('certificados.mis-certificados'),
+            );
+        }
+
+        return $certificado;
+    }
+
+    /**
+     * Registra que el estudiante recogió el certificado en persona: la
+     * prueba de "entregado conforme" que cierra el flujo.
+     */
+    public function marcarEntregado(Certificado $certificado, User $entregadoPor): Certificado
+    {
+        if ($certificado->entregado_en !== null) {
+            throw ValidationException::withMessages([
+                'entrega' => 'Este certificado ya fue marcado como entregado.',
+            ]);
+        }
+
+        $certificado->update([
+            'entregado_en' => now(),
+            'entregado_por' => $entregadoPor->id,
+        ]);
 
         return $certificado;
     }
@@ -152,7 +195,7 @@ class CertificadoService
     {
         return SolicitudCertificado::query()
             ->where('estado', EstadoSolicitudCertificadoEnum::PENDIENTE)
-            ->with(['estudiante', 'matricula'])
+            ->with(['estudiante', 'matricula', 'media'])
             ->oldest('created_at')
             ->get();
     }
@@ -164,7 +207,7 @@ class CertificadoService
     {
         return SolicitudCertificado::query()
             ->where('estudiante_id', $estudiante->id)
-            ->with('certificado')
+            ->with(['certificado', 'media'])
             ->latest('created_at')
             ->get();
     }
@@ -187,7 +230,7 @@ class CertificadoService
     public function todos(): Collection
     {
         return Certificado::query()
-            ->with(['estudiante', 'matricula.grado', 'emisor'])
+            ->with(['estudiante', 'matricula.grado', 'emisor', 'entregadoPor'])
             ->latest('fecha_emision')
             ->get();
     }

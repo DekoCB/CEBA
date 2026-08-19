@@ -6,12 +6,18 @@ use App\Modules\Pagos\Services\BloqueoAccesoService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 new #[Layout('layouts.app')] class extends Component
 {
+    use WithFileUploads;
+
     public string $matriculaId = '';
 
     public string $motivo = '';
+
+    /** @var array<int, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile> */
+    public array $requisitos = [];
 
     public function mount(): void
     {
@@ -29,13 +35,14 @@ new #[Layout('layouts.app')] class extends Component
         $this->validate([
             'matriculaId' => 'nullable|integer|exists:matriculas,id',
             'motivo' => 'required|string|max:500',
+            'requisitos.*' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
         ]);
 
         $matricula = $this->matriculaId !== '' ? Matricula::query()->findOrFail($this->matriculaId) : null;
 
-        $service->solicitar($estudiante, $matricula, $this->motivo);
+        $service->solicitar($estudiante, $matricula, $this->motivo, $this->requisitos);
 
-        $this->reset(['matriculaId', 'motivo']);
+        $this->reset(['matriculaId', 'motivo', 'requisitos']);
         session()->flash('status', 'Solicitud enviada. Te avisaremos cuando tu certificado esté listo.');
     }
 
@@ -95,6 +102,13 @@ new #[Layout('layouts.app')] class extends Component
                     <textarea wire:model="motivo" id="motivo" rows="2" placeholder="Ej. trámite laboral, continuación de estudios…" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent"></textarea>
                     <x-input-error :messages="$errors->get('motivo')" class="mt-1" />
                 </div>
+                <div>
+                    <x-input-label for="requisitos" value="Requisitos (opcional)" />
+                    <input type="file" wire:model="requisitos" id="requisitos" multiple class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-sm file:text-ink" accept=".pdf,.jpg,.jpeg,.png">
+                    <p class="mt-1 text-xs text-ink-faint">Adjunta copia de tu DNI u otros documentos que pida administración (PDF o imagen, máx. 4 MB cada uno).</p>
+                    <x-input-error :messages="$errors->get('requisitos')" class="mt-1" />
+                    <x-input-error :messages="$errors->get('requisitos.*')" class="mt-1" />
+                </div>
                 <div class="flex justify-end">
                     <x-primary-button type="submit">Solicitar</x-primary-button>
                 </div>
@@ -120,6 +134,11 @@ new #[Layout('layouts.app')] class extends Component
                             @endif
                             emitido el {{ $certificado->fecha_emision->format('d/m/Y') }}
                         </p>
+                        @if ($certificado->entregado_en)
+                            <p class="mt-1 text-xs text-ok">Recogido el {{ $certificado->entregado_en->format('d/m/Y') }}</p>
+                        @else
+                            <p class="mt-1 text-xs text-warn">Pendiente de recojo en administración</p>
+                        @endif
                     </div>
                     @if ($certificado->getFirstMedia('pdf'))
                         <a href="{{ $certificado->getFirstMediaUrl('pdf') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver PDF</a>
@@ -145,7 +164,12 @@ new #[Layout('layouts.app')] class extends Component
                             'bg-danger/10 text-danger' => $solicitud->estado->value === 'rechazada',
                         ])>{{ $solicitud->estado->label() }}</span>
                     </div>
-                    <p class="text-xs text-ink-faint">Solicitado el {{ $solicitud->created_at->format('d/m/Y') }}</p>
+                    <p class="text-xs text-ink-faint">
+                        Solicitado el {{ $solicitud->created_at->format('d/m/Y') }}
+                        @if ($solicitud->getMedia('requisitos')->isNotEmpty())
+                            · {{ $solicitud->getMedia('requisitos')->count() }} requisito(s) adjunto(s)
+                        @endif
+                    </p>
                     @if ($solicitud->estado->value === 'rechazada' && $solicitud->motivo_rechazo)
                         <p class="text-xs text-danger">{{ $solicitud->motivo_rechazo }}</p>
                     @endif

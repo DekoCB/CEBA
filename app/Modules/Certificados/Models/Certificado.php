@@ -29,10 +29,13 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property int $emitido_por
  * @property Carbon $fecha_emision
  * @property string|null $observaciones
+ * @property Carbon|null $entregado_en
+ * @property int|null $entregado_por
  * @property-read Estudiante|null $estudiante
  * @property-read Matricula|null $matricula
  * @property-read Certificado|null $original
  * @property-read User $emisor
+ * @property-read User|null $entregadoPor
  */
 class Certificado extends Model implements HasMedia
 {
@@ -51,6 +54,8 @@ class Certificado extends Model implements HasMedia
         'emitido_por',
         'fecha_emision',
         'observaciones',
+        'entregado_en',
+        'entregado_por',
     ];
 
     protected function casts(): array
@@ -58,6 +63,7 @@ class Certificado extends Model implements HasMedia
         return [
             'es_duplicado' => 'boolean',
             'fecha_emision' => 'datetime',
+            'entregado_en' => 'datetime',
         ];
     }
 
@@ -94,6 +100,11 @@ class Certificado extends Model implements HasMedia
     public function emisor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'emitido_por');
+    }
+
+    public function entregadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'entregado_por');
     }
 
     public function solicitud(): HasOne

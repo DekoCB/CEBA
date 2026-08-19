@@ -173,6 +173,15 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('status', 'Solicitud rechazada.');
     }
 
+    public function marcarEntregado(int $certificadoId, CertificadoService $service): void
+    {
+        abort_unless(Auth::user()->hasPermissionTo('certificados.emitir'), 403);
+
+        $service->marcarEntregado(Certificado::query()->findOrFail($certificadoId), Auth::user());
+
+        session()->flash('status', 'Certificado marcado como entregado.');
+    }
+
     public function duplicar(int $certificadoId, CertificadoService $service): void
     {
         abort_unless(Auth::user()->hasPermissionTo('certificados.duplicar'), 403);
@@ -283,6 +292,15 @@ new #[Layout('layouts.app')] class extends Component
                                 @endif
                             </p>
                             <p class="text-xs text-ink-faint">Solicitado el {{ $solicitud->created_at->format('d/m/Y') }}</p>
+                            @if ($solicitud->getMedia('requisitos')->isNotEmpty())
+                                <div class="mt-1 flex flex-wrap gap-2">
+                                    @foreach ($solicitud->getMedia('requisitos') as $requisito)
+                                        <a href="{{ $requisito->getUrl() }}" target="_blank" class="rounded-full bg-surface-2 px-2 py-0.5 text-xs text-accent hover:underline">{{ $requisito->file_name }}</a>
+                                    @endforeach
+                                </div>
+                            @else
+                                <p class="mt-1 text-xs text-ink-faint">Sin requisitos adjuntos.</p>
+                            @endif
                         </div>
                     </div>
 
@@ -379,10 +397,20 @@ new #[Layout('layouts.app')] class extends Component
                             @endif
                             · {{ $certificado->fecha_emision->format('d/m/Y') }}
                         </p>
+                        @if ($certificado->entregado_en)
+                            <p class="mt-1 text-xs text-ok">Entregado el {{ $certificado->entregado_en->format('d/m/Y') }} por {{ $certificado->entregadoPor?->name }}</p>
+                        @else
+                            <p class="mt-1 text-xs text-warn">Pendiente de recojo</p>
+                        @endif
                     </div>
                     <div class="flex items-center gap-3">
                         @if ($certificado->getFirstMedia('pdf'))
                             <a href="{{ $certificado->getFirstMediaUrl('pdf') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver PDF</a>
+                        @endif
+                        @if ($puedeEmitir && ! $certificado->entregado_en)
+                            <button type="button" wire:click="marcarEntregado({{ $certificado->id }})" wire:confirm="¿Confirmar que el estudiante recogió este certificado?" class="text-xs font-medium text-ok hover:underline">
+                                Marcar entregado
+                            </button>
                         @endif
                         @if ($puedeDuplicar)
                             <button type="button" wire:click="duplicar({{ $certificado->id }})" wire:confirm="¿Emitir un duplicado de este certificado?" class="text-xs font-medium text-ink-dim hover:underline">

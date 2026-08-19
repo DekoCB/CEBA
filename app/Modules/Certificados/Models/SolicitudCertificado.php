@@ -13,6 +13,8 @@ use App\Modules\Matricula\Models\Matricula;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
 
 /**
  * @property int $id
@@ -28,10 +30,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read User|null $revisor
  * @property-read Certificado|null $certificado
  */
-class SolicitudCertificado extends Model
+class SolicitudCertificado extends Model implements HasMedia
 {
     /** @use HasFactory<SolicitudCertificadoFactory> */
-    use Auditable, HasFactory;
+    use Auditable, HasFactory, InteractsWithMedia;
 
     protected $table = 'solicitudes_certificado';
 
@@ -55,6 +57,16 @@ class SolicitudCertificado extends Model
     protected static function newFactory(): SolicitudCertificadoFactory
     {
         return SolicitudCertificadoFactory::new();
+    }
+
+    /**
+     * Los requisitos que el estudiante sube al solicitar (DNI, partida,
+     * etc.): varios archivos por solicitud, a diferencia del PDF único del
+     * certificado ya emitido.
+     */
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection('requisitos');
     }
 
     public function estudiante(): BelongsTo

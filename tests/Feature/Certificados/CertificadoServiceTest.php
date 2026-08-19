@@ -7,7 +7,10 @@ use App\Modules\Certificados\Enums\EstadoSolicitudCertificadoEnum;
 use App\Modules\Certificados\Services\CertificadoService;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Notificaciones\Enums\TipoNotificacionEnum;
+use App\Modules\Notificaciones\Models\Notificacion;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -127,5 +130,69 @@ class CertificadoServiceTest extends TestCase
 
         $this->expectException(ValidationException::class);
         $service->rechazarSolicitud($solicitud, 'Ya no aplica', $emisor);
+    }
+
+    public function test_solicitar_adjunta_los_requisitos_subidos(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+
+        $solicitud = app(CertificadoService::class)->solicitar($estudiante, null, 'Trámite laboral', [
+            UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'),
+            UploadedFile::fake()->image('partida.jpg'),
+        ]);
+
+        $this->assertCount(2, $solicitud->getMedia('requisitos'));
+    }
+
+    public function test_emitir_notifica_al_estudiante_que_su_certificado_esta_listo(): void
+    {
+        $usuario = User::factory()->create();
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+        $emisor = User::factory()->create();
+
+        app(CertificadoService::class)->emitir($estudiante, null, null, null, $emisor);
+
+        $this->assertDatabaseHas('notificaciones', [
+            'user_id' => $usuario->id,
+            'tipo' => TipoNotificacionEnum::CERTIFICADO_LISTO->value,
+        ]);
+    }
+
+    public function test_emitir_no_falla_si_el_estudiante_no_tiene_cuenta_de_usuario_vinculada(): void
+    {
+        $estudiante = Estudiante::factory()->create(['user_id' => null]);
+        $emisor = User::factory()->create();
+
+        $certificado = app(CertificadoService::class)->emitir($estudiante, null, null, null, $emisor);
+
+        $this->assertNotNull($certificado);
+        $this->assertSame(0, Notificacion::query()->count());
+    }
+
+    public function test_marcar_entregado_registra_fecha_y_quien_entrego(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $emisor = User::factory()->create();
+        $recepcionista = User::factory()->create();
+
+        $certificado = app(CertificadoService::class)->emitir($estudiante, null, null, null, $emisor);
+        app(CertificadoService::class)->marcarEntregado($certificado, $recepcionista);
+
+        $certificado->refresh();
+        $this->assertNotNull($certificado->entregado_en);
+        $this->assertSame($recepcionista->id, $certificado->entregado_por);
+    }
+
+    public function test_no_permite_marcar_entregado_dos_veces(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $emisor = User::factory()->create();
+        $service = app(CertificadoService::class);
+
+        $certificado = $service->emitir($estudiante, null, null, null, $emisor);
+        $service->marcarEntregado($certificado, $emisor);
+
+        $this->expectException(ValidationException::class);
+        $service->marcarEntregado($certificado, $emisor);
     }
 }
