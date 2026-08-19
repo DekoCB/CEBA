@@ -31,6 +31,21 @@
         </dl>
     </div>
 
+    <div class="rounded-lg border border-border bg-surface p-6">
+        <h2 class="text-sm font-semibold text-ink">Observaciones</h2>
+        <p class="mt-1 text-xs text-ink-faint">Acuerdos especiales, documentos pendientes de entregar, casos particulares (ej. examen de ubicación).</p>
+        @can('matricula.editar')
+            <form wire:submit="guardarObservaciones" class="mt-4">
+                <textarea wire:model="observacionesTexto" rows="3" class="block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent" placeholder="Sin observaciones registradas."></textarea>
+                <div class="mt-2 flex justify-end">
+                    <x-secondary-button type="submit">Guardar observaciones</x-secondary-button>
+                </div>
+            </form>
+        @else
+            <p class="mt-4 whitespace-pre-line text-sm text-ink">{{ $estudiante->observaciones ?: 'Sin observaciones registradas.' }}</p>
+        @endcan
+    </div>
+
     @if ($estudiante->es_menor_edad && $estudiante->apoderado)
         <div class="rounded-lg border border-border bg-surface p-6">
             <h2 class="text-sm font-semibold text-ink">Apoderado</h2>

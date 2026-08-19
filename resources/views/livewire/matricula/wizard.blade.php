@@ -449,6 +449,12 @@ new class extends Component
                     <input wire:model="foto" id="foto" type="file" accept="image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-ink">
                     <x-input-error :messages="$errors->get('foto')" class="mt-1" />
                 </div>
+                <div class="sm:col-span-2">
+                    <x-input-label for="observacionesEstudiante" value="Observaciones (opcional)" />
+                    <p class="mt-1 text-xs text-ink-faint">Acuerdos especiales, documentos pendientes de entregar, casos particulares (ej. examen de ubicación).</p>
+                    <textarea wire:model="observacionesEstudiante" id="observacionesEstudiante" rows="2" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent"></textarea>
+                    <x-input-error :messages="$errors->get('observacionesEstudiante')" class="mt-1" />
+                </div>
             </div>
         @endif
 

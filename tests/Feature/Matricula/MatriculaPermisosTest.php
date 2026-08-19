@@ -72,6 +72,7 @@ class MatriculaPermisosTest extends TestCase
             ->set('apellidos', 'Fernández Ruiz')
             ->set('dni', '55667788')
             ->set('fechaNacimiento', now()->subYears(28)->format('Y-m-d'))
+            ->set('observacionesEstudiante', 'Pendiente entregar certificado de estudios del colegio anterior.')
             ->call('avanzar')
             ->assertHasNoErrors()
             ->assertSet('paso', 3)
@@ -90,6 +91,7 @@ class MatriculaPermisosTest extends TestCase
         $this->assertDatabaseHas('estudiantes', ['dni' => '55667788']);
         $estudiante = Estudiante::query()->where('dni', '55667788')->firstOrFail();
         $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'ciclo_id' => $ciclo->id]);
+        $this->assertSame('Pendiente entregar certificado de estudios del colegio anterior.', $estudiante->observaciones);
     }
 
     /**
@@ -279,5 +281,44 @@ class MatriculaPermisosTest extends TestCase
             ->assertSet('mostrarWizard', true)
             ->call('cerrarWizard')
             ->assertSet('mostrarWizard', false);
+    }
+
+    public function test_guardar_observaciones_desde_la_pagina_completa_de_la_ficha(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+        $estudiante = Estudiante::factory()->create(['observaciones' => null]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->set('observacionesTexto', 'Promete traer la partida de nacimiento la próxima semana.')
+            ->call('guardarObservaciones')
+            ->assertHasNoErrors();
+
+        $this->assertSame(
+            'Promete traer la partida de nacimiento la próxima semana.',
+            $estudiante->fresh()->observaciones
+        );
+    }
+
+    public function test_guardar_observaciones_desde_el_modal_de_ficha(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+        $estudiante = Estudiante::factory()->create(['observaciones' => null]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.ficha-modal')
+            ->call('abrir', $estudiante->id)
+            ->set('observacionesTexto', 'Rindió examen de ubicación, resultado pendiente.')
+            ->call('guardarObservaciones')
+            ->assertHasNoErrors();
+
+        $this->assertSame(
+            'Rindió examen de ubicación, resultado pendiente.',
+            $estudiante->fresh()->observaciones
+        );
     }
 }

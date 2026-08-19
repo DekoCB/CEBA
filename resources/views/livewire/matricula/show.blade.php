@@ -11,11 +11,14 @@ new #[Layout('layouts.app')] class extends Component
 {
     public Estudiante $estudiante;
 
+    public string $observacionesTexto = '';
+
     public function mount(Estudiante $estudiante): void
     {
         Gate::authorize('matricula.ver');
 
         $this->estudiante = $estudiante->load(['media', 'user.media']);
+        $this->observacionesTexto = $estudiante->observaciones ?? '';
     }
 
     public function verificarDocumento(int $documentoId, DocumentoEstudianteService $service): void
@@ -26,6 +29,15 @@ new #[Layout('layouts.app')] class extends Component
         $service->verificar($documento);
 
         session()->flash('status', 'Documento marcado como verificado.');
+    }
+
+    public function guardarObservaciones(): void
+    {
+        Gate::authorize('matricula.editar');
+
+        $this->estudiante->update(['observaciones' => $this->observacionesTexto ?: null]);
+
+        session()->flash('status', 'Observaciones actualizadas.');
     }
 
     public function with(): array

@@ -17,12 +17,15 @@ new class extends Component
 {
     public ?int $estudianteId = null;
 
+    public string $observacionesTexto = '';
+
     #[On('ver-estudiante')]
     public function abrir(int $estudianteId): void
     {
         Gate::authorize('matricula.ver');
 
         $this->estudianteId = $estudianteId;
+        $this->observacionesTexto = Estudiante::query()->find($estudianteId)?->observaciones ?? '';
     }
 
     public function verificarDocumento(int $documentoId, DocumentoEstudianteService $service): void
@@ -31,6 +34,13 @@ new class extends Component
 
         $documento = DocumentoEstudiante::query()->findOrFail($documentoId);
         $service->verificar($documento);
+    }
+
+    public function guardarObservaciones(): void
+    {
+        Gate::authorize('matricula.editar');
+
+        Estudiante::query()->findOrFail($this->estudianteId)->update(['observaciones' => $this->observacionesTexto ?: null]);
     }
 
     public function with(): array
