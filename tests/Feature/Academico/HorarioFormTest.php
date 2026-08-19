@@ -35,7 +35,7 @@ class HorarioFormTest extends TestCase
         return $coordinador;
     }
 
-    public function test_crea_un_horario_con_dos_dias_y_horario_propio_por_dia(): void
+    public function test_crea_un_horario_con_la_franja_lunes_y_miercoles(): void
     {
         $this->actingAs($this->actorCoordinador());
 
@@ -53,11 +53,11 @@ class HorarioFormTest extends TestCase
             ->set('cursoId', (string) $curso->id)
             ->set('docenteId', (string) $docente->id)
             ->set('aulaId', (string) $aula->id)
-            ->set('diasSeleccionados', ['lunes', 'jueves'])
-            ->set('horaInicioPorDia.lunes', '18:00')
-            ->set('horaFinPorDia.lunes', '20:00')
-            ->set('horaInicioPorDia.jueves', '16:00')
-            ->set('horaFinPorDia.jueves', '18:00')
+            ->set('franjaPreset', 'lun_mie')
+            ->set('horaInicioHora', '18')
+            ->set('horaInicioMinuto', '00')
+            ->set('horaFinHora', '20')
+            ->set('horaFinMinuto', '00')
             ->call('guardar')
             ->assertHasNoErrors();
 
@@ -65,11 +65,11 @@ class HorarioFormTest extends TestCase
         $this->assertCount(2, $horario->dias);
 
         $lunes = $horario->dias->firstWhere('dia_semana', DiaSemanaEnum::LUNES);
-        $jueves = $horario->dias->firstWhere('dia_semana', DiaSemanaEnum::JUEVES);
+        $miercoles = $horario->dias->firstWhere('dia_semana', DiaSemanaEnum::MIERCOLES);
         $this->assertSame('18:00:00', $lunes->hora_inicio);
         $this->assertSame('20:00:00', $lunes->hora_fin);
-        $this->assertSame('16:00:00', $jueves->hora_inicio);
-        $this->assertSame('18:00:00', $jueves->hora_fin);
+        $this->assertSame('18:00:00', $miercoles->hora_inicio);
+        $this->assertSame('20:00:00', $miercoles->hora_fin);
     }
 
     public function test_muestra_el_mensaje_de_choque_de_aula_al_guardar(): void
@@ -94,16 +94,18 @@ class HorarioFormTest extends TestCase
             ->set('cursoId', (string) Curso::factory()->create()->id)
             ->set('docenteId', (string) User::factory()->create()->id)
             ->set('aulaId', (string) $existente->aula_id)
-            ->set('diasSeleccionados', ['lunes'])
-            ->set('horaInicioPorDia.lunes', '19:00')
-            ->set('horaFinPorDia.lunes', '21:00')
+            ->set('franjaPreset', 'lun_mie')
+            ->set('horaInicioHora', '19')
+            ->set('horaInicioMinuto', '00')
+            ->set('horaFinHora', '21')
+            ->set('horaFinMinuto', '00')
             ->call('guardar')
             ->assertSee('ya está ocupada');
 
         $this->assertSame(1, Horario::query()->count());
     }
 
-    public function test_no_deja_guardar_sin_elegir_ningun_dia(): void
+    public function test_no_deja_guardar_sin_elegir_ninguna_franja(): void
     {
         $this->actingAs($this->actorCoordinador());
 
@@ -115,7 +117,7 @@ class HorarioFormTest extends TestCase
             ->set('docenteId', (string) User::factory()->create()->id)
             ->set('aulaId', (string) Aula::factory()->create()->id)
             ->call('guardar')
-            ->assertHasErrors('diasSeleccionados');
+            ->assertHasErrors('franjaPreset');
 
         $this->assertSame(0, Horario::query()->count());
     }

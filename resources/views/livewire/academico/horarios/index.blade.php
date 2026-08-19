@@ -29,14 +29,58 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $seccion = '';
 
-    /** @var array<int, string> */
-    public array $diasSeleccionados = [];
+    public string $franjaPreset = '';
 
-    /** @var array<string, string> */
-    public array $horaInicioPorDia = [];
+    public string $horaInicioHora = '';
 
-    /** @var array<string, string> */
-    public array $horaFinPorDia = [];
+    public string $horaInicioMinuto = '';
+
+    public string $horaFinHora = '';
+
+    public string $horaFinMinuto = '';
+
+    /**
+     * Los días de clase se agrupan en las 3 franjas que la institución usa
+     * en la práctica: nunca un día suelto (salvo el domingo).
+     *
+     * @var array<string, list<DiaSemanaEnum>>
+     */
+    private const FRANJAS = [
+        'lun_mie' => [DiaSemanaEnum::LUNES, DiaSemanaEnum::MIERCOLES],
+        'mar_jue' => [DiaSemanaEnum::MARTES, DiaSemanaEnum::JUEVES],
+        'domingo' => [DiaSemanaEnum::DOMINGO],
+    ];
+
+    /**
+     * @return array<string, string>
+     */
+    public function franjasDisponibles(): array
+    {
+        return [
+            'lun_mie' => 'Lunes y Miércoles',
+            'mar_jue' => 'Martes y Jueves',
+            'domingo' => 'Domingo',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function horasDisponibles(): array
+    {
+        return collect(range(0, 23))->mapWithKeys(fn (int $hora) => [sprintf('%02d', $hora) => sprintf('%02d', $hora)])->all();
+    }
+
+    /**
+     * Minutos en pasos de 15: los horarios de la institución siempre caen en
+     * una hora exacta o cuarto, y un selector de 60 opciones sería incómodo.
+     *
+     * @return array<string, string>
+     */
+    public function minutosDisponibles(): array
+    {
+        return ['00' => '00', '15' => '15', '30' => '30', '45' => '45'];
+    }
 
     public function mount(): void
     {
@@ -51,7 +95,7 @@ new #[Layout('layouts.app')] class extends Component
         Gate::authorize('academico.gestionar');
 
         $this->resetValidation();
-        $this->reset(['cursoId', 'docenteId', 'aulaId', 'gradoId', 'seccion', 'diasSeleccionados', 'horaInicioPorDia', 'horaFinPorDia']);
+        $this->reset(['cursoId', 'docenteId', 'aulaId', 'gradoId', 'seccion', 'franjaPreset', 'horaInicioHora', 'horaInicioMinuto', 'horaFinHora', 'horaFinMinuto']);
         $this->cicloId = $this->cicloFiltro;
         $this->mostrarModal = true;
     }
@@ -67,28 +111,21 @@ new #[Layout('layouts.app')] class extends Component
             'cicloId' => 'required|integer|exists:ciclos,id',
             'gradoId' => 'required|integer|exists:grados,id',
             'seccion' => 'nullable|string|max:10',
-            'diasSeleccionados' => 'required|array|min:1',
-            'diasSeleccionados.*' => 'string|in:'.implode(',', array_column(DiaSemanaEnum::cases(), 'value')),
+            'franjaPreset' => 'required|string|in:'.implode(',', array_keys(self::FRANJAS)),
+            'horaInicioHora' => 'required|string|in:'.implode(',', array_keys($this->horasDisponibles())),
+            'horaInicioMinuto' => 'required|string|in:'.implode(',', array_keys($this->minutosDisponibles())),
+            'horaFinHora' => 'required|string|in:'.implode(',', array_keys($this->horasDisponibles())),
+            'horaFinMinuto' => 'required|string|in:'.implode(',', array_keys($this->minutosDisponibles())),
         ]);
 
-        $dias = [];
+        $horaInicio = "{$this->horaInicioHora}:{$this->horaInicioMinuto}";
+        $horaFin = "{$this->horaFinHora}:{$this->horaFinMinuto}";
 
-        foreach ($this->diasSeleccionados as $diaValor) {
-            $horaInicio = $this->horaInicioPorDia[$diaValor] ?? '';
-            $horaFin = $this->horaFinPorDia[$diaValor] ?? '';
-
-            if ($horaInicio === '' || $horaFin === '') {
-                $this->addError('diasSeleccionados', 'Completa la hora de inicio y fin de cada día elegido.');
-
-                return;
-            }
-
-            $dias[] = [
-                'dia_semana' => DiaSemanaEnum::from($diaValor),
-                'hora_inicio' => $horaInicio.':00',
-                'hora_fin' => $horaFin.':00',
-            ];
-        }
+        $dias = array_map(fn (DiaSemanaEnum $dia) => [
+            'dia_semana' => $dia,
+            'hora_inicio' => $horaInicio.':00',
+            'hora_fin' => $horaFin.':00',
+        ], self::FRANJAS[$this->franjaPreset]);
 
         $service->crear([
             'curso_id' => (int) $this->cursoId,
@@ -113,7 +150,9 @@ new #[Layout('layouts.app')] class extends Component
             'docentes' => User::role('docente')->orderBy('name')->get(),
             'aulas' => Aula::query()->where('activa', true)->orderBy('nombre')->get(),
             'grados' => Grado::query()->where('activo', true)->orderBy('nombre')->get(),
-            'dias' => DiaSemanaEnum::ordenSemana(),
+            'franjas' => $this->franjasDisponibles(),
+            'horas' => $this->horasDisponibles(),
+            'minutos' => $this->minutosDisponibles(),
         ];
     }
 }; ?>
@@ -267,42 +306,48 @@ new #[Layout('layouts.app')] class extends Component
 
                     <div>
                         <x-input-label value="Días de clase" />
-                        <p class="mt-1 text-xs text-ink-faint">Elige los días en que se dicta esta clase; cada uno puede tener su propio horario.</p>
+                        <p class="mt-1 text-xs text-ink-faint">Ningún curso se dicta en un día suelto: elige la franja.</p>
 
                         <div class="mt-2 space-y-2">
-                            @foreach ($dias as $dia)
-                                <div class="rounded-md border border-border p-3">
-                                    <label class="flex items-center gap-2 text-sm text-ink">
-                                        <input
-                                            type="checkbox"
-                                            value="{{ $dia->value }}"
-                                            wire:model.live="diasSeleccionados"
-                                            class="rounded border-border text-accent focus:ring-accent"
-                                        >
-                                        {{ $dia->label() }}
-                                    </label>
-
-                                    @if (in_array($dia->value, $diasSeleccionados))
-                                        <div class="mt-2 grid grid-cols-2 gap-3 pl-6">
-                                            <div>
-                                                <x-input-label :for="'horaInicio-'.$dia->value" value="Hora inicio" />
-                                                <x-text-input wire:model="horaInicioPorDia.{{ $dia->value }}" :id="'horaInicio-'.$dia->value" type="time" class="mt-1 block w-full" />
-                                            </div>
-                                            <div>
-                                                <x-input-label :for="'horaFin-'.$dia->value" value="Hora fin" />
-                                                <x-text-input wire:model="horaFinPorDia.{{ $dia->value }}" :id="'horaFin-'.$dia->value" type="time" class="mt-1 block w-full" />
-                                            </div>
-                                        </div>
-                                    @endif
-                                </div>
+                            @foreach ($franjas as $valor => $etiqueta)
+                                <label class="flex items-center gap-2 rounded-md border border-border p-3 text-sm text-ink">
+                                    <input
+                                        type="radio"
+                                        value="{{ $valor }}"
+                                        wire:model="franjaPreset"
+                                        class="border-border text-accent focus:ring-accent"
+                                    >
+                                    {{ $etiqueta }}
+                                </label>
                             @endforeach
                         </div>
 
-                        <x-input-error :messages="$errors->get('diasSeleccionados')" class="mt-1" />
-                        <x-input-error :messages="$errors->get('diasSeleccionados.*')" class="mt-1" />
-                        {{-- Los choques de aula/docente los valida HorarioService::crear(), que lanza sus errores bajo la clave "dias". --}}
-                        <x-input-error :messages="$errors->get('dias')" class="mt-1" />
+                        <x-input-error :messages="$errors->get('franjaPreset')" class="mt-1" />
                     </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <x-input-label value="Hora inicio" />
+                            <div class="mt-1 grid grid-cols-2 gap-2">
+                                <x-select-input wire:model="horaInicioHora" placeholder="Hora" :options="$horas" />
+                                <x-select-input wire:model="horaInicioMinuto" placeholder="Min" :options="$minutos" />
+                            </div>
+                            <x-input-error :messages="$errors->get('horaInicioHora')" class="mt-1" />
+                            <x-input-error :messages="$errors->get('horaInicioMinuto')" class="mt-1" />
+                        </div>
+                        <div>
+                            <x-input-label value="Hora fin" />
+                            <div class="mt-1 grid grid-cols-2 gap-2">
+                                <x-select-input wire:model="horaFinHora" placeholder="Hora" :options="$horas" />
+                                <x-select-input wire:model="horaFinMinuto" placeholder="Min" :options="$minutos" />
+                            </div>
+                            <x-input-error :messages="$errors->get('horaFinHora')" class="mt-1" />
+                            <x-input-error :messages="$errors->get('horaFinMinuto')" class="mt-1" />
+                        </div>
+                    </div>
+
+                    {{-- Los choques de aula/docente los valida HorarioService::crear(), que lanza sus errores bajo la clave "dias". --}}
+                    <x-input-error :messages="$errors->get('dias')" class="mt-1" />
 
                     <div class="flex justify-end gap-3 pt-2">
                         <x-secondary-button type="button" wire:click="$set('mostrarModal', false)">Cancelar</x-secondary-button>
