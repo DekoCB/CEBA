@@ -1,10 +1,14 @@
 <?php
 
+use App\Modules\Certificados\Enums\TipoDocumentoEnum;
 use App\Modules\Certificados\Services\CertificadoService;
+use App\Modules\Evaluaciones\Services\LibretaService;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Services\BloqueoAccesoService;
+use App\Shared\Enums\MetodoEntregaEnum;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 
@@ -12,11 +16,17 @@ new #[Layout('layouts.app')] class extends Component
 {
     use WithFileUploads;
 
+    public string $tipoDocumento = '';
+
     public string $matriculaId = '';
 
     public string $motivo = '';
 
-    /** @var array<int, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile> */
+    public string $metodoEntrega = '';
+
+    public string $correoEntrega = '';
+
+    /** @var array<int, TemporaryUploadedFile> */
     public array $requisitos = [];
 
     public function mount(): void
@@ -24,6 +34,8 @@ new #[Layout('layouts.app')] class extends Component
         $user = Auth::user();
 
         abort_unless($user->hasPermissionTo('certificados.solicitar') && $user->estudiante, 403);
+
+        $this->tipoDocumento = TipoDocumentoEnum::CERTIFICADO_ESTUDIOS->value;
     }
 
     public function solicitar(CertificadoService $service, BloqueoAccesoService $bloqueos): void
@@ -32,26 +44,44 @@ new #[Layout('layouts.app')] class extends Component
         abort_unless($estudiante !== null, 403);
         abort_if($bloqueos->tieneCuotasVencidasEnCicloActual($estudiante), 403);
 
+        $esLibreta = TipoDocumentoEnum::tryFrom($this->tipoDocumento)?->esLibreta() === true;
+
         $this->validate([
-            'matriculaId' => 'nullable|integer|exists:matriculas,id',
+            'tipoDocumento' => 'required|string|in:'.implode(',', array_column(TipoDocumentoEnum::cases(), 'value')),
+            'matriculaId' => $esLibreta ? 'required|integer|exists:matriculas,id' : 'nullable|integer|exists:matriculas,id',
             'motivo' => 'required|string|max:500',
             'requisitos.*' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
+            'metodoEntrega' => 'required|string|in:'.implode(',', array_column(MetodoEntregaEnum::cases(), 'value')),
+            'correoEntrega' => MetodoEntregaEnum::tryFrom($this->metodoEntrega)?->requiereCorreo()
+                ? 'required|email|max:150'
+                : 'nullable|email|max:150',
         ]);
 
         $matricula = $this->matriculaId !== '' ? Matricula::query()->findOrFail($this->matriculaId) : null;
 
-        $service->solicitar($estudiante, $matricula, $this->motivo, $this->requisitos);
+        $service->solicitar(
+            $estudiante,
+            $matricula,
+            $this->motivo,
+            $this->requisitos,
+            TipoDocumentoEnum::from($this->tipoDocumento),
+            MetodoEntregaEnum::from($this->metodoEntrega),
+            $this->correoEntrega ?: null,
+        );
 
-        $this->reset(['matriculaId', 'motivo', 'requisitos']);
-        session()->flash('status', 'Solicitud enviada. Te avisaremos cuando tu certificado esté listo.');
+        $this->reset(['matriculaId', 'motivo', 'requisitos', 'metodoEntrega', 'correoEntrega']);
+        $this->tipoDocumento = TipoDocumentoEnum::CERTIFICADO_ESTUDIOS->value;
+        session()->flash('status', 'Solicitud enviada. Te avisaremos cuando tu documento esté listo.');
     }
 
-    public function with(CertificadoService $certificados, BloqueoAccesoService $bloqueos): array
+    public function with(CertificadoService $certificados, LibretaService $libretas, BloqueoAccesoService $bloqueos): array
     {
         $estudiante = Auth::user()->estudiante;
 
         return [
+            'tiposDocumento' => TipoDocumentoEnum::cases(),
             'misCertificados' => $certificados->misCertificados($estudiante),
+            'misLibretas' => $libretas->misLibretas($estudiante),
             'misSolicitudes' => $certificados->misSolicitudes($estudiante),
             'matriculas' => Matricula::query()
                 ->where('estudiante_id', $estudiante->id)
@@ -65,8 +95,8 @@ new #[Layout('layouts.app')] class extends Component
 
 <div class="max-w-3xl space-y-6">
     <x-slot name="header">
-        <h1 class="font-display text-2xl text-ink">Mis certificados</h1>
-        <p class="mt-1 text-sm text-ink-dim">Solicita un certificado de estudios y revisa los que ya se te emitieron.</p>
+        <h1 class="font-display text-2xl text-ink">Mis documentos</h1>
+        <p class="mt-1 text-sm text-ink-dim">Solicita certificados, constancias o tu libreta de notas, y revisa los que ya se te emitieron.</p>
     </x-slot>
 
     @if (session('status'))
@@ -76,17 +106,27 @@ new #[Layout('layouts.app')] class extends Component
     @endif
 
     <div class="rounded-lg border border-border bg-surface p-6">
-        <h2 class="text-sm font-semibold text-ink">Solicitar certificado</h2>
+        <h2 class="text-sm font-semibold text-ink">Solicitar un documento</h2>
 
         @if ($tieneDeudaCicloActual)
             <div class="mt-4 rounded-lg border border-danger/30 bg-danger/10 px-4 py-4 text-sm text-danger">
-                <p class="font-medium">No puedes solicitar un certificado por ahora.</p>
+                <p class="font-medium">No puedes solicitar documentos por ahora.</p>
                 <p class="mt-1">Tienes cuotas vencidas del ciclo actual. Regulariza tu deuda en
                     <a href="{{ route('pagos.mi-cuenta') }}" wire:navigate class="underline">Mi estado de cuenta</a>
                     o comunícate con Cobranza para un compromiso de pago.</p>
             </div>
         @else
             <form wire:submit="solicitar" class="mt-4 space-y-4">
+                <div>
+                    <x-input-label for="tipoDocumento" value="Documento" />
+                    <x-select-input
+                        wire:model="tipoDocumento"
+                        id="tipoDocumento"
+                        class="mt-1 block w-full"
+                        :options="collect($tiposDocumento)->mapWithKeys(fn ($tipo) => [$tipo->value => $tipo->label()])"
+                    />
+                    <x-input-error :messages="$errors->get('tipoDocumento')" class="mt-1" />
+                </div>
                 <div>
                     <x-input-label for="matriculaId" value="Matrícula (opcional)" />
                     <x-select-input
@@ -95,6 +135,7 @@ new #[Layout('layouts.app')] class extends Component
                         class="mt-1 block w-full"
                         :options="collect($matriculas)->mapWithKeys(fn ($matricula) => [$matricula->id => $matricula->grado->nombre.' · '.$matricula->ciclo->nombre])->prepend('Sin vincular a una matrícula específica', '')"
                     />
+                    <p class="mt-1 text-xs text-ink-faint">Para la libreta de notas, elige la matrícula del ciclo que quieres consultar.</p>
                     <x-input-error :messages="$errors->get('matriculaId')" class="mt-1" />
                 </div>
                 <div>
@@ -109,6 +150,9 @@ new #[Layout('layouts.app')] class extends Component
                     <x-input-error :messages="$errors->get('requisitos')" class="mt-1" />
                     <x-input-error :messages="$errors->get('requisitos.*')" class="mt-1" />
                 </div>
+
+                <x-documentos.eleccion-entrega :metodo-actual="$metodoEntrega" />
+
                 <div class="flex justify-end">
                     <x-primary-button type="submit">Solicitar</x-primary-button>
                 </div>
@@ -117,13 +161,13 @@ new #[Layout('layouts.app')] class extends Component
     </div>
 
     <div class="rounded-lg border border-border bg-surface p-6">
-        <h2 class="text-sm font-semibold text-ink">Mis certificados emitidos</h2>
+        <h2 class="text-sm font-semibold text-ink">Mis certificados y constancias</h2>
         <div class="mt-4 divide-y divide-border">
             @forelse ($misCertificados as $certificado)
                 <div class="flex items-center justify-between py-3 text-sm">
                     <div>
                         <p class="text-ink">
-                            N.° {{ $certificado->numero }}
+                            {{ $certificado->tipo->label() }} N.° {{ $certificado->numero }}
                             @if ($certificado->es_duplicado)
                                 <span class="ml-1 rounded-full bg-warn/10 px-2 py-0.5 text-xs text-warn">Duplicado</span>
                             @endif
@@ -135,7 +179,9 @@ new #[Layout('layouts.app')] class extends Component
                             emitido el {{ $certificado->fecha_emision->format('d/m/Y') }}
                         </p>
                         @if ($certificado->entregado_en)
-                            <p class="mt-1 text-xs text-ok">Recogido el {{ $certificado->entregado_en->format('d/m/Y') }}</p>
+                            <p class="mt-1 text-xs text-ok">Entregado el {{ $certificado->entregado_en->format('d/m/Y') }}</p>
+                        @elseif ($certificado->metodo_entrega?->value === 'virtual')
+                            <p class="mt-1 text-xs text-warn">Pendiente de envío a {{ $certificado->correo_entrega }}</p>
                         @else
                             <p class="mt-1 text-xs text-warn">Pendiente de recojo en administración</p>
                         @endif
@@ -145,7 +191,33 @@ new #[Layout('layouts.app')] class extends Component
                     @endif
                 </div>
             @empty
-                <p class="py-4 text-sm text-ink-faint">Todavía no tienes certificados emitidos.</p>
+                <p class="py-4 text-sm text-ink-faint">Todavía no tienes certificados ni constancias emitidos.</p>
+            @endforelse
+        </div>
+    </div>
+
+    <div class="rounded-lg border border-border bg-surface p-6">
+        <h2 class="text-sm font-semibold text-ink">Mis libretas de notas</h2>
+        <div class="mt-4 divide-y divide-border">
+            @forelse ($misLibretas as $libreta)
+                <div class="flex items-center justify-between py-3 text-sm">
+                    <div>
+                        <p class="text-ink">{{ $libreta->ciclo->nombre }}</p>
+                        <p class="text-xs text-ink-faint">generada el {{ $libreta->generado_en->format('d/m/Y') }}</p>
+                        @if ($libreta->entregado_en)
+                            <p class="mt-1 text-xs text-ok">Entregada el {{ $libreta->entregado_en->format('d/m/Y') }}</p>
+                        @elseif ($libreta->metodo_entrega?->value === 'virtual')
+                            <p class="mt-1 text-xs text-warn">Pendiente de envío a {{ $libreta->correo_entrega }}</p>
+                        @elseif ($libreta->metodo_entrega)
+                            <p class="mt-1 text-xs text-warn">Pendiente de recojo en administración</p>
+                        @endif
+                    </div>
+                    @if ($libreta->getFirstMedia('pdf'))
+                        <a href="{{ $libreta->getFirstMediaUrl('pdf') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver PDF</a>
+                    @endif
+                </div>
+            @empty
+                <p class="py-4 text-sm text-ink-faint">Todavía no tienes libretas generadas.</p>
             @endforelse
         </div>
     </div>
@@ -156,7 +228,7 @@ new #[Layout('layouts.app')] class extends Component
             @forelse ($misSolicitudes as $solicitud)
                 <div class="py-3 text-sm">
                     <div class="flex items-center justify-between gap-4">
-                        <p class="text-ink">{{ $solicitud->motivo }}</p>
+                        <p class="text-ink">{{ $solicitud->tipo->label() }} — {{ $solicitud->motivo }}</p>
                         <span @class([
                             'rounded-full px-2 py-0.5 text-xs',
                             'bg-ok/10 text-ok' => $solicitud->estado->value === 'atendida',
@@ -166,6 +238,9 @@ new #[Layout('layouts.app')] class extends Component
                     </div>
                     <p class="text-xs text-ink-faint">
                         Solicitado el {{ $solicitud->created_at->format('d/m/Y') }}
+                        @if ($solicitud->metodo_entrega)
+                            · {{ $solicitud->metodo_entrega->label() }}
+                        @endif
                         @if ($solicitud->getMedia('requisitos')->isNotEmpty())
                             · {{ $solicitud->getMedia('requisitos')->count() }} requisito(s) adjunto(s)
                         @endif
@@ -175,7 +250,7 @@ new #[Layout('layouts.app')] class extends Component
                     @endif
                 </div>
             @empty
-                <p class="py-4 text-sm text-ink-faint">No has solicitado certificados todavía.</p>
+                <p class="py-4 text-sm text-ink-faint">No has solicitado documentos todavía.</p>
             @endforelse
         </div>
     </div>

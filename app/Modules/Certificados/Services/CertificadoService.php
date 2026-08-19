@@ -6,13 +6,17 @@ namespace App\Modules\Certificados\Services;
 
 use App\Models\User;
 use App\Modules\Certificados\Enums\EstadoSolicitudCertificadoEnum;
+use App\Modules\Certificados\Enums\TipoDocumentoEnum;
 use App\Modules\Certificados\Models\Certificado;
 use App\Modules\Certificados\Models\PlantillaCertificado;
 use App\Modules\Certificados\Models\SolicitudCertificado;
+use App\Modules\Evaluaciones\Models\Libreta;
+use App\Modules\Evaluaciones\Services\LibretaService;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Notificaciones\Enums\TipoNotificacionEnum;
 use App\Modules\Notificaciones\Services\NotificacionService;
+use App\Shared\Enums\MetodoEntregaEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
@@ -23,19 +27,30 @@ class CertificadoService
 {
     public function __construct(
         private readonly NotificacionService $notificaciones,
+        private readonly LibretaService $libretas,
     ) {}
 
     /**
      * @param  list<UploadedFile>  $requisitos
      */
-    public function solicitar(Estudiante $estudiante, ?Matricula $matricula, string $motivo, array $requisitos = []): SolicitudCertificado
-    {
+    public function solicitar(
+        Estudiante $estudiante,
+        ?Matricula $matricula,
+        string $motivo,
+        array $requisitos = [],
+        TipoDocumentoEnum $tipo = TipoDocumentoEnum::CERTIFICADO_ESTUDIOS,
+        ?MetodoEntregaEnum $metodoEntrega = null,
+        ?string $correoEntrega = null,
+    ): SolicitudCertificado {
         /** @var SolicitudCertificado $solicitud */
         $solicitud = SolicitudCertificado::query()->create([
             'estudiante_id' => $estudiante->id,
+            'tipo' => $tipo,
             'matricula_id' => $matricula?->id,
             'motivo' => $motivo,
             'estado' => EstadoSolicitudCertificadoEnum::PENDIENTE,
+            'metodo_entrega' => $metodoEntrega,
+            'correo_entrega' => $metodoEntrega?->requiereCorreo() === true ? $correoEntrega : null,
         ]);
 
         foreach ($requisitos as $archivo) {
@@ -51,10 +66,14 @@ class CertificadoService
         ?SolicitudCertificado $solicitud,
         ?string $observaciones,
         User $emisor,
+        TipoDocumentoEnum $tipo = TipoDocumentoEnum::CERTIFICADO_ESTUDIOS,
     ): Certificado {
+        $tipo = $solicitud !== null ? $solicitud->tipo : $tipo;
+
         /** @var Certificado $certificado */
         $certificado = Certificado::query()->create([
             'estudiante_id' => $estudiante->id,
+            'tipo' => $tipo,
             'matricula_id' => $matricula?->id,
             'numero' => $this->siguienteNumero(),
             'codigo_verificacion' => $this->generarCodigoVerificacion(),
@@ -62,6 +81,8 @@ class CertificadoService
             'emitido_por' => $emisor->id,
             'fecha_emision' => now(),
             'observaciones' => $observaciones,
+            'metodo_entrega' => $solicitud?->metodo_entrega,
+            'correo_entrega' => $solicitud?->correo_entrega,
         ]);
 
         $this->generarPdf($certificado);
@@ -78,7 +99,7 @@ class CertificadoService
             $this->notificaciones->notificar(
                 $estudiante->user,
                 TipoNotificacionEnum::CERTIFICADO_LISTO,
-                'Tu certificado de estudios está listo para recoger.',
+                "Tu {$tipo->label()} está listo para recoger.",
                 route('certificados.mis-certificados'),
             );
         }
@@ -87,14 +108,53 @@ class CertificadoService
     }
 
     /**
-     * Registra que el estudiante recogió el certificado en persona: la
-     * prueba de "entregado conforme" que cierra el flujo.
+     * La libreta de notas se genera distinto (un resumen de promedios, no
+     * una plantilla de texto) pero comparte el mismo flujo de solicitud,
+     * revisión, notificación y entrega que los demás documentos.
      */
-    public function marcarEntregado(Certificado $certificado, User $entregadoPor): Certificado
+    public function emitirLibretaDesdeSolicitud(SolicitudCertificado $solicitud, User $emisor): Libreta
+    {
+        if ($solicitud->matricula === null) {
+            throw ValidationException::withMessages([
+                'matricula' => 'La solicitud de libreta debe estar vinculada a una matrícula.',
+            ]);
+        }
+
+        $libreta = $this->libretas->generar($solicitud->estudiante, $solicitud->matricula->ciclo);
+
+        $libreta->update([
+            'metodo_entrega' => $solicitud->metodo_entrega,
+            'correo_entrega' => $solicitud->correo_entrega,
+        ]);
+
+        $solicitud->update([
+            'estado' => EstadoSolicitudCertificadoEnum::ATENDIDA,
+            'atendido_por' => $emisor->id,
+            'libreta_id' => $libreta->id,
+        ]);
+
+        if ($solicitud->estudiante->user) {
+            $this->notificaciones->notificar(
+                $solicitud->estudiante->user,
+                TipoNotificacionEnum::CERTIFICADO_LISTO,
+                'Tu libreta de notas está lista para recoger.',
+                route('certificados.mis-certificados'),
+            );
+        }
+
+        return $libreta;
+    }
+
+    /**
+     * Registra que el estudiante recogió el documento en persona (con la
+     * foto como constancia) o que se le envió por correo: la prueba de
+     * "entregado conforme" que cierra el flujo.
+     */
+    public function marcarEntregado(Certificado $certificado, User $entregadoPor, ?UploadedFile $foto = null): Certificado
     {
         if ($certificado->entregado_en !== null) {
             throw ValidationException::withMessages([
-                'entrega' => 'Este certificado ya fue marcado como entregado.',
+                'entrega' => 'Este documento ya fue marcado como entregado.',
             ]);
         }
 
@@ -103,7 +163,35 @@ class CertificadoService
             'entregado_por' => $entregadoPor->id,
         ]);
 
+        if ($foto) {
+            $certificado->addMedia($foto)->toMediaCollection('foto_entrega');
+        }
+
         return $certificado;
+    }
+
+    /**
+     * La misma constancia de entrega que marcarEntregado(), para una
+     * libreta de notas en vez de un certificado/constancia.
+     */
+    public function marcarLibretaEntregada(Libreta $libreta, User $entregadoPor, ?UploadedFile $foto = null): Libreta
+    {
+        if ($libreta->entregado_en !== null) {
+            throw ValidationException::withMessages([
+                'entrega' => 'Esta libreta ya fue marcada como entregada.',
+            ]);
+        }
+
+        $libreta->update([
+            'entregado_en' => now(),
+            'entregado_por' => $entregadoPor->id,
+        ]);
+
+        if ($foto) {
+            $libreta->addMedia($foto)->toMediaCollection('foto_entrega');
+        }
+
+        return $libreta;
     }
 
     public function duplicar(Certificado $original, ?string $observaciones, User $emisor): Certificado
@@ -113,6 +201,7 @@ class CertificadoService
         /** @var Certificado $duplicado */
         $duplicado = Certificado::query()->create([
             'estudiante_id' => $base->estudiante_id,
+            'tipo' => $base->tipo,
             'matricula_id' => $base->matricula_id,
             'numero' => $this->siguienteNumero(),
             'codigo_verificacion' => $base->codigo_verificacion,
@@ -139,17 +228,17 @@ class CertificadoService
         ]);
     }
 
-    public function plantillaActual(): PlantillaCertificado
+    public function plantillaParaTipo(TipoDocumentoEnum $tipo): PlantillaCertificado
     {
-        return PlantillaCertificado::actual();
+        return PlantillaCertificado::paraTipo($tipo);
     }
 
     /**
      * @param  array{institucion: string, titulo: string, cuerpo: string, pie_nota: ?string, color_acento: string}  $datos
      */
-    public function guardarPlantilla(array $datos): PlantillaCertificado
+    public function guardarPlantilla(TipoDocumentoEnum $tipo, array $datos): PlantillaCertificado
     {
-        $plantilla = PlantillaCertificado::actual();
+        $plantilla = PlantillaCertificado::paraTipo($tipo);
         $plantilla->update($datos);
 
         return $plantilla->fresh();
@@ -251,7 +340,7 @@ class CertificadoService
      */
     private function renderizarPdf(Certificado $certificado, ?PlantillaCertificado $plantilla = null)
     {
-        $plantilla ??= PlantillaCertificado::actual();
+        $plantilla ??= PlantillaCertificado::paraTipo($certificado->tipo);
 
         return Pdf::loadView('pdf.certificado', [
             'certificado' => $certificado,

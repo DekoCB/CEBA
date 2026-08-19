@@ -3,6 +3,7 @@
 namespace Tests\Feature\Certificados;
 
 use App\Models\User;
+use App\Modules\Certificados\Enums\TipoDocumentoEnum;
 use App\Modules\Certificados\Models\PlantillaCertificado;
 use App\Modules\Certificados\Services\CertificadoService;
 use App\Modules\Matricula\Models\Estudiante;
@@ -13,31 +14,41 @@ class PlantillaCertificadoTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_actual_crea_la_fila_unica_con_valores_por_defecto_si_no_existe(): void
+    public function test_para_tipo_crea_la_fila_con_valores_por_defecto_si_no_existe(): void
     {
         $this->assertDatabaseCount('plantilla_certificados', 0);
 
-        $plantilla = PlantillaCertificado::actual();
+        $plantilla = PlantillaCertificado::paraTipo(TipoDocumentoEnum::CERTIFICADO_ESTUDIOS);
 
         $this->assertDatabaseCount('plantilla_certificados', 1);
         $this->assertSame('Certificado de estudios', $plantilla->titulo);
         $this->assertSame('#137A6C', $plantilla->color_acento);
     }
 
-    public function test_actual_siempre_devuelve_la_misma_fila(): void
+    public function test_para_tipo_siempre_devuelve_la_misma_fila(): void
     {
-        $primera = PlantillaCertificado::actual();
-        $segunda = PlantillaCertificado::actual();
+        $primera = PlantillaCertificado::paraTipo(TipoDocumentoEnum::CERTIFICADO_ESTUDIOS);
+        $segunda = PlantillaCertificado::paraTipo(TipoDocumentoEnum::CERTIFICADO_ESTUDIOS);
 
         $this->assertSame($primera->id, $segunda->id);
         $this->assertDatabaseCount('plantilla_certificados', 1);
+    }
+
+    public function test_cada_tipo_de_documento_tiene_su_propia_plantilla(): void
+    {
+        $certificado = PlantillaCertificado::paraTipo(TipoDocumentoEnum::CERTIFICADO_ESTUDIOS);
+        $constancia = PlantillaCertificado::paraTipo(TipoDocumentoEnum::CONSTANCIA_BUENA_CONDUCTA);
+
+        $this->assertNotSame($certificado->id, $constancia->id);
+        $this->assertNotSame($certificado->titulo, $constancia->titulo);
+        $this->assertDatabaseCount('plantilla_certificados', 2);
     }
 
     public function test_guardar_plantilla_persiste_los_cambios(): void
     {
         $service = app(CertificadoService::class);
 
-        $service->guardarPlantilla([
+        $service->guardarPlantilla(TipoDocumentoEnum::CERTIFICADO_ESTUDIOS, [
             'institucion' => 'CEBA Peruano Británico',
             'titulo' => 'Constancia de estudios',
             'cuerpo' => 'Certificamos que {{estudiante}} ({{dni}}) {{detalle_matricula}}',
@@ -45,15 +56,31 @@ class PlantillaCertificadoTest extends TestCase
             'color_acento' => '#FF0000',
         ]);
 
-        $plantilla = PlantillaCertificado::actual();
+        $plantilla = PlantillaCertificado::paraTipo(TipoDocumentoEnum::CERTIFICADO_ESTUDIOS);
         $this->assertSame('CEBA Peruano Británico', $plantilla->institucion);
         $this->assertSame('Constancia de estudios', $plantilla->titulo);
         $this->assertSame('#FF0000', $plantilla->color_acento);
     }
 
+    public function test_guardar_plantilla_de_un_tipo_no_afecta_a_los_demas(): void
+    {
+        $service = app(CertificadoService::class);
+
+        $service->guardarPlantilla(TipoDocumentoEnum::CONSTANCIA_VACANTE, [
+            'institucion' => 'CEBA',
+            'titulo' => 'Título editado',
+            'cuerpo' => 'Cuerpo editado.',
+            'pie_nota' => null,
+            'color_acento' => '#000000',
+        ]);
+
+        $certificado = PlantillaCertificado::paraTipo(TipoDocumentoEnum::CERTIFICADO_ESTUDIOS);
+        $this->assertSame('Certificado de estudios', $certificado->titulo);
+    }
+
     public function test_renderizar_cuerpo_sustituye_los_placeholders_provistos(): void
     {
-        $plantilla = PlantillaCertificado::actual();
+        $plantilla = PlantillaCertificado::paraTipo(TipoDocumentoEnum::CERTIFICADO_ESTUDIOS);
 
         $resultado = $plantilla->renderizarCuerpo([
             'estudiante' => 'Juan Pérez Ríos',
@@ -74,7 +101,7 @@ class PlantillaCertificadoTest extends TestCase
         // placeholders. Si alguien escribe algo con pinta de Blade, debe
         // quedar tal cual, como texto plano.
         $service = app(CertificadoService::class);
-        $service->guardarPlantilla([
+        $service->guardarPlantilla(TipoDocumentoEnum::CERTIFICADO_ESTUDIOS, [
             'institucion' => 'CEBA',
             'titulo' => 'Certificado',
             'cuerpo' => 'Resultado: {{ 7 * 7 }} y @php echo "hackeado"; @endphp para {{estudiante}}.',
@@ -82,7 +109,7 @@ class PlantillaCertificadoTest extends TestCase
             'color_acento' => '#137A6C',
         ]);
 
-        $plantilla = PlantillaCertificado::actual();
+        $plantilla = PlantillaCertificado::paraTipo(TipoDocumentoEnum::CERTIFICADO_ESTUDIOS);
         $resultado = $plantilla->renderizarCuerpo(['estudiante' => 'Ana']);
 
         // Si se hubiera compilado como Blade/PHP, el resultado sería
@@ -96,7 +123,7 @@ class PlantillaCertificadoTest extends TestCase
     public function test_emitir_certificado_genera_pdf_valido_usando_la_plantilla_personalizada(): void
     {
         $service = app(CertificadoService::class);
-        $service->guardarPlantilla([
+        $service->guardarPlantilla(TipoDocumentoEnum::CERTIFICADO_ESTUDIOS, [
             'institucion' => 'CEBA Personalizado',
             'titulo' => 'Título Personalizado',
             'cuerpo' => 'Cuerpo personalizado para {{estudiante}}.',
@@ -114,7 +141,7 @@ class PlantillaCertificadoTest extends TestCase
 
     public function test_previsualizar_plantilla_devuelve_un_pdf_valido_sin_emitir_certificados(): void
     {
-        $plantilla = PlantillaCertificado::actual();
+        $plantilla = PlantillaCertificado::paraTipo(TipoDocumentoEnum::CERTIFICADO_ESTUDIOS);
 
         $pdf = app(CertificadoService::class)->previsualizarPlantilla($plantilla);
 

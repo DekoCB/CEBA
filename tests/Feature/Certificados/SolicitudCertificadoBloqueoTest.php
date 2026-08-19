@@ -46,8 +46,9 @@ class SolicitudCertificadoBloqueoTest extends TestCase
         $this->actingAs($usuario);
 
         Volt::test('certificados.mis-certificados')
-            ->assertSee('No puedes solicitar un certificado por ahora')
+            ->assertSee('No puedes solicitar documentos por ahora')
             ->set('motivo', 'Trámite laboral')
+            ->set('metodoEntrega', 'fisica')
             ->call('solicitar')
             ->assertForbidden();
 
@@ -66,8 +67,9 @@ class SolicitudCertificadoBloqueoTest extends TestCase
         $this->actingAs($usuario);
 
         Volt::test('certificados.mis-certificados')
-            ->assertDontSee('No puedes solicitar un certificado por ahora')
+            ->assertDontSee('No puedes solicitar documentos por ahora')
             ->set('motivo', 'Trámite laboral')
+            ->set('metodoEntrega', 'fisica')
             ->call('solicitar')
             ->assertHasNoErrors();
 
@@ -87,8 +89,9 @@ class SolicitudCertificadoBloqueoTest extends TestCase
         $this->actingAs($usuario);
 
         Volt::test('certificados.mis-certificados')
-            ->assertDontSee('No puedes solicitar un certificado por ahora')
+            ->assertDontSee('No puedes solicitar documentos por ahora')
             ->set('motivo', 'Trámite laboral')
+            ->set('metodoEntrega', 'fisica')
             ->call('solicitar')
             ->assertHasNoErrors();
 

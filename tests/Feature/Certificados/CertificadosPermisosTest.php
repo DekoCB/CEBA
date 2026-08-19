@@ -3,10 +3,14 @@
 namespace Tests\Feature\Certificados;
 
 use App\Models\User;
+use App\Modules\Academico\Models\Ciclo;
+use App\Modules\Certificados\Enums\TipoDocumentoEnum;
 use App\Modules\Certificados\Models\SolicitudCertificado;
 use App\Modules\Certificados\Services\CertificadoService;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Matricula\Models\Matricula;
+use App\Shared\Enums\MetodoEntregaEnum;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -121,6 +125,7 @@ class CertificadosPermisosTest extends TestCase
         Volt::test('certificados.mis-certificados')
             ->set('motivo', 'Trámite laboral')
             ->set('requisitos', [UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf')])
+            ->set('metodoEntrega', 'fisica')
             ->call('solicitar')
             ->assertHasNoErrors();
 
@@ -138,7 +143,8 @@ class CertificadosPermisosTest extends TestCase
         $this->actingAs($coordinador);
         Volt::test('certificados.index')
             ->set('tab', 'historial')
-            ->call('marcarEntregado', $certificado->id)
+            ->call('iniciarEntrega', 'certificado', $certificado->id)
+            ->call('confirmarEntrega')
             ->assertHasNoErrors();
 
         $this->assertNotNull($certificado->fresh()->entregado_en);
@@ -155,8 +161,88 @@ class CertificadosPermisosTest extends TestCase
 
         $this->actingAs($docente);
 
-        rescue(fn () => Volt::test('certificados.index')->set('tab', 'historial')->call('marcarEntregado', $certificado->id), report: false);
+        rescue(fn () => Volt::test('certificados.index')
+            ->set('tab', 'historial')
+            ->call('iniciarEntrega', 'certificado', $certificado->id)
+            ->call('confirmarEntrega'), report: false);
 
         $this->assertNull($certificado->fresh()->entregado_en);
+    }
+
+    public function test_el_estudiante_puede_solicitar_una_constancia_con_entrega_virtual(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        Estudiante::factory()->create(['user_id' => $usuario->id]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('certificados.mis-certificados')
+            ->set('tipoDocumento', TipoDocumentoEnum::CONSTANCIA_VACANTE->value)
+            ->set('motivo', 'Nueva vacante laboral')
+            ->set('metodoEntrega', 'virtual')
+            ->set('correoEntrega', 'estudiante@example.com')
+            ->call('solicitar')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('solicitudes_certificado', [
+            'tipo' => TipoDocumentoEnum::CONSTANCIA_VACANTE->value,
+            'metodo_entrega' => 'virtual',
+            'correo_entrega' => 'estudiante@example.com',
+        ]);
+    }
+
+    public function test_solicitar_entrega_virtual_sin_correo_falla_la_validacion(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        Estudiante::factory()->create(['user_id' => $usuario->id]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('certificados.mis-certificados')
+            ->set('motivo', 'Trámite laboral')
+            ->set('metodoEntrega', 'virtual')
+            ->call('solicitar')
+            ->assertHasErrors(['correoEntrega']);
+    }
+
+    public function test_solicitar_libreta_sin_matricula_falla_la_validacion(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        Estudiante::factory()->create(['user_id' => $usuario->id]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('certificados.mis-certificados')
+            ->set('tipoDocumento', TipoDocumentoEnum::LIBRETA_NOTAS->value)
+            ->set('motivo', 'Necesito mis notas')
+            ->set('metodoEntrega', 'fisica')
+            ->call('solicitar')
+            ->assertHasErrors(['matriculaId']);
+    }
+
+    public function test_coordinador_emite_una_libreta_desde_una_solicitud(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $ciclo = Ciclo::factory()->create();
+        $estudiante = Estudiante::factory()->create();
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'ciclo_id' => $ciclo->id]);
+
+        $solicitud = app(CertificadoService::class)->solicitar(
+            $estudiante, $matricula, 'Necesito mis notas', [], TipoDocumentoEnum::LIBRETA_NOTAS,
+            MetodoEntregaEnum::FISICA,
+        );
+
+        $this->actingAs($coordinador);
+
+        Volt::test('certificados.index')
+            ->call('emitirDeSolicitud', $solicitud->id)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('libretas', ['estudiante_id' => $estudiante->id, 'ciclo_id' => $ciclo->id]);
+        $this->assertNotNull($solicitud->fresh()->libreta_id);
     }
 }

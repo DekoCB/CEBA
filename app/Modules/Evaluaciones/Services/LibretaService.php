@@ -11,6 +11,7 @@ use App\Modules\Evaluaciones\Models\Libreta;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Validation\ValidationException;
 
@@ -97,5 +98,33 @@ class LibretaService
             ->toMediaCollection('pdf');
 
         return $libreta;
+    }
+
+    /**
+     * @return Collection<int, Libreta>
+     */
+    public function misLibretas(Estudiante $estudiante): Collection
+    {
+        return Libreta::query()
+            ->where('estudiante_id', $estudiante->id)
+            ->whereNotNull('generado_en')
+            ->with(['ciclo', 'entregadoPor'])
+            ->latest('generado_en')
+            ->get();
+    }
+
+    /**
+     * Todas las libretas generadas, para el historial de documentos que
+     * revisa el personal (misma pantalla que certificados y constancias).
+     *
+     * @return Collection<int, Libreta>
+     */
+    public function todas(): Collection
+    {
+        return Libreta::query()
+            ->whereNotNull('generado_en')
+            ->with(['estudiante', 'ciclo', 'entregadoPor'])
+            ->latest('generado_en')
+            ->get();
     }
 }

@@ -6,9 +6,11 @@ namespace App\Modules\Certificados\Models;
 
 use App\Models\User;
 use App\Modules\Certificados\Database\Factories\CertificadoFactory;
+use App\Modules\Certificados\Enums\TipoDocumentoEnum;
 use App\Modules\Identidad\Support\Auditable;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
+use App\Shared\Enums\MetodoEntregaEnum;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,6 +23,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
 /**
  * @property int $id
  * @property int $estudiante_id
+ * @property TipoDocumentoEnum $tipo
  * @property int|null $matricula_id
  * @property string $numero
  * @property string $codigo_verificacion
@@ -31,6 +34,8 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property string|null $observaciones
  * @property Carbon|null $entregado_en
  * @property int|null $entregado_por
+ * @property MetodoEntregaEnum|null $metodo_entrega
+ * @property string|null $correo_entrega
  * @property-read Estudiante|null $estudiante
  * @property-read Matricula|null $matricula
  * @property-read Certificado|null $original
@@ -46,6 +51,7 @@ class Certificado extends Model implements HasMedia
 
     protected $fillable = [
         'estudiante_id',
+        'tipo',
         'matricula_id',
         'numero',
         'codigo_verificacion',
@@ -56,14 +62,18 @@ class Certificado extends Model implements HasMedia
         'observaciones',
         'entregado_en',
         'entregado_por',
+        'metodo_entrega',
+        'correo_entrega',
     ];
 
     protected function casts(): array
     {
         return [
+            'tipo' => TipoDocumentoEnum::class,
             'es_duplicado' => 'boolean',
             'fecha_emision' => 'datetime',
             'entregado_en' => 'datetime',
+            'metodo_entrega' => MetodoEntregaEnum::class,
         ];
     }
 
@@ -75,6 +85,7 @@ class Certificado extends Model implements HasMedia
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection('pdf')->singleFile();
+        $this->addMediaCollection('foto_entrega')->singleFile();
     }
 
     public function estudiante(): BelongsTo

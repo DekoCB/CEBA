@@ -3,12 +3,15 @@
 namespace Tests\Feature\Certificados;
 
 use App\Models\User;
+use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Certificados\Enums\EstadoSolicitudCertificadoEnum;
+use App\Modules\Certificados\Enums\TipoDocumentoEnum;
 use App\Modules\Certificados\Services\CertificadoService;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Notificaciones\Enums\TipoNotificacionEnum;
 use App\Modules\Notificaciones\Models\Notificacion;
+use App\Shared\Enums\MetodoEntregaEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
@@ -194,5 +197,174 @@ class CertificadoServiceTest extends TestCase
 
         $this->expectException(ValidationException::class);
         $service->marcarEntregado($certificado, $emisor);
+    }
+
+    public function test_marcar_entregado_con_foto_la_adjunta_como_constancia(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $emisor = User::factory()->create();
+        $service = app(CertificadoService::class);
+
+        $certificado = $service->emitir($estudiante, null, null, null, $emisor);
+        $service->marcarEntregado($certificado, $emisor, UploadedFile::fake()->image('entrega.jpg'));
+
+        $this->assertNotNull($certificado->getFirstMedia('foto_entrega'));
+    }
+
+    public function test_emitir_sin_tipo_explicito_usa_certificado_de_estudios_por_defecto(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $emisor = User::factory()->create();
+
+        $certificado = app(CertificadoService::class)->emitir($estudiante, null, null, null, $emisor);
+
+        $this->assertSame(TipoDocumentoEnum::CERTIFICADO_ESTUDIOS, $certificado->tipo);
+    }
+
+    public function test_emitir_directo_con_tipo_constancia_lo_persiste(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $emisor = User::factory()->create();
+
+        $certificado = app(CertificadoService::class)->emitir(
+            $estudiante, null, null, null, $emisor, TipoDocumentoEnum::CONSTANCIA_BUENA_CONDUCTA,
+        );
+
+        $this->assertSame(TipoDocumentoEnum::CONSTANCIA_BUENA_CONDUCTA, $certificado->tipo);
+        $this->assertNotNull($certificado->getFirstMedia('pdf'));
+    }
+
+    public function test_solicitar_persiste_tipo_metodo_de_entrega_y_correo(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+
+        $solicitud = app(CertificadoService::class)->solicitar(
+            $estudiante,
+            null,
+            'Trámite laboral',
+            [],
+            TipoDocumentoEnum::CONSTANCIA_VACANTE,
+            MetodoEntregaEnum::VIRTUAL,
+            'estudiante@example.com',
+        );
+
+        $this->assertSame(TipoDocumentoEnum::CONSTANCIA_VACANTE, $solicitud->tipo);
+        $this->assertSame(MetodoEntregaEnum::VIRTUAL, $solicitud->metodo_entrega);
+        $this->assertSame('estudiante@example.com', $solicitud->correo_entrega);
+    }
+
+    public function test_solicitar_con_entrega_fisica_no_guarda_correo_aunque_se_pase_uno(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+
+        $solicitud = app(CertificadoService::class)->solicitar(
+            $estudiante,
+            null,
+            'Trámite laboral',
+            [],
+            TipoDocumentoEnum::CERTIFICADO_ESTUDIOS,
+            MetodoEntregaEnum::FISICA,
+            'no-deberia-guardarse@example.com',
+        );
+
+        $this->assertNull($solicitud->correo_entrega);
+    }
+
+    public function test_emitir_desde_una_solicitud_hereda_su_tipo_y_metodo_de_entrega(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $emisor = User::factory()->create();
+        $service = app(CertificadoService::class);
+
+        $solicitud = $service->solicitar(
+            $estudiante, null, 'Trámite laboral', [], TipoDocumentoEnum::CONSTANCIA_ESTUDIOS,
+            MetodoEntregaEnum::VIRTUAL, 'correo@example.com',
+        );
+
+        $certificado = $service->emitir($estudiante, null, $solicitud, null, $emisor);
+
+        $this->assertSame(TipoDocumentoEnum::CONSTANCIA_ESTUDIOS, $certificado->tipo);
+        $this->assertSame(MetodoEntregaEnum::VIRTUAL, $certificado->metodo_entrega);
+        $this->assertSame('correo@example.com', $certificado->correo_entrega);
+    }
+
+    public function test_emitir_libreta_desde_solicitud_genera_la_libreta_y_cierra_la_solicitud(): void
+    {
+        $ciclo = Ciclo::factory()->create();
+        $estudiante = Estudiante::factory()->create();
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'ciclo_id' => $ciclo->id]);
+        $emisor = User::factory()->create();
+        $service = app(CertificadoService::class);
+
+        $solicitud = $service->solicitar(
+            $estudiante, $matricula, 'Quiero mi libreta', [], TipoDocumentoEnum::LIBRETA_NOTAS,
+            MetodoEntregaEnum::FISICA,
+        );
+
+        $libreta = $service->emitirLibretaDesdeSolicitud($solicitud, $emisor);
+
+        $this->assertNotNull($libreta->generado_en);
+        $this->assertSame(EstadoSolicitudCertificadoEnum::ATENDIDA, $solicitud->refresh()->estado);
+        $this->assertSame($libreta->id, $solicitud->libreta_id);
+    }
+
+    public function test_emitir_libreta_desde_solicitud_sin_matricula_lanza_excepcion(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $emisor = User::factory()->create();
+        $service = app(CertificadoService::class);
+
+        $solicitud = $service->solicitar(
+            $estudiante, null, 'Quiero mi libreta', [], TipoDocumentoEnum::LIBRETA_NOTAS, MetodoEntregaEnum::FISICA,
+        );
+
+        $this->expectException(ValidationException::class);
+        $service->emitirLibretaDesdeSolicitud($solicitud, $emisor);
+    }
+
+    public function test_marcar_libreta_entregada_registra_fecha_y_quien_entrego(): void
+    {
+        $ciclo = Ciclo::factory()->create();
+        $estudiante = Estudiante::factory()->create();
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'ciclo_id' => $ciclo->id]);
+        $emisor = User::factory()->create();
+        $service = app(CertificadoService::class);
+
+        $solicitud = $service->solicitar($estudiante, $matricula, 'Libreta', [], TipoDocumentoEnum::LIBRETA_NOTAS, MetodoEntregaEnum::FISICA);
+        $libreta = $service->emitirLibretaDesdeSolicitud($solicitud, $emisor);
+
+        $service->marcarLibretaEntregada($libreta, $emisor);
+
+        $libreta->refresh();
+        $this->assertNotNull($libreta->entregado_en);
+        $this->assertSame($emisor->id, $libreta->entregado_por);
+    }
+
+    public function test_no_permite_marcar_libreta_entregada_dos_veces(): void
+    {
+        $ciclo = Ciclo::factory()->create();
+        $estudiante = Estudiante::factory()->create();
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'ciclo_id' => $ciclo->id]);
+        $emisor = User::factory()->create();
+        $service = app(CertificadoService::class);
+
+        $solicitud = $service->solicitar($estudiante, $matricula, 'Libreta', [], TipoDocumentoEnum::LIBRETA_NOTAS, MetodoEntregaEnum::FISICA);
+        $libreta = $service->emitirLibretaDesdeSolicitud($solicitud, $emisor);
+        $service->marcarLibretaEntregada($libreta, $emisor);
+
+        $this->expectException(ValidationException::class);
+        $service->marcarLibretaEntregada($libreta, $emisor);
+    }
+
+    public function test_duplicar_conserva_el_tipo_del_original(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $emisor = User::factory()->create();
+        $service = app(CertificadoService::class);
+
+        $original = $service->emitir($estudiante, null, null, null, $emisor, TipoDocumentoEnum::CONSTANCIA_ESTUDIOS);
+        $duplicado = $service->duplicar($original, null, $emisor);
+
+        $this->assertSame(TipoDocumentoEnum::CONSTANCIA_ESTUDIOS, $duplicado->tipo);
     }
 }
