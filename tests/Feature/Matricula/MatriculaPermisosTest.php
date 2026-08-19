@@ -3,7 +3,6 @@
 namespace Tests\Feature\Matricula;
 
 use App\Models\User;
-use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
@@ -64,7 +63,7 @@ class MatriculaPermisosTest extends TestCase
             'fecha_inicio' => now()->subDays(10),
             'fecha_fin' => now()->addDays(10),
         ]);
-        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $grado = Grado::factory()->create();
 
         $this->actingAs($usuario);
 
@@ -110,7 +109,7 @@ class MatriculaPermisosTest extends TestCase
             'fecha_inicio' => now()->subDays(10),
             'fecha_fin' => now()->addDays(10),
         ]);
-        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $grado = Grado::factory()->create();
 
         $this->actingAs($usuario);
 
@@ -173,7 +172,7 @@ class MatriculaPermisosTest extends TestCase
             'fecha_inicio' => now()->subDays(10),
             'fecha_fin' => now()->addDays(10),
         ]);
-        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $grado = Grado::factory()->create();
 
         $this->actingAs($usuario);
 
@@ -238,7 +237,7 @@ class MatriculaPermisosTest extends TestCase
             'fecha_inicio' => now()->subDays(10),
             'fecha_fin' => now()->addDays(10),
         ]);
-        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $grado = Grado::factory()->create();
         $horario = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
 
         $this->actingAs($usuario);
@@ -269,7 +268,7 @@ class MatriculaPermisosTest extends TestCase
             'fecha_inicio' => now()->subDays(10),
             'fecha_fin' => now()->addDays(10),
         ]);
-        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $grado = Grado::factory()->create();
         Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
         $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
 
@@ -302,7 +301,7 @@ class MatriculaPermisosTest extends TestCase
             'fecha_inicio' => now()->subDays(10),
             'fecha_fin' => now()->addDays(10),
         ]);
-        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $grado = Grado::factory()->create();
         Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
         Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
 
@@ -338,7 +337,7 @@ class MatriculaPermisosTest extends TestCase
             'fecha_inicio' => now()->subDays(10),
             'fecha_fin' => now()->addDays(10),
         ]);
-        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $grado = Grado::factory()->create();
         Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
         $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
 

@@ -1,6 +1,5 @@
 <?php
 
-use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Services\GradoService;
 use Illuminate\Support\Facades\Gate;
@@ -14,8 +13,6 @@ new #[Layout('layouts.app')] class extends Component
     public ?int $editandoId = null;
 
     public string $nombre = '';
-
-    public string $tipoPublico = '';
 
     public string $orden = '';
 
@@ -36,11 +33,10 @@ new #[Layout('layouts.app')] class extends Component
         if ($gradoId) {
             $grado = Grado::query()->findOrFail($gradoId);
             $this->nombre = $grado->nombre;
-            $this->tipoPublico = $grado->tipo_publico->value;
             $this->orden = (string) $grado->orden;
             $this->activo = $grado->activo;
         } else {
-            $this->reset(['nombre', 'tipoPublico', 'orden']);
+            $this->reset(['nombre', 'orden']);
             $this->activo = true;
         }
 
@@ -53,21 +49,17 @@ new #[Layout('layouts.app')] class extends Component
 
         $this->validate([
             'nombre' => 'required|string|max:100',
-            'tipoPublico' => 'required|string|in:'.implode(',', array_column(TipoPublicoEnum::cases(), 'value')),
             'orden' => 'required|integer|min:1|max:10',
         ]);
 
-        $publico = TipoPublicoEnum::from($this->tipoPublico);
-
-        if ($service->existeOrdenParaPublico($publico, (int) $this->orden, $this->editandoId)) {
-            $this->addError('orden', "Ya existe un grado con el orden {$this->orden} para {$publico->label()}.");
+        if ($service->existeOrden((int) $this->orden, $this->editandoId)) {
+            $this->addError('orden', "Ya existe un grado con el orden {$this->orden}.");
 
             return;
         }
 
         $datos = [
             'nombre' => $this->nombre,
-            'tipo_publico' => $publico,
             'orden' => (int) $this->orden,
         ];
 
@@ -85,7 +77,6 @@ new #[Layout('layouts.app')] class extends Component
     {
         return [
             'grados' => $service->todos(),
-            'tiposPublico' => TipoPublicoEnum::cases(),
         ];
     }
 }; ?>
@@ -93,7 +84,7 @@ new #[Layout('layouts.app')] class extends Component
 <div>
     <x-slot name="header">
         <h1 class="font-display text-2xl text-ink">Grados</h1>
-        <p class="mt-1 text-sm text-ink-dim">Niveles que cursan los estudiantes, según sean mayores o menores de edad.</p>
+        <p class="mt-1 text-sm text-ink-dim">Niveles que cursan los estudiantes.</p>
     </x-slot>
 
     {{--
@@ -120,7 +111,6 @@ new #[Layout('layouts.app')] class extends Component
             <thead class="bg-surface-2">
                 <tr>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Nombre</th>
-                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Público</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Orden</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Estado</th>
                     <th class="px-4 py-3"></th>
@@ -130,7 +120,6 @@ new #[Layout('layouts.app')] class extends Component
                 @forelse ($grados as $grado)
                     <tr wire:key="grado-{{ $grado->id }}">
                         <td class="px-4 py-3 font-medium text-ink">{{ $grado->nombre }}</td>
-                        <td class="px-4 py-3 text-ink-dim">{{ $grado->tipo_publico->label() }}</td>
                         <td class="px-4 py-3 font-mono text-ink-dim">{{ $grado->orden }}</td>
                         <td class="px-4 py-3">
                             <span @class(['rounded-full px-2 py-0.5 text-xs font-medium', 'bg-ok/10 text-ok' => $grado->activo, 'bg-ink-faint/10 text-ink-faint' => ! $grado->activo])>
@@ -144,7 +133,7 @@ new #[Layout('layouts.app')] class extends Component
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="px-4 py-8 text-center text-sm text-ink-faint">No hay grados registrados.</td></tr>
+                    <tr><td colspan="4" class="px-4 py-8 text-center text-sm text-ink-faint">No hay grados registrados.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -181,22 +170,10 @@ new #[Layout('layouts.app')] class extends Component
                         <x-input-error :messages="$errors->get('nombre')" class="mt-1" />
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <x-input-label for="tipoPublico" value="Público" />
-                            <x-select-input
-                                wire:model="tipoPublico"
-                                id="tipoPublico"
-                                class="mt-1 block w-full"
-                                :options="collect($tiposPublico)->mapWithKeys(fn ($tipo) => [$tipo->value => $tipo->label()])"
-                            />
-                            <x-input-error :messages="$errors->get('tipoPublico')" class="mt-1" />
-                        </div>
-                        <div>
-                            <x-input-label for="orden" value="Orden" />
-                            <x-text-input wire:model="orden" id="orden" type="number" min="1" max="10" class="mt-1 block w-full" />
-                            <x-input-error :messages="$errors->get('orden')" class="mt-1" />
-                        </div>
+                    <div>
+                        <x-input-label for="orden" value="Orden" />
+                        <x-text-input wire:model="orden" id="orden" type="number" min="1" max="10" class="mt-1 block w-full" />
+                        <x-input-error :messages="$errors->get('orden')" class="mt-1" />
                     </div>
 
                     @if ($editandoId)

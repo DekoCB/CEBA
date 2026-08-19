@@ -21,9 +21,10 @@ class AcademicoDemoSeeder extends Seeder
     public function run(): void
     {
         $grados = collect([
-            ['nombre' => 'Grado 1 - Mayores', 'tipo_publico' => TipoPublicoEnum::MAYOR, 'orden' => 1],
-            ['nombre' => 'Grado 2 - Mayores', 'tipo_publico' => TipoPublicoEnum::MAYOR, 'orden' => 2],
-            ['nombre' => 'Grado 1 - Menores', 'tipo_publico' => TipoPublicoEnum::MENOR, 'orden' => 1],
+            ['nombre' => 'Grado 1', 'orden' => 1],
+            ['nombre' => 'Grado 2', 'orden' => 2],
+            ['nombre' => 'Grado 3', 'orden' => 3],
+            ['nombre' => 'Grado 4', 'orden' => 4],
         ])->map(fn (array $datos) => Grado::query()->create($datos));
 
         $aulas = collect([
@@ -80,17 +81,38 @@ class AcademicoDemoSeeder extends Seeder
         $docente = User::query()->where('email', 'docente@ceba.test')->first();
 
         if ($docente) {
-            $horario = Horario::query()->create([
+            // Grupo A (mayores de edad) y Grupo B (menores) del mismo curso,
+            // grado y ciclo: la pareja de secciones que demuestra el flujo
+            // de "subir también a" del Aula Virtual (ver
+            // checklist-secciones.blade.php) y el candado de edad por grupo.
+            $horarioA = Horario::query()->create([
                 'curso_id' => $cursoComunicacion->id,
                 'docente_id' => $docente->id,
                 'aula_id' => $aulas[0]->id,
                 'ciclo_id' => $ciclo->id,
                 'grado_id' => $grados[0]->id,
+                'seccion' => 'A',
+                'tipo_publico' => TipoPublicoEnum::MAYOR,
             ]);
 
-            $horario->dias()->createMany([
+            $horarioA->dias()->createMany([
                 ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
                 ['dia_semana' => DiaSemanaEnum::MIERCOLES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+            ]);
+
+            $horarioB = Horario::query()->create([
+                'curso_id' => $cursoComunicacion->id,
+                'docente_id' => $docente->id,
+                'aula_id' => $aulas[1]->id,
+                'ciclo_id' => $ciclo->id,
+                'grado_id' => $grados[0]->id,
+                'seccion' => 'B',
+                'tipo_publico' => TipoPublicoEnum::MENOR,
+            ]);
+
+            $horarioB->dias()->createMany([
+                ['dia_semana' => DiaSemanaEnum::MARTES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+                ['dia_semana' => DiaSemanaEnum::JUEVES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
             ]);
         }
     }

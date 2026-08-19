@@ -138,7 +138,6 @@ class MatriculaService
         $ciclo = Ciclo::query()->findOrFail($data->cicloId);
         $grado = Grado::query()->findOrFail($data->gradoId);
 
-        $this->validarGradoCoherenteConEdad($estudiante, $grado);
         $this->validarPeriodoDeMatriculaAbierto($ciclo);
 
         if ($this->matriculas->existeParaEstudianteYCiclo($estudiante->id, $ciclo->id)) {
@@ -148,6 +147,8 @@ class MatriculaService
         }
 
         $horario = $this->resolverHorario($grado, $ciclo, $data->horarioId);
+
+        $this->validarHorarioCoherenteConEdad($estudiante, $horario);
 
         return DB::transaction(function () use ($estudiante, $ciclo, $grado, $horario, $data) {
             $matricula = $this->matriculas->create([
@@ -204,13 +205,24 @@ class MatriculaService
         return $horario;
     }
 
-    private function validarGradoCoherenteConEdad(Estudiante $estudiante, Grado $grado): void
+    /**
+     * El público (mayores/menores) ya no es una propiedad del grado sino de
+     * la sección/horario elegido (Grupo A/B). Si el horario no declara un
+     * público (o no hay horario todavía), no hay nada que validar.
+     */
+    private function validarHorarioCoherenteConEdad(Estudiante $estudiante, ?Horario $horario): void
     {
+        if ($horario === null || $horario->tipo_publico === null) {
+            return;
+        }
+
         $publicoEsperado = $estudiante->es_menor_edad ? TipoPublicoEnum::MENOR : TipoPublicoEnum::MAYOR;
 
-        if ($grado->tipo_publico !== $publicoEsperado) {
+        if ($horario->tipo_publico !== $publicoEsperado) {
+            $seccion = $horario->seccion ? "«{$horario->seccion}»" : 'seleccionado';
+
             throw ValidationException::withMessages([
-                'grado' => "El grado «{$grado->nombre}» es para {$grado->tipo_publico->label()}, pero el estudiante es {$publicoEsperado->label()}.",
+                'horario' => "El grupo {$seccion} es para {$horario->tipo_publico->label()}, pero el estudiante es {$publicoEsperado->label()}.",
             ]);
         }
     }

@@ -3,7 +3,6 @@
 namespace Tests\Feature\Academico;
 
 use App\Models\User;
-use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Services\CursoService;
@@ -42,12 +41,15 @@ class CursoCodigoTest extends TestCase
 
     public function test_agrega_un_sufijo_si_el_codigo_base_ya_existe(): void
     {
-        $gradoMayores = Grado::factory()->create(['orden' => 1, 'tipo_publico' => TipoPublicoEnum::MAYOR]);
-        $gradoMenores = Grado::factory()->create(['orden' => 1, 'tipo_publico' => TipoPublicoEnum::MENOR]);
+        $gradoUno = Grado::factory()->create(['orden' => 1]);
+        // No se persiste: generarCodigo() solo lee $grado->orden, así que
+        // basta un grado en memoria con el mismo orden para forzar la
+        // colisión de código sin violar la unicidad real de "orden".
+        $otroGradoConMismoOrden = Grado::factory()->make(['orden' => 1]);
 
-        Curso::factory()->create(['nombre' => 'Comunicación', 'codigo' => 'COM-1', 'grado_id' => $gradoMayores->id]);
+        Curso::factory()->create(['nombre' => 'Comunicación', 'codigo' => 'COM-1', 'grado_id' => $gradoUno->id]);
 
-        $codigo = $this->service()->generarCodigo('Comunicación', $gradoMenores);
+        $codigo = $this->service()->generarCodigo('Comunicación', $otroGradoConMismoOrden);
 
         $this->assertSame('COM-1-2', $codigo);
     }

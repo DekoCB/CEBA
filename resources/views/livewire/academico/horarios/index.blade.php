@@ -3,6 +3,7 @@
 use App\Models\User;
 use App\Modules\Academico\Enums\DiaSemanaEnum;
 use App\Modules\Academico\Enums\FranjaHorarioEnum;
+use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Aula;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Curso;
@@ -31,6 +32,8 @@ new #[Layout('layouts.app')] class extends Component
     public string $gradoId = '';
 
     public string $seccion = '';
+
+    public string $tipoPublico = '';
 
     public string $franjaPreset = '';
 
@@ -82,7 +85,7 @@ new #[Layout('layouts.app')] class extends Component
         Gate::authorize('academico.gestionar');
 
         $this->resetValidation();
-        $this->reset(['cursoId', 'docenteId', 'aulaId', 'gradoId', 'seccion', 'franjaPreset', 'horaInicioHora', 'horaInicioMinuto', 'horaFinHora', 'horaFinMinuto']);
+        $this->reset(['cursoId', 'docenteId', 'aulaId', 'gradoId', 'seccion', 'tipoPublico', 'franjaPreset', 'horaInicioHora', 'horaInicioMinuto', 'horaFinHora', 'horaFinMinuto']);
         $this->cicloId = $this->cicloFiltro;
         $this->mostrarModal = true;
     }
@@ -98,6 +101,7 @@ new #[Layout('layouts.app')] class extends Component
             'cicloId' => 'required|integer|exists:ciclos,id',
             'gradoId' => 'required|integer|exists:grados,id',
             'seccion' => 'nullable|string|max:10',
+            'tipoPublico' => 'nullable|string|in:'.implode(',', array_column(TipoPublicoEnum::cases(), 'value')),
             'franjaPreset' => 'required|string|in:'.implode(',', array_column(FranjaHorarioEnum::cases(), 'value')),
             'horaInicioHora' => 'required|string|in:'.implode(',', array_keys($this->horasDisponibles())),
             'horaInicioMinuto' => 'required|string|in:'.implode(',', array_keys($this->minutosDisponibles())),
@@ -121,6 +125,7 @@ new #[Layout('layouts.app')] class extends Component
             'ciclo_id' => (int) $this->cicloId,
             'grado_id' => (int) $this->gradoId,
             'seccion' => $this->seccion ?: null,
+            'tipo_publico' => $this->tipoPublico !== '' ? TipoPublicoEnum::from($this->tipoPublico) : null,
             'dias' => $dias,
         ]);
 
@@ -140,6 +145,7 @@ new #[Layout('layouts.app')] class extends Component
             'aulas' => Aula::query()->where('activa', true)->orderBy('nombre')->get(),
             'grados' => Grado::query()->where('activo', true)->orderBy('nombre')->get(),
             'franjas' => $this->franjasDisponibles(),
+            'tiposPublico' => TipoPublicoEnum::cases(),
             'horas' => $this->horasDisponibles(),
             'minutos' => $this->minutosDisponibles(),
         ];
@@ -228,7 +234,12 @@ new #[Layout('layouts.app')] class extends Component
                         <tbody class="divide-y divide-border">
                             @foreach ($horariosDelGrado->sortBy('seccion') as $horario)
                                 <tr wire:key="horario-{{ $horario->id }}">
-                                    <td class="px-4 py-3 text-ink-dim">{{ $horario->seccion ?? '—' }}</td>
+                                    <td class="px-4 py-3 text-ink-dim">
+                                        {{ $horario->seccion ?? '—' }}
+                                        @if ($horario->tipo_publico)
+                                            <span class="ml-1 text-xs text-ink-faint">({{ $horario->tipo_publico->label() }})</span>
+                                        @endif
+                                    </td>
                                     <td class="px-4 py-3 font-medium text-ink">{{ $horario->curso->nombre }}</td>
                                     <td class="px-4 py-3 text-ink-dim">{{ $horario->docente->name }}</td>
                                     <td class="px-4 py-3 text-ink-dim">{{ $horario->aula->nombre }}</td>
@@ -294,11 +305,25 @@ new #[Layout('layouts.app')] class extends Component
                         </div>
                     </div>
 
-                    <div>
-                        <x-input-label for="seccion" value="Sección (opcional)" />
-                        <x-text-input wire:model="seccion" id="seccion" class="mt-1 block w-full" placeholder="Ej. A, B…" maxlength="10" />
-                        <p class="mt-1 text-xs text-ink-faint">Solo hace falta si este grado tiene más de una sección en el ciclo (ej. Grupo A y Grupo B); el personal la elegirá al matricular.</p>
-                        <x-input-error :messages="$errors->get('seccion')" class="mt-1" />
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <x-input-label for="seccion" value="Sección (opcional)" />
+                            <x-text-input wire:model="seccion" id="seccion" class="mt-1 block w-full" placeholder="Ej. A, B…" maxlength="10" />
+                            <p class="mt-1 text-xs text-ink-faint">Solo hace falta si este grado tiene más de una sección en el ciclo (ej. Grupo A y Grupo B); el personal la elegirá al matricular.</p>
+                            <x-input-error :messages="$errors->get('seccion')" class="mt-1" />
+                        </div>
+                        <div>
+                            <x-input-label for="tipoPublico" value="Público del grupo (opcional)" />
+                            <x-select-input
+                                wire:model="tipoPublico"
+                                id="tipoPublico"
+                                placeholder="Sin restricción"
+                                class="mt-1 block w-full"
+                                :options="collect($tiposPublico)->mapWithKeys(fn ($tipo) => [$tipo->value => $tipo->label()])"
+                            />
+                            <p class="mt-1 text-xs text-ink-faint">Si este grupo es solo para mayores o menores de edad, elígelo para que el sistema valide la matrícula.</p>
+                            <x-input-error :messages="$errors->get('tipoPublico')" class="mt-1" />
+                        </div>
                     </div>
 
                     <div>

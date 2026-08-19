@@ -3,7 +3,6 @@
 namespace Tests\Feature\Matricula;
 
 use App\Models\User;
-use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
@@ -96,7 +95,7 @@ class CargaMasivaTest extends TestCase
             'fecha_inicio' => now()->subDays(10),
             'fecha_fin' => now()->addDays(10),
         ]);
-        Grado::factory()->create(['nombre' => '3ro de Secundaria', 'tipo_publico' => TipoPublicoEnum::MAYOR]);
+        Grado::factory()->create(['nombre' => '3ro de Secundaria']);
         $estudiante = Estudiante::factory()->create(['dni' => '22334455', 'es_menor_edad' => false]);
 
         $archivo = $this->archivoExcel(['dni', 'grado'], [['22334455', '3ro de Secundaria']]);

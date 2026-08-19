@@ -127,6 +127,12 @@ new class extends Component
     }
 
     /**
+     * Solo los horarios (secciones/grupos) del grado compatibles con la
+     * edad del estudiante: los que no declaran público (sin restricción) o
+     * los que coinciden con el suyo. Así el personal no llega a elegir a
+     * mano un Grupo A/B incoherente que de todos modos rechazaría
+     * MatriculaService::matricular().
+     *
      * @return Collection<int, Horario>
      */
     #[Computed]
@@ -136,9 +142,12 @@ new class extends Component
             return collect();
         }
 
+        $publicoEsperado = $this->esMenorDeEdad ? TipoPublicoEnum::MENOR : TipoPublicoEnum::MAYOR;
+
         return Horario::query()
             ->where('ciclo_id', (int) $this->cicloId)
             ->where('grado_id', (int) $this->gradoId)
+            ->where(fn ($query) => $query->whereNull('tipo_publico')->orWhere('tipo_publico', $publicoEsperado))
             ->with(['docente', 'aula', 'dias'])
             ->get();
     }
@@ -408,11 +417,7 @@ new class extends Component
 
     public function with(): array
     {
-        $gradosCompatibles = Grado::query()
-            ->where('activo', true)
-            ->where('tipo_publico', $this->esMenorDeEdad ? TipoPublicoEnum::MENOR : TipoPublicoEnum::MAYOR)
-            ->orderBy('orden')
-            ->get();
+        $grados = Grado::query()->where('activo', true)->orderBy('orden')->get();
 
         $ciclosConMatriculaAbierta = Ciclo::query()
             ->whereHas('periodosMatricula', function ($query) {
@@ -425,8 +430,8 @@ new class extends Component
 
         return [
             'estadosCiviles' => EstadoCivilEnum::cases(),
-            'gradosCompatibles' => $gradosCompatibles,
-            'todosLosGrados' => Grado::query()->where('activo', true)->orderBy('orden')->get(),
+            'gradosCompatibles' => $grados,
+            'todosLosGrados' => $grados,
             'ciclosDisponibles' => $ciclosConMatriculaAbierta,
             'numerosCuotas' => NumeroCuotasEnum::cases(),
         ];

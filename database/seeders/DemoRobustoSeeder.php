@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use App\Modules\Academico\Enums\DiaSemanaEnum;
-use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Aula;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Curso;
@@ -280,9 +279,12 @@ class DemoRobustoSeeder extends Seeder
         $servicio = app(MatriculaService::class);
 
         foreach ($grados as $grado) {
-            $esMenor = $grado->tipo_publico === TipoPublicoEnum::MENOR;
-
             for ($i = 0; $i < 12; $i++) {
+                // El público (mayor/menor) ya no es una propiedad del
+                // grado, sino del grupo/horario elegido -- este seeder no
+                // filtra por sección, así que alterna al azar entre ambos
+                // tipos de estudiante para cada grado.
+                $esMenor = random_int(0, 1) === 1;
                 $edad = $esMenor ? random_int(14, 17) : random_int(18, 52);
 
                 $estudiante = $servicio->registrarEstudiante(new RegistrarEstudianteData(

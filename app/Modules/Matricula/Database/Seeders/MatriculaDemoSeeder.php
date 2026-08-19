@@ -7,7 +7,7 @@ namespace App\Modules\Matricula\Database\Seeders;
 use App\Models\User;
 use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Ciclo;
-use App\Modules\Academico\Models\Grado;
+use App\Modules\Academico\Models\Horario;
 use App\Modules\Matricula\DTOs\RegistrarApoderadoData;
 use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
 use App\Modules\Matricula\DTOs\RegistrarMatriculaData;
@@ -29,10 +29,14 @@ class MatriculaDemoSeeder extends Seeder
         /** @var MatriculaService $service */
         $service = app(MatriculaService::class);
 
-        $gradoMayor = Grado::query()->where('tipo_publico', TipoPublicoEnum::MAYOR)->orderBy('orden')->first();
-        $gradoMenor = Grado::query()->where('tipo_publico', TipoPublicoEnum::MENOR)->orderBy('orden')->first();
+        // El público (mayor/menor) ya no es una propiedad del grado, sino
+        // del grupo/horario (Grupo A/B) -- se busca un horario de cada tipo
+        // para saber en qué grado y sección matricular a cada estudiante
+        // demo de forma coherente con su edad.
+        $horarioMayor = Horario::query()->where('ciclo_id', $ciclo->id)->where('tipo_publico', TipoPublicoEnum::MAYOR)->first();
+        $horarioMenor = Horario::query()->where('ciclo_id', $ciclo->id)->where('tipo_publico', TipoPublicoEnum::MENOR)->first();
 
-        if ($gradoMayor) {
+        if ($horarioMayor) {
             $estudianteMayor = $service->registrarEstudiante(new RegistrarEstudianteData(
                 nombres: 'Estudiante',
                 apellidos: 'Demo',
@@ -46,8 +50,8 @@ class MatriculaDemoSeeder extends Seeder
 
             $service->matricular($estudianteMayor, new RegistrarMatriculaData(
                 cicloId: $ciclo->id,
-                gradoId: $gradoMayor->id,
-                horarioId: null,
+                gradoId: $horarioMayor->grado_id,
+                horarioId: $horarioMayor->id,
                 observaciones: null,
                 registradoPor: null,
             ));
@@ -62,7 +66,7 @@ class MatriculaDemoSeeder extends Seeder
             }
         }
 
-        if ($gradoMenor) {
+        if ($horarioMenor) {
             $estudianteMenor = $service->registrarEstudiante(new RegistrarEstudianteData(
                 nombres: 'Diego',
                 apellidos: 'Torres Huamán',
@@ -85,8 +89,8 @@ class MatriculaDemoSeeder extends Seeder
 
             $service->matricular($estudianteMenor, new RegistrarMatriculaData(
                 cicloId: $ciclo->id,
-                gradoId: $gradoMenor->id,
-                horarioId: null,
+                gradoId: $horarioMenor->grado_id,
+                horarioId: $horarioMenor->id,
                 observaciones: null,
                 registradoPor: null,
             ));

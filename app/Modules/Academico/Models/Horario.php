@@ -7,6 +7,7 @@ namespace App\Modules\Academico\Models;
 use App\Models\User;
 use App\Modules\Academico\Database\Factories\HorarioFactory;
 use App\Modules\Academico\Enums\FranjaHorarioEnum;
+use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Identidad\Support\Auditable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,9 +20,11 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $curso_id
  * @property int $docente_id
+ * @property int $aula_id
  * @property int $ciclo_id
  * @property int $grado_id
  * @property string|null $seccion
+ * @property TipoPublicoEnum|null $tipo_publico
  * @property-read Curso $curso
  * @property-read User $docente
  * @property-read Aula $aula
@@ -40,7 +43,15 @@ class Horario extends Model
         'ciclo_id',
         'grado_id',
         'seccion',
+        'tipo_publico',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'tipo_publico' => TipoPublicoEnum::class,
+        ];
+    }
 
     protected static function newFactory(): HorarioFactory
     {

@@ -121,18 +121,23 @@ class MatriculaServiceTest extends TestCase
         ));
     }
 
-    public function test_no_permite_matricular_en_grado_incoherente_con_la_edad(): void
+    public function test_no_permite_matricular_en_un_grupo_incoherente_con_la_edad(): void
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
         $ciclo = $this->cicloConPeriodoAbierto();
-        $gradoMenores = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MENOR]);
+        $grado = Grado::factory()->create();
+        $horarioDeMenores = Horario::factory()->create([
+            'grado_id' => $grado->id,
+            'ciclo_id' => $ciclo->id,
+            'tipo_publico' => TipoPublicoEnum::MENOR,
+        ]);
 
         $this->expectException(ValidationException::class);
 
         $this->service()->matricular($estudiante, new RegistrarMatriculaData(
             cicloId: $ciclo->id,
-            gradoId: $gradoMenores->id,
-            horarioId: null,
+            gradoId: $grado->id,
+            horarioId: $horarioDeMenores->id,
             observaciones: null,
             registradoPor: null,
         ));
@@ -142,7 +147,7 @@ class MatriculaServiceTest extends TestCase
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
         $ciclo = Ciclo::factory()->activo()->create();
-        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $grado = Grado::factory()->create();
 
         $this->expectException(ValidationException::class);
 
@@ -159,7 +164,7 @@ class MatriculaServiceTest extends TestCase
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
         $ciclo = $this->cicloConPeriodoAbierto();
-        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $grado = Grado::factory()->create();
 
         $data = new RegistrarMatriculaData($ciclo->id, $grado->id, null, null, null);
 
@@ -176,7 +181,7 @@ class MatriculaServiceTest extends TestCase
 
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
         $ciclo = $this->cicloConPeriodoAbierto();
-        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $grado = Grado::factory()->create();
 
         $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null, null));
 
@@ -187,7 +192,7 @@ class MatriculaServiceTest extends TestCase
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
         $ciclo = $this->cicloConPeriodoAbierto();
-        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $grado = Grado::factory()->create();
 
         $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null, null));
 
@@ -198,7 +203,7 @@ class MatriculaServiceTest extends TestCase
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
         $ciclo = $this->cicloConPeriodoAbierto();
-        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $grado = Grado::factory()->create();
 
         $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null, null));
 
@@ -209,7 +214,7 @@ class MatriculaServiceTest extends TestCase
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
         $ciclo = $this->cicloConPeriodoAbierto();
-        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $grado = Grado::factory()->create();
         $horario = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
 
         $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null, null));
@@ -221,7 +226,7 @@ class MatriculaServiceTest extends TestCase
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
         $ciclo = $this->cicloConPeriodoAbierto();
-        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $grado = Grado::factory()->create();
         Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
         Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
 
@@ -234,7 +239,7 @@ class MatriculaServiceTest extends TestCase
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
         $ciclo = $this->cicloConPeriodoAbierto();
-        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $grado = Grado::factory()->create();
         Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
         $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
 
@@ -247,7 +252,7 @@ class MatriculaServiceTest extends TestCase
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
         $ciclo = $this->cicloConPeriodoAbierto();
-        $grado = Grado::factory()->create(['tipo_publico' => TipoPublicoEnum::MAYOR]);
+        $grado = Grado::factory()->create();
         Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
         Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
         $horarioAjeno = Horario::factory()->create();

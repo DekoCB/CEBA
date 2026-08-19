@@ -3,7 +3,6 @@
 namespace Tests\Feature\Academico;
 
 use App\Models\User;
-use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -49,12 +48,11 @@ class AcademicoPermisosTest extends TestCase
         $this->actingAs($coordinador);
 
         Volt::test('academico.grados.index')
-            ->set('nombre', 'Grado 1 - Mayores')
-            ->set('tipoPublico', TipoPublicoEnum::MAYOR->value)
+            ->set('nombre', 'Grado 1')
             ->set('orden', '1')
             ->call('guardar')
             ->assertHasNoErrors();
 
-        $this->assertDatabaseHas('grados', ['nombre' => 'Grado 1 - Mayores']);
+        $this->assertDatabaseHas('grados', ['nombre' => 'Grado 1']);
     }
 }

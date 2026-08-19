@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Modules\Academico\Database\Factories;
 
-use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Grado;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -19,7 +18,6 @@ class GradoFactory extends Factory
     {
         return [
             'nombre' => 'Grado '.$this->faker->word().' '.$this->faker->randomNumber(5),
-            'tipo_publico' => $this->faker->randomElement(TipoPublicoEnum::cases()),
             'orden' => $this->faker->unique()->numberBetween(1, 250),
             'activo' => true,
         ];
