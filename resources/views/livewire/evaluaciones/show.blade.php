@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Academico\Models\Horario;
+use App\Modules\Evaluaciones\Imports\HojaConEncabezadosImport;
 use App\Modules\Evaluaciones\Models\Evaluacion;
 use App\Modules\Evaluaciones\Services\EvaluacionService;
 use App\Modules\Pagos\Services\BloqueoAccesoService;
@@ -10,9 +11,13 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
+use Maatwebsite\Excel\Facades\Excel;
 
 new #[Layout('layouts.app')] class extends Component
 {
+    use WithFileUploads;
+
     public Horario $horario;
 
     public ?int $evaluacionId = null;
@@ -42,6 +47,11 @@ new #[Layout('layouts.app')] class extends Component
     public array $observaciones = [];
 
     public bool $guardado = false;
+
+    public $archivoNotas = null;
+
+    /** @var array{exitosos: int, errores: list<array{fila: int, mensaje: string}>}|null */
+    public ?array $resultadoImportacion = null;
 
     public function mount(Horario $horario): void
     {
@@ -165,6 +175,30 @@ new #[Layout('layouts.app')] class extends Component
         }
 
         $this->guardado = true;
+    }
+
+    /**
+     * Importa notas desde un CSV/Excel (típicamente exportado de un Google
+     * Forms al que se le agregó una pregunta de DNI): columnas "dni" y
+     * "nota" obligatorias, "observaciones" opcional. Reutiliza el mismo
+     * permiso que el registro manual de notas.
+     */
+    public function importarNotas(EvaluacionService $service): void
+    {
+        Gate::authorize('evaluaciones.registrar-horario', $this->horario);
+
+        $this->validate([
+            'archivoNotas' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:2048'],
+        ]);
+
+        $evaluacion = Evaluacion::query()->where('horario_id', $this->horario->id)->findOrFail($this->evaluacionId);
+
+        $import = new HojaConEncabezadosImport;
+        Excel::import($import, $this->archivoNotas);
+
+        $this->resultadoImportacion = $service->calificarDesdeFilas($evaluacion, $import->filas, Auth::id());
+        $this->reset('archivoNotas');
+        $this->cargarNotas($service);
     }
 
     public function publicar(EvaluacionService $service): void
@@ -425,6 +459,58 @@ new #[Layout('layouts.app')] class extends Component
                     @if ($puedeRegistrar && $estudiantes->isNotEmpty())
                         <div class="mt-4 flex justify-end">
                             <x-primary-button type="button" wire:click="guardarNotas">Guardar notas</x-primary-button>
+                        </div>
+                    @endif
+
+                    @if ($puedeRegistrar)
+                        <div class="mt-6 rounded-lg border border-border bg-surface p-4">
+                            <h3 class="font-display text-sm text-ink">Importar notas desde un archivo</h3>
+                            <p class="mt-1 text-xs text-ink-faint">
+                                Para las evaluaciones rendidas por Google Forms: agrega una pregunta de DNI al formulario y exporta las respuestas a CSV o Excel.
+                                El archivo debe tener una columna <code class="rounded bg-surface-2 px-1">dni</code>, una columna <code class="rounded bg-surface-2 px-1">nota</code> (0 a 20) y, opcionalmente, <code class="rounded bg-surface-2 px-1">observaciones</code>.
+                            </p>
+
+                            <form wire:submit="importarNotas" class="mt-3 flex flex-wrap items-end gap-3">
+                                <div class="flex-1">
+                                    <input
+                                        type="file"
+                                        wire:model="archivoNotas"
+                                        id="archivoNotas"
+                                        accept=".xlsx,.xls,.csv"
+                                        class="block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-sm file:text-ink"
+                                    >
+                                    <div wire:loading wire:target="archivoNotas" class="mt-1 text-xs text-ink-faint">Subiendo…</div>
+                                    <x-input-error :messages="$errors->get('archivoNotas')" class="mt-1" />
+                                </div>
+                                <x-secondary-button type="submit" wire:loading.attr="disabled" wire:target="importarNotas">
+                                    <span wire:loading.remove wire:target="importarNotas">Importar</span>
+                                    <span wire:loading wire:target="importarNotas">Importando…</span>
+                                </x-secondary-button>
+                            </form>
+
+                            @if ($resultadoImportacion)
+                                <div class="mt-3 rounded-md border border-ok/30 bg-ok/10 px-3 py-2 text-xs text-ok">
+                                    {{ $resultadoImportacion['exitosos'] }} nota{{ $resultadoImportacion['exitosos'] === 1 ? '' : 's' }} importada{{ $resultadoImportacion['exitosos'] === 1 ? '' : 's' }} correctamente.
+                                </div>
+
+                                @if (count($resultadoImportacion['errores']) > 0)
+                                    <div class="mt-2">
+                                        <p class="text-xs font-semibold text-danger">{{ count($resultadoImportacion['errores']) }} fila{{ count($resultadoImportacion['errores']) === 1 ? '' : 's' }} con errores:</p>
+                                        <div class="mt-1 max-h-48 overflow-y-auto rounded-md border border-border">
+                                            <table class="min-w-full divide-y divide-border text-xs">
+                                                <tbody class="divide-y divide-border">
+                                                    @foreach ($resultadoImportacion['errores'] as $error)
+                                                        <tr>
+                                                            <td class="px-3 py-1.5 font-mono text-ink-dim">Fila {{ $error['fila'] }}</td>
+                                                            <td class="px-3 py-1.5 text-danger">{{ $error['mensaje'] }}</td>
+                                                        </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                @endif
+                            @endif
                         </div>
                     @endif
                 @else

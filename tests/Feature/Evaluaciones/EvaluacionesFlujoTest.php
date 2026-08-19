@@ -10,7 +10,11 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
 
 class EvaluacionesFlujoTest extends TestCase
@@ -61,6 +65,88 @@ class EvaluacionesFlujoTest extends TestCase
             'nota_numerica' => 17.5,
             'observaciones' => 'Buen desempeño',
         ]);
+    }
+
+    /**
+     * @param  list<string>  $encabezados
+     * @param  list<list<string>>  $filas
+     */
+    private function archivoExcel(array $encabezados, array $filas): UploadedFile
+    {
+        $hoja = new Spreadsheet;
+        $hoja->getActiveSheet()->fromArray($encabezados, null, 'A1');
+        $hoja->getActiveSheet()->fromArray($filas, null, 'A2');
+
+        $ruta = tempnam(sys_get_temp_dir(), 'notas_test_').'.xlsx';
+        (new Xlsx($hoja))->save($ruta);
+
+        $archivo = UploadedFile::fake()->createWithContent('notas.xlsx', file_get_contents($ruta));
+        unlink($ruta);
+
+        return $archivo;
+    }
+
+    public function test_el_docente_importa_notas_desde_un_archivo(): void
+    {
+        Storage::fake('local');
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horario = Horario::factory()->create(['docente_id' => $docente->id]);
+
+        $estudiante = Estudiante::factory()->create(['dni' => '87654321']);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+        ]);
+
+        $this->actingAs($docente);
+
+        $component = Volt::test('evaluaciones.show', ['horario' => $horario])
+            ->set('nuevoNombre', 'Evaluación por Google Forms')
+            ->set('nuevaFecha', '2026-07-15')
+            ->call('crear');
+
+        $archivo = $this->archivoExcel(['dni', 'nota', 'observaciones'], [
+            ['87654321', '18.5', 'Importado'],
+        ]);
+
+        $component
+            ->set('archivoNotas', $archivo)
+            ->call('importarNotas')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('calificaciones', [
+            'estudiante_id' => $estudiante->id,
+            'nota_numerica' => 18.5,
+            'observaciones' => 'Importado',
+        ]);
+    }
+
+    public function test_un_docente_dueno_de_otro_horario_no_puede_importar_notas(): void
+    {
+        Storage::fake('local');
+
+        $docenteOwner = User::factory()->create();
+        $docenteOwner->assignRole(RolEnum::DOCENTE->value);
+        $horario = Horario::factory()->create(['docente_id' => $docenteOwner->id]);
+
+        $evaluacionService = $this->app->make(EvaluacionService::class);
+        $evaluacionService->crear($horario, 'Evaluación', '2026-07-15');
+
+        $otroDocente = User::factory()->create();
+        $otroDocente->assignRole(RolEnum::DOCENTE->value);
+
+        $this->actingAs($otroDocente);
+
+        $archivo = $this->archivoExcel(['dni', 'nota'], [['12345678', '15']]);
+
+        rescue(fn () => Volt::test('evaluaciones.show', ['horario' => $horario])
+            ->set('archivoNotas', $archivo)
+            ->call('importarNotas'), report: false);
+
+        $this->assertDatabaseCount('calificaciones', 0);
     }
 
     public function test_no_permite_registrar_una_nota_fuera_del_rango_0_20(): void

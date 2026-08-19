@@ -15,6 +15,8 @@ use App\Modules\Notificaciones\Services\NotificacionService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection as SupportCollection;
+use InvalidArgumentException;
+use Throwable;
 
 class EvaluacionService
 {
@@ -171,6 +173,73 @@ class EvaluacionService
             ['evaluacion_id' => $evaluacion->id, 'estudiante_id' => $estudiante->id],
             ['nota_numerica' => $nota, 'observaciones' => $observaciones, 'registrado_por' => $registradoPor],
         );
+    }
+
+    /**
+     * Importa notas desde las filas de un CSV/Excel -- típicamente
+     * exportado de un Google Forms al que se le agregó una pregunta de
+     * DNI, ya que el correo que exporta el Form por defecto no basta para
+     * identificar sin ambigüedad al estudiante. Cada fila debe traer "dni"
+     * y "nota" (0 a 20), y opcionalmente "observaciones". Solo califica a
+     * estudiantes matriculados en el horario de la evaluación; cada fila
+     * se procesa de forma independiente, así que una fila inválida no
+     * afecta a las demás (mismo patrón que
+     * MatriculaService::matricularDesdeFilas()).
+     *
+     * @param  SupportCollection<int, SupportCollection<string, mixed>>  $filas
+     * @return array{exitosos: int, errores: list<array{fila: int, mensaje: string}>}
+     */
+    public function calificarDesdeFilas(Evaluacion $evaluacion, SupportCollection $filas, ?int $registradoPor): array
+    {
+        $exitosos = 0;
+        $errores = [];
+
+        $estudiantesPorDni = $this->estudiantesDelHorario($evaluacion->horario)->keyBy('dni');
+
+        foreach ($filas as $indice => $fila) {
+            try {
+                $dni = trim((string) ($fila->get('dni') ?? ''));
+
+                if ($dni === '') {
+                    throw new InvalidArgumentException('La columna «dni» es obligatoria.');
+                }
+
+                $estudiante = $estudiantesPorDni->get($dni);
+
+                if (! $estudiante) {
+                    throw new InvalidArgumentException("No hay ningún estudiante matriculado en este horario con el DNI {$dni}.");
+                }
+
+                $notaValor = $fila->get('nota');
+
+                if ($notaValor === null || trim((string) $notaValor) === '') {
+                    throw new InvalidArgumentException('La columna «nota» es obligatoria.');
+                }
+
+                if (! is_numeric($notaValor)) {
+                    throw new InvalidArgumentException("La nota «{$notaValor}» no es un número válido.");
+                }
+
+                $nota = (float) $notaValor;
+
+                if ($nota < 0 || $nota > 20) {
+                    throw new InvalidArgumentException('La nota debe estar entre 0 y 20.');
+                }
+
+                $observacionesValor = $fila->get('observaciones');
+                $observaciones = $observacionesValor !== null && trim((string) $observacionesValor) !== ''
+                    ? trim((string) $observacionesValor)
+                    : null;
+
+                $this->calificar($evaluacion, $estudiante, $nota, $observaciones, $registradoPor);
+
+                $exitosos++;
+            } catch (Throwable $e) {
+                $errores[] = ['fila' => $indice + 2, 'mensaje' => $e->getMessage()];
+            }
+        }
+
+        return ['exitosos' => $exitosos, 'errores' => $errores];
     }
 
     public function publicar(Evaluacion $evaluacion): void
