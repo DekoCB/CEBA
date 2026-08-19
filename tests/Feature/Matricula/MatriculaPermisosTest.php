@@ -253,6 +253,39 @@ class MatriculaPermisosTest extends TestCase
         $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'horario_id' => $horario->id]);
     }
 
+    public function test_el_wizard_no_pide_seccion_para_un_grado_con_varios_cursos_sin_dividir(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+
+        $this->actingAs($usuario);
+
+        $this->wizardEnPasoDeMatricula('55667788')
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->assertDontSee('Sección')
+            ->call('confirmar')
+            ->assertHasNoErrors();
+
+        $estudiante = Estudiante::query()->where('dni', '55667788')->firstOrFail();
+        $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'horario_id' => null]);
+    }
+
     public function test_el_wizard_exige_elegir_seccion_cuando_el_grado_tiene_varias(): void
     {
         Storage::fake('public');

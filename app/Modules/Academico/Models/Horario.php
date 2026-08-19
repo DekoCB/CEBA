@@ -9,6 +9,8 @@ use App\Modules\Academico\Database\Factories\HorarioFactory;
 use App\Modules\Academico\Enums\FranjaHorarioEnum;
 use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Identidad\Support\Auditable;
+use App\Modules\Matricula\Models\Matricula;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -102,6 +104,29 @@ class Horario extends Model
     public function franja(): ?FranjaHorarioEnum
     {
         return FranjaHorarioEnum::desdeDias($this->dias->pluck('dia_semana'));
+    }
+
+    /**
+     * Los horarios que corresponden a una matrícula: mismo grado y ciclo,
+     * y -- si esa matrícula ya eligió una sección específica (Grupo A/B) --
+     * solo los que no tienen sección propia (le aplican a todo el grado,
+     * como cualquier curso sin dividir en grupos) o los que comparten esa
+     * misma sección; nunca los de la sección contraria. Complementa a
+     * Matricula::scopeDelHorario(), la misma regla vista desde el otro
+     * lado. Necesita $matricula->horario cargado (o cargable) para conocer
+     * la sección elegida.
+     */
+    public function scopeDeLaMatricula(Builder $query, Matricula $matricula): Builder
+    {
+        $query->where('grado_id', $matricula->grado_id)->where('ciclo_id', $matricula->ciclo_id);
+
+        $seccionElegida = $matricula->horario?->seccion;
+
+        if ($seccionElegida !== null) {
+            $query->where(fn (Builder $query) => $query->whereNull('seccion')->orWhere('seccion', $seccionElegida));
+        }
+
+        return $query;
     }
 
     /**

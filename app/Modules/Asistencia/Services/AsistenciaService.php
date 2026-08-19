@@ -45,7 +45,8 @@ class AsistenciaService
     {
         $matriculas = $estudiante->matriculas()
             ->where('estado', 'aprobada')
-            ->get(['grado_id', 'ciclo_id']);
+            ->with('horario:id,seccion')
+            ->get(['id', 'grado_id', 'ciclo_id', 'horario_id']);
 
         if ($matriculas->isEmpty()) {
             return new Collection;
@@ -54,9 +55,7 @@ class AsistenciaService
         return Horario::query()
             ->where(function ($query) use ($matriculas) {
                 foreach ($matriculas as $matricula) {
-                    $query->orWhere(function ($query) use ($matricula) {
-                        $query->where('grado_id', $matricula->grado_id)->where('ciclo_id', $matricula->ciclo_id);
-                    });
+                    $query->orWhere(fn ($query) => $query->deLaMatricula($matricula));
                 }
             })
             ->with(['curso', 'grado', 'ciclo', 'docente', 'dias'])

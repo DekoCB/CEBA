@@ -25,26 +25,16 @@ class EvaluacionService
     ) {}
 
     /**
-     * Estudiantes matriculados (aprobados) en el grado y ciclo de un horario.
-     * Si el grado tiene varias secciones (Grupo A/B) y la matrícula ya tiene
-     * un horario_id asignado, solo cuentan los de esa sección específica;
-     * las matrículas sin horario_id (registradas antes de que existiera
-     * este campo, o de un grado con una sola sección) siguen contando en
-     * cualquier horario de su grado+ciclo, como antes de este cambio.
+     * Estudiantes matriculados (aprobados) en el grado y ciclo de un
+     * horario. Ver Matricula::scopeDelHorario() para la regla exacta de
+     * sección (Grupo A/B).
      *
      * @return Collection<int, Estudiante>
      */
     public function estudiantesDelHorario(Horario $horario): Collection
     {
         return Estudiante::query()
-            ->whereIn('id', Matricula::query()
-                ->where('grado_id', $horario->grado_id)
-                ->where('ciclo_id', $horario->ciclo_id)
-                ->where('estado', 'aprobada')
-                ->where(function ($query) use ($horario) {
-                    $query->where('horario_id', $horario->id)->orWhereNull('horario_id');
-                })
-                ->pluck('estudiante_id'))
+            ->whereIn('id', Matricula::query()->delHorario($horario)->pluck('estudiante_id'))
             ->orderBy('apellidos')
             ->orderBy('nombres')
             ->get();
@@ -68,7 +58,8 @@ class EvaluacionService
     {
         $matriculas = $estudiante->matriculas()
             ->where('estado', 'aprobada')
-            ->get(['grado_id', 'ciclo_id', 'horario_id']);
+            ->with('horario:id,seccion')
+            ->get(['id', 'grado_id', 'ciclo_id', 'horario_id']);
 
         if ($matriculas->isEmpty()) {
             return new Collection;
@@ -77,17 +68,7 @@ class EvaluacionService
         return Horario::query()
             ->where(function ($query) use ($matriculas) {
                 foreach ($matriculas as $matricula) {
-                    $query->orWhere(function ($query) use ($matricula) {
-                        $query->where('grado_id', $matricula->grado_id)->where('ciclo_id', $matricula->ciclo_id);
-
-                        // Si la matrícula ya fija una sección específica, solo
-                        // ese horario cuenta; si no (grado de una sola sección
-                        // o matrícula anterior a este campo), se mantiene el
-                        // comportamiento previo de traer todos los del grado.
-                        if ($matricula->horario_id !== null) {
-                            $query->where('id', $matricula->horario_id);
-                        }
-                    });
+                    $query->orWhere(fn ($query) => $query->deLaMatricula($matricula));
                 }
             })
             ->with(['curso', 'grado', 'ciclo', 'docente', 'dias'])

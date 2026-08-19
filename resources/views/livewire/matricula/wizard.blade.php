@@ -127,11 +127,13 @@ new class extends Component
     }
 
     /**
-     * Solo los horarios (secciones/grupos) del grado compatibles con la
-     * edad del estudiante: los que no declaran público (sin restricción) o
-     * los que coinciden con el suyo. Así el personal no llega a elegir a
-     * mano un Grupo A/B incoherente que de todos modos rechazaría
-     * MatriculaService::matricular().
+     * Solo las secciones (Grupo A/B) reales del grado, compatibles con la
+     * edad del estudiante: los horarios que declaran una sección propia y
+     * no declaran público (sin restricción) o coinciden con el suyo. Si el
+     * grado no está realmente dividido en secciones -- aunque tenga varios
+     * horarios, uno por cada curso -- no hay nada que elegir y se devuelve
+     * vacío, igual que MatriculaService::resolverHorario() decide cuándo
+     * pedir sección.
      *
      * @return Collection<int, Horario>
      */
@@ -144,12 +146,18 @@ new class extends Component
 
         $publicoEsperado = $this->esMenorDeEdad ? TipoPublicoEnum::MENOR : TipoPublicoEnum::MAYOR;
 
-        return Horario::query()
+        $horarios = Horario::query()
             ->where('ciclo_id', (int) $this->cicloId)
             ->where('grado_id', (int) $this->gradoId)
             ->where(fn ($query) => $query->whereNull('tipo_publico')->orWhere('tipo_publico', $publicoEsperado))
             ->with(['docente', 'aula', 'dias'])
             ->get();
+
+        if ($horarios->pluck('seccion')->filter()->isEmpty()) {
+            return collect();
+        }
+
+        return $horarios->filter(fn (Horario $horario) => $horario->seccion !== null)->values();
     }
 
     #[Computed]

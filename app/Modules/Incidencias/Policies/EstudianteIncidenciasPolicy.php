@@ -58,7 +58,7 @@ class EstudianteIncidenciasPolicy
 
     private function esEstudianteDelDocente(User $user, Estudiante $estudiante): bool
     {
-        $horarios = Horario::query()->where('docente_id', $user->id)->get(['id', 'grado_id', 'ciclo_id']);
+        $horarios = Horario::query()->where('docente_id', $user->id)->get(['id', 'grado_id', 'ciclo_id', 'seccion']);
 
         if ($horarios->isEmpty()) {
             return false;
@@ -66,16 +66,9 @@ class EstudianteIncidenciasPolicy
 
         return Matricula::query()
             ->where('estudiante_id', $estudiante->id)
-            ->where('estado', 'aprobada')
             ->where(function ($query) use ($horarios) {
                 foreach ($horarios as $horario) {
-                    $query->orWhere(function ($query) use ($horario) {
-                        $query->where('grado_id', $horario->grado_id)
-                            ->where('ciclo_id', $horario->ciclo_id)
-                            ->where(function ($query) use ($horario) {
-                                $query->where('horario_id', $horario->id)->orWhereNull('horario_id');
-                            });
-                    });
+                    $query->orWhere(fn ($query) => $query->delHorario($horario));
                 }
             })
             ->exists();

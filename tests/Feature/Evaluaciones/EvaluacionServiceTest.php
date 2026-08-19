@@ -130,6 +130,50 @@ class EvaluacionServiceTest extends TestCase
         $this->assertTrue($estudiantesDeA->contains('id', $estudianteSinSeccion->id));
     }
 
+    public function test_un_estudiante_de_seccion_a_tambien_aparece_en_un_curso_sin_dividir_del_mismo_grado(): void
+    {
+        $grado = Grado::factory()->create();
+        $ciclo = Ciclo::factory()->create();
+        $horarioComunicacionA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+        $horarioMatematicaSinDividir = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => null]);
+
+        $estudianteA = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudianteA->id,
+            'grado_id' => $grado->id,
+            'ciclo_id' => $ciclo->id,
+            'horario_id' => $horarioComunicacionA->id,
+        ]);
+
+        $estudiantesDeMatematica = $this->service()->estudiantesDelHorario($horarioMatematicaSinDividir);
+
+        $this->assertTrue($estudiantesDeMatematica->contains('id', $estudianteA->id));
+    }
+
+    public function test_horarios_del_estudiante_incluye_su_curso_dividido_y_los_no_divididos_del_grado(): void
+    {
+        $grado = Grado::factory()->create();
+        $ciclo = Ciclo::factory()->create();
+        $horarioComunicacionA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
+        $horarioComunicacionB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+        $horarioMatematicaSinDividir = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => null]);
+
+        $estudianteA = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudianteA->id,
+            'grado_id' => $grado->id,
+            'ciclo_id' => $ciclo->id,
+            'horario_id' => $horarioComunicacionA->id,
+        ]);
+
+        $horarios = $this->service()->horariosDelEstudiante($estudianteA);
+
+        $this->assertTrue($horarios->contains('id', $horarioComunicacionA->id));
+        $this->assertTrue($horarios->contains('id', $horarioMatematicaSinDividir->id));
+        $this->assertFalse($horarios->contains('id', $horarioComunicacionB->id));
+    }
+
     public function test_calificar_dos_veces_al_mismo_estudiante_actualiza_en_vez_de_duplicar(): void
     {
         $horario = Horario::factory()->create();

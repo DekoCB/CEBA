@@ -11,6 +11,7 @@ use App\Modules\Academico\Models\Horario;
 use App\Modules\Identidad\Support\Auditable;
 use App\Modules\Matricula\Database\Factories\MatriculaFactory;
 use App\Modules\Matricula\Enums\EstadoMatriculaEnum;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -90,5 +91,32 @@ class Matricula extends Model implements HasMedia
     public function registradoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'registrado_por');
+    }
+
+    /**
+     * Las matrículas que cuentan para un horario dado: mismo grado y
+     * ciclo, aprobadas, y -- si ese horario declara una sección propia
+     * (Grupo A/B) -- solo las que no eligieron ninguna sección (les
+     * aplica cualquier horario de su grado) o que eligieron esa misma
+     * sección; nunca las de la sección contraria. Si el horario consultado
+     * no tiene sección (un curso del grado sin dividir en grupos), no se
+     * filtra en absoluto: cualquier matrícula del grado y ciclo cuenta, sin
+     * importar a qué horario específico haya quedado apuntando su
+     * horario_id por otro curso que sí esté dividido.
+     */
+    public function scopeDelHorario(Builder $query, Horario $horario): Builder
+    {
+        $query->where('grado_id', $horario->grado_id)
+            ->where('ciclo_id', $horario->ciclo_id)
+            ->where('estado', 'aprobada');
+
+        if ($horario->seccion !== null) {
+            $query->where(function (Builder $query) use ($horario) {
+                $query->whereNull('horario_id')
+                    ->orWhereHas('horario', fn (Builder $query) => $query->where('seccion', $horario->seccion));
+            });
+        }
+
+        return $query;
     }
 }

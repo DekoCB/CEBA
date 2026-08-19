@@ -222,6 +222,23 @@ class MatriculaServiceTest extends TestCase
         $this->assertSame($horario->id, $matricula->horario_id);
     }
 
+    public function test_matricular_en_un_grado_con_varios_cursos_sin_dividir_no_exige_elegir_seccion(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $ciclo = $this->cicloConPeriodoAbierto();
+        $grado = Grado::factory()->create();
+        // Tres cursos del mismo grado, cada uno con su propio horario, pero
+        // ninguno tiene sección (seccion=null): no es un grado dividido en
+        // Grupo A/B, solo varios cursos -- no debería pedir elegir nada.
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+
+        $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null, null));
+
+        $this->assertNull($matricula->horario_id);
+    }
+
     public function test_matricular_en_un_grado_con_varias_secciones_sin_elegir_una_lanza_excepcion(): void
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());

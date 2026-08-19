@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\AulaVirtual\Repositories\Eloquent;
 
+use App\Modules\Academico\Models\Horario;
 use App\Modules\AulaVirtual\Models\CursoVirtual;
 use App\Modules\AulaVirtual\Repositories\Contracts\CursoVirtualRepositoryInterface;
 use App\Modules\Matricula\Models\Estudiante;
@@ -33,33 +34,30 @@ class EloquentCursoVirtualRepository extends BaseRepository implements CursoVirt
 
     public function delEstudiante(Estudiante $estudiante): Collection
     {
-        $gradosCiclos = $estudiante->matriculas()
+        $matriculas = $estudiante->matriculas()
             ->where('estado', 'aprobada')
-            ->get(['grado_id', 'ciclo_id', 'horario_id']);
+            ->with('horario:id,seccion')
+            ->get(['id', 'grado_id', 'ciclo_id', 'horario_id']);
 
-        if ($gradosCiclos->isEmpty()) {
+        if ($matriculas->isEmpty()) {
             return new Collection;
         }
 
+        /** @param Builder<Horario> $query */
+        $filtroPorSeccion = function (Builder $query) use ($matriculas) {
+            foreach ($matriculas as $matricula) {
+                $condicion = function (Builder $query) use ($matricula) {
+                    /** @var Builder<Horario> $query */
+                    $query->deLaMatricula($matricula);
+                };
+
+                $query->orWhere($condicion);
+            }
+        };
+
         return $this->query()
             ->where('activo', true)
-            ->whereHas('horario', function ($query) use ($gradosCiclos) {
-                $query->where(function ($query) use ($gradosCiclos) {
-                    foreach ($gradosCiclos as $matricula) {
-                        $query->orWhere(function ($query) use ($matricula) {
-                            $query->where('grado_id', $matricula->grado_id)
-                                ->where('ciclo_id', $matricula->ciclo_id);
-
-                            // Si la matrícula ya fija una sección específica
-                            // (Grupo A/B), solo ese horario cuenta; si no, se
-                            // mantiene el comportamiento previo (todo el grado).
-                            if ($matricula->horario_id !== null) {
-                                $query->where('id', $matricula->horario_id);
-                            }
-                        });
-                    }
-                });
-            })
+            ->whereHas('horario', fn (Builder $query) => $query->where($filtroPorSeccion))
             ->get();
     }
 

@@ -83,11 +83,6 @@ class AulaService
 
     private function contarEstudiantesDelHorario(Horario $horario): int
     {
-        return Matricula::query()
-            ->where('grado_id', $horario->grado_id)
-            ->where('ciclo_id', $horario->ciclo_id)
-            ->where('estado', 'aprobada')
-            ->where(fn ($query) => $query->where('horario_id', $horario->id)->orWhereNull('horario_id'))
-            ->count();
+        return Matricula::query()->delHorario($horario)->count();
     }
 }

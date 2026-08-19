@@ -4,6 +4,8 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use App\Modules\Academico\Enums\DiaSemanaEnum;
+use App\Modules\Academico\Enums\FranjaHorarioEnum;
+use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Aula;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Curso;
@@ -193,7 +195,11 @@ class DemoRobustoSeeder extends Seeder
             return;
         }
 
-        $dias = DiaSemanaEnum::cases();
+        // Siempre una franja institucional completa (Lunes-Miércoles,
+        // Martes-Jueves o Domingo), nunca un día suelto: de lo contrario el
+        // horario queda huérfano en el listado ("Otros días") sin
+        // corresponder a ningún turno real de la institución.
+        $franjas = FranjaHorarioEnum::cases();
         $bloques = [['18:00:00', '20:00:00'], ['20:00:00', '22:00:00']];
 
         $ocupacionAula = [];
@@ -216,12 +222,16 @@ class DemoRobustoSeeder extends Seeder
         foreach ($cursosSinHorario as $curso) {
             $asignado = false;
 
-            foreach ($dias as $dia) {
+            foreach ($franjas as $franja) {
+                $diasFranja = $franja->dias();
+
                 foreach ($bloques as $bloqueIdx => $bloque) {
                     foreach ($aulas as $aula) {
-                        $llaveAula = "{$aula->id}|{$dia->value}|{$bloqueIdx}";
+                        $aulaLibre = collect($diasFranja)->every(
+                            fn (DiaSemanaEnum $dia) => ! isset($ocupacionAula["{$aula->id}|{$dia->value}|{$bloqueIdx}"])
+                        );
 
-                        if (isset($ocupacionAula[$llaveAula])) {
+                        if (! $aulaLibre) {
                             continue;
                         }
 
@@ -229,9 +239,12 @@ class DemoRobustoSeeder extends Seeder
 
                         for ($i = 0; $i < $docentes->count(); $i++) {
                             $candidato = $docentes[($docenteIdx + $i) % $docentes->count()];
-                            $llaveDocente = "{$candidato->id}|{$dia->value}|{$bloqueIdx}";
 
-                            if (! isset($ocupacionDocente[$llaveDocente])) {
+                            $docenteLibre = collect($diasFranja)->every(
+                                fn (DiaSemanaEnum $dia) => ! isset($ocupacionDocente["{$candidato->id}|{$dia->value}|{$bloqueIdx}"])
+                            );
+
+                            if ($docenteLibre) {
                                 $docente = $candidato;
                                 $docenteIdx = ($docenteIdx + $i + 1) % $docentes->count();
                                 break;
@@ -250,14 +263,17 @@ class DemoRobustoSeeder extends Seeder
                             'grado_id' => $curso->grado_id,
                         ]);
 
-                        $horario->dias()->create([
-                            'dia_semana' => $dia,
-                            'hora_inicio' => $bloque[0],
-                            'hora_fin' => $bloque[1],
-                        ]);
+                        foreach ($diasFranja as $dia) {
+                            $horario->dias()->create([
+                                'dia_semana' => $dia,
+                                'hora_inicio' => $bloque[0],
+                                'hora_fin' => $bloque[1],
+                            ]);
 
-                        $ocupacionAula[$llaveAula] = true;
-                        $ocupacionDocente["{$docente->id}|{$dia->value}|{$bloqueIdx}"] = true;
+                            $ocupacionAula["{$aula->id}|{$dia->value}|{$bloqueIdx}"] = true;
+                            $ocupacionDocente["{$docente->id}|{$dia->value}|{$bloqueIdx}"] = true;
+                        }
+
                         $asignado = true;
 
                         break 3;
@@ -313,7 +329,7 @@ class DemoRobustoSeeder extends Seeder
                     $servicio->matricular($estudiante, new RegistrarMatriculaData(
                         cicloId: $ciclo->id,
                         gradoId: $grado->id,
-                        horarioId: null,
+                        horarioId: $this->horarioDeSeccionCompatible($grado, $ciclo, $esMenor),
                         observaciones: null,
                         registradoPor: null,
                     ));
@@ -324,6 +340,26 @@ class DemoRobustoSeeder extends Seeder
                 }
             }
         }
+    }
+
+    /**
+     * Si el grado está realmente dividido en secciones (Grupo A/B), elige
+     * la que corresponda a la edad del estudiante para que la matrícula no
+     * falle por "selecciona a cuál se matricula el estudiante" (ver
+     * MatriculaService::resolverHorario()). Si el grado no tiene ninguna
+     * sección propia -- lo normal, un horario por curso sin dividir --
+     * devuelve null y resolverHorario() lo resuelve solo.
+     */
+    private function horarioDeSeccionCompatible(Grado $grado, Ciclo $ciclo, bool $esMenor): ?int
+    {
+        $publicoEsperado = $esMenor ? TipoPublicoEnum::MENOR : TipoPublicoEnum::MAYOR;
+
+        return Horario::query()
+            ->where('grado_id', $grado->id)
+            ->where('ciclo_id', $ciclo->id)
+            ->whereNotNull('seccion')
+            ->where(fn ($query) => $query->whereNull('tipo_publico')->orWhere('tipo_publico', $publicoEsperado))
+            ->value('id');
     }
 
     private function diversificarEstadosDeEstudiantes(): void

@@ -130,7 +130,7 @@ class IncidenciaService
      */
     public function estudiantesDelDocente(User $docente): Collection
     {
-        $horarios = Horario::query()->where('docente_id', $docente->id)->get(['id', 'grado_id', 'ciclo_id']);
+        $horarios = Horario::query()->where('docente_id', $docente->id)->get(['id', 'grado_id', 'ciclo_id', 'seccion']);
 
         if ($horarios->isEmpty()) {
             return new Collection;
@@ -138,16 +138,9 @@ class IncidenciaService
 
         return Estudiante::query()
             ->whereIn('id', Matricula::query()
-                ->where('estado', 'aprobada')
                 ->where(function ($query) use ($horarios) {
                     foreach ($horarios as $horario) {
-                        $query->orWhere(function ($query) use ($horario) {
-                            $query->where('grado_id', $horario->grado_id)
-                                ->where('ciclo_id', $horario->ciclo_id)
-                                ->where(function ($query) use ($horario) {
-                                    $query->where('horario_id', $horario->id)->orWhereNull('horario_id');
-                                });
-                        });
+                        $query->orWhere(fn ($query) => $query->delHorario($horario));
                     }
                 })
                 ->pluck('estudiante_id'))
@@ -214,7 +207,8 @@ class IncidenciaService
     {
         $matriculas = $estudiante->matriculas()
             ->where('estado', 'aprobada')
-            ->get(['grado_id', 'ciclo_id', 'horario_id']);
+            ->with('horario:id,seccion')
+            ->get(['id', 'grado_id', 'ciclo_id', 'horario_id']);
 
         if ($matriculas->isEmpty()) {
             return new Collection;
@@ -223,13 +217,7 @@ class IncidenciaService
         return Horario::query()
             ->where(function ($query) use ($matriculas) {
                 foreach ($matriculas as $matricula) {
-                    $query->orWhere(function ($query) use ($matricula) {
-                        $query->where('grado_id', $matricula->grado_id)->where('ciclo_id', $matricula->ciclo_id);
-
-                        if ($matricula->horario_id !== null) {
-                            $query->where('id', $matricula->horario_id);
-                        }
-                    });
+                    $query->orWhere(fn ($query) => $query->deLaMatricula($matricula));
                 }
             })
             ->get();

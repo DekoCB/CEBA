@@ -171,11 +171,16 @@ class MatriculaService
     }
 
     /**
-     * Si el grado tiene más de un horario en el ciclo (varias secciones,
-     * ej. Grupo A/B), exige elegir a cuál se matricula el estudiante. Si
-     * solo tiene uno, se asigna automáticamente sin pedir nada. Si no
-     * tiene ninguno todavía (grado sin horarios programados), la
-     * matrícula queda sin horario_id, igual que antes de este cambio.
+     * Si el grado está realmente dividido en secciones (Grupo A/B: al
+     * menos un horario del grado declara una sección propia), exige
+     * elegir a cuál se matricula el estudiante. Un grado con varios
+     * horarios que corresponden a distintos cursos pero SIN sección
+     * propia (lo normal: cada curso del grado tiene su propio horario, sin
+     * que eso implique grupos) no cuenta como "varias secciones" y no
+     * pide nada -- la matrícula queda sin horario_id, y
+     * Matricula::scopeDelHorario()/Horario::scopeDeLaMatricula() ya tratan
+     * ese caso como "aplica a cualquier horario del grado". Si el grado no
+     * tiene ningún horario todavía, también queda sin horario_id.
      */
     private function resolverHorario(Grado $grado, Ciclo $ciclo, ?int $horarioId): ?Horario
     {
@@ -186,6 +191,10 @@ class MatriculaService
 
         if ($horariosDelGrado->count() <= 1) {
             return $horariosDelGrado->first();
+        }
+
+        if ($horariosDelGrado->pluck('seccion')->filter()->isEmpty()) {
+            return null;
         }
 
         if ($horarioId === null) {
