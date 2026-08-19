@@ -7,11 +7,18 @@
     con el mismo look que el resto de los inputs del sistema. El valor real
     sigue viajando por wire:model igual que con un select normal.
 
-    La lista se teletransporta a <body> y se posiciona con coordenadas
-    calculadas (position: fixed) en vez de vivir "absolute" junto al botón:
-    así no se recorta cuando este select está dentro de un modal con
-    overflow-y-auto (por ejemplo, uno con muchas opciones -como horas- cerca
-    del borde inferior).
+    Si no hay espacio abajo (por ejemplo, dentro de un modal con
+    overflow-y-auto y este select cerca del borde inferior, como el
+    selector de horas), la lista se abre hacia arriba en vez de hacia
+    abajo. Ojo: se probó primero con x-teleport + position:fixed para
+    directamente "escapar" del contenedor con scroll, pero esa técnica
+    resultó frágil -- Livewire vuelve a renderizar este componente en
+    cualquier re-render de la página (por ejemplo, por un wire:model.live
+    en OTRO campo del mismo formulario) y su diff del DOM no sabe que
+    Alpine ya movió el <ul> a <body>, dejando el HTML/JS del componente
+    sin procesar y visible como texto en la página. wire:ignore no evitó
+    el problema. Abrir hacia arriba es menos elegante pero no tiene ese
+    riesgo: el nodo nunca sale de su lugar en el DOM.
 --}}
 @php
     $wireModelo = $attributes->wire('model');
@@ -28,7 +35,7 @@
         abierto: false,
         resaltado: -1,
         opciones: @js($listaOpciones),
-        posicion: { top: 0, left: 0, width: 0 },
+        abrirHaciaArriba: false,
         etiquetaDe(valor) {
             const opcion = this.opciones.find((o) => o.valor === String(valor ?? ''));
             return opcion ? opcion.etiqueta : @js($placeholder);
@@ -38,13 +45,13 @@
             this.abierto = false;
             this.resaltado = -1;
         },
-        posicionar() {
-            const rect = this.$refs.boton.getBoundingClientRect();
-            this.posicion = { top: rect.bottom, left: rect.left, width: rect.width };
-        },
         abrir() {
             this.resaltado = this.opciones.findIndex((o) => o.valor === String(this.$wire.get('{{ $propiedad }}') ?? ''));
-            this.posicionar();
+
+            const rect = this.$refs.boton.getBoundingClientRect();
+            const espacioAbajo = window.innerHeight - rect.bottom;
+            this.abrirHaciaArriba = espacioAbajo < 240 && rect.top > espacioAbajo;
+
             this.abierto = true;
         },
         moverResaltado(delta) {
@@ -56,13 +63,8 @@
         confirmarResaltado() {
             if (this.abierto && this.resaltado >= 0) this.elegir(this.opciones[this.resaltado].valor);
         },
-        cerrarSiFuera(evento) {
-            if (this.$refs.boton.contains(evento.target)) return;
-            if (this.$refs.panel && this.$refs.panel.contains(evento.target)) return;
-            this.abierto = false;
-        },
     }"
-    @click.window="cerrarSiFuera($event)"
+    @click.outside="abierto = false"
     @keydown.escape="abierto = false"
     class="relative"
 >
@@ -81,26 +83,23 @@
         <x-heroicon-o-chevron-up-down class="h-4 w-4 shrink-0 text-ink-faint" />
     </button>
 
-    <template x-teleport="body">
-        <ul
-            x-ref="panel"
-            x-show="abierto"
-            x-cloak
-            x-transition.origin.top
-            role="listbox"
-            class="fixed z-50 max-h-60 overflow-auto rounded-lg border border-border bg-surface py-1 shadow-lg"
-            :style="`top: ${posicion.top}px; left: ${posicion.left}px; width: ${posicion.width}px;`"
-        >
-            <template x-for="(opcion, indice) in opciones" :key="opcion.valor">
-                <li
-                    role="option"
-                    @click="elegir(opcion.valor)"
-                    @mouseenter="resaltado = indice"
-                    x-text="opcion.etiqueta"
-                    :class="opcion.valor === String($wire.get('{{ $propiedad }}') ?? '') ? 'bg-accent-soft text-accent' : (indice === resaltado ? 'bg-surface-2 text-ink' : 'text-ink')"
-                    class="cursor-pointer px-3 py-2 text-sm"
-                ></li>
-            </template>
-        </ul>
-    </template>
+    <ul
+        x-show="abierto"
+        x-cloak
+        x-transition.origin.top
+        role="listbox"
+        :class="abrirHaciaArriba ? 'bottom-full mb-1' : 'top-full mt-1'"
+        class="absolute z-30 max-h-60 w-full overflow-auto rounded-lg border border-border bg-surface py-1 shadow-lg"
+    >
+        <template x-for="(opcion, indice) in opciones" :key="opcion.valor">
+            <li
+                role="option"
+                @click="elegir(opcion.valor)"
+                @mouseenter="resaltado = indice"
+                x-text="opcion.etiqueta"
+                :class="opcion.valor === String($wire.get('{{ $propiedad }}') ?? '') ? 'bg-accent-soft text-accent' : (indice === resaltado ? 'bg-surface-2 text-ink' : 'text-ink')"
+                class="cursor-pointer px-3 py-2 text-sm"
+            ></li>
+        </template>
+    </ul>
 </div>
