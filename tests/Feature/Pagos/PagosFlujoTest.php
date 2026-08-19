@@ -11,6 +11,7 @@ use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Pago;
 use App\Modules\Pagos\Services\PagoService;
 use App\Modules\Pagos\Services\PlanPagoService;
+use App\Modules\Pagos\Services\SolicitudCambioMontoService;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -141,6 +142,46 @@ class PagosFlujoTest extends TestCase
         rescue(fn () => Volt::test('pagos.index')->call('aprobar', $pago->id), report: false);
 
         $this->assertDatabaseHas('pagos', ['id' => $pago->id, 'estado' => 'pendiente']);
+    }
+
+    public function test_editar_el_monto_de_un_concepto_queda_pendiente_de_aprobacion(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $concepto = ConceptoPago::factory()->create(['nombre' => 'Mensualidad', 'monto_base' => 100]);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('pagos.conceptos')
+            ->call('abrirModal', $concepto->id)
+            ->set('montoBase', '150')
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $this->assertSame('100.00', $concepto->fresh()->monto_base);
+        $this->assertDatabaseHas('solicitudes_cambio_monto', [
+            'concepto_pago_id' => $concepto->id,
+            'monto_propuesto' => 150,
+            'estado' => 'pendiente',
+        ]);
+    }
+
+    public function test_direccion_aprueba_un_cambio_de_monto_desde_la_vista_de_conceptos(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $concepto = ConceptoPago::factory()->create(['monto_base' => 100]);
+        $solicitud = $this->app->make(SolicitudCambioMontoService::class)->solicitar($concepto, 150.0, $coordinador->id);
+
+        $direccion = User::factory()->create();
+        $direccion->assignRole(RolEnum::DIRECCION->value);
+        $this->actingAs($direccion);
+
+        Volt::test('pagos.conceptos')
+            ->call('aprobarCambioMonto', $solicitud->id)
+            ->assertHasNoErrors();
+
+        $this->assertSame('150.00', $concepto->fresh()->monto_base);
     }
 
     public function test_coordinador_crea_un_plan_de_pago_desde_el_listado(): void

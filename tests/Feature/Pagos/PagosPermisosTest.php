@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Pagos\Models\ConceptoPago;
+use App\Modules\Pagos\Services\SolicitudCambioMontoService;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
@@ -109,6 +111,21 @@ class PagosPermisosTest extends TestCase
         $this->actingAs($docente)
             ->get(route('pagos.conceptos'))
             ->assertForbidden();
+    }
+
+    public function test_un_coordinador_no_puede_aprobar_cambios_de_monto(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $concepto = ConceptoPago::factory()->create(['monto_base' => 100]);
+        $solicitud = $this->app->make(SolicitudCambioMontoService::class)
+            ->solicitar($concepto, 150.0, $coordinador->id);
+
+        $this->actingAs($coordinador);
+
+        rescue(fn () => Volt::test('pagos.conceptos')->call('aprobarCambioMonto', $solicitud->id), report: false);
+
+        $this->assertSame('100.00', $concepto->fresh()->monto_base);
     }
 
     public function test_solo_tesoreria_puede_gestionar_cuentas_bancarias(): void

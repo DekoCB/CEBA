@@ -9,6 +9,7 @@ use App\Modules\Pagos\Database\Factories\ConceptoPagoFactory;
 use App\Modules\Pagos\Enums\TipoConceptoEnum;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -43,5 +44,13 @@ class ConceptoPago extends Model
     protected static function newFactory(): ConceptoPagoFactory
     {
         return ConceptoPagoFactory::new();
+    }
+
+    /**
+     * @return HasMany<SolicitudCambioMonto, $this>
+     */
+    public function solicitudesCambioMonto(): HasMany
+    {
+        return $this->hasMany(SolicitudCambioMonto::class);
     }
 }

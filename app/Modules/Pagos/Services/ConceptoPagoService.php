@@ -10,6 +10,10 @@ use Illuminate\Database\Eloquent\Collection;
 
 class ConceptoPagoService
 {
+    public function __construct(
+        private readonly SolicitudCambioMontoService $solicitudesCambioMonto,
+    ) {}
+
     /**
      * @return Collection<int, ConceptoPago>
      */
@@ -36,15 +40,24 @@ class ConceptoPagoService
         ]);
     }
 
-    public function actualizar(ConceptoPago $concepto, string $nombre, TipoConceptoEnum $tipo, float $montoBase, bool $activo): ConceptoPago
+    /**
+     * El nombre, tipo y estado activo se aplican de inmediato. El monto no:
+     * cambiarlo solo genera una solicitud pendiente de aprobación de
+     * dirección (ver {@see SolicitudCambioMontoService}), para que nadie
+     * pueda alterar precios de matrícula/pensión sin ese control.
+     */
+    public function actualizar(ConceptoPago $concepto, string $nombre, TipoConceptoEnum $tipo, float $montoBase, bool $activo, ?int $solicitadoPor = null): ConceptoPago
     {
         $concepto->update([
             'nombre' => $nombre,
             'tipo' => $tipo,
-            'monto_base' => $montoBase,
             'activo' => $activo,
         ]);
 
-        return $concepto;
+        if ((float) $concepto->monto_base !== $montoBase) {
+            $this->solicitudesCambioMonto->solicitar($concepto, $montoBase, $solicitadoPor);
+        }
+
+        return $concepto->refresh();
     }
 }

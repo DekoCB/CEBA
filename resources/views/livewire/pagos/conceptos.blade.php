@@ -2,7 +2,10 @@
 
 use App\Modules\Pagos\Enums\TipoConceptoEnum;
 use App\Modules\Pagos\Models\ConceptoPago;
+use App\Modules\Pagos\Models\SolicitudCambioMonto;
 use App\Modules\Pagos\Services\ConceptoPagoService;
+use App\Modules\Pagos\Services\SolicitudCambioMontoService;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -20,6 +23,9 @@ new #[Layout('layouts.app')] class extends Component
     public string $montoBase = '';
 
     public bool $activo = true;
+
+    /** @var array<int, string> */
+    public array $motivoRechazoMonto = [];
 
     public function mount(): void
     {
@@ -56,20 +62,52 @@ new #[Layout('layouts.app')] class extends Component
         $tipo = TipoConceptoEnum::from($this->tipo);
 
         if ($this->editandoId) {
-            $service->actualizar(ConceptoPago::query()->findOrFail($this->editandoId), $this->nombre, $tipo, (float) $this->montoBase, $this->activo);
+            $concepto = ConceptoPago::query()->findOrFail($this->editandoId);
+            $cambioDeMonto = (float) $concepto->monto_base !== (float) $this->montoBase;
+
+            $service->actualizar($concepto, $this->nombre, $tipo, (float) $this->montoBase, $this->activo, Auth::id());
+
+            session()->flash('status', $cambioDeMonto
+                ? 'Concepto actualizado. El cambio de monto queda pendiente de aprobación de dirección.'
+                : 'Concepto de pago guardado correctamente.');
         } else {
             $service->crear($this->nombre, $tipo, (float) $this->montoBase);
+            session()->flash('status', 'Concepto de pago guardado correctamente.');
         }
 
         $this->mostrarModal = false;
-        session()->flash('status', 'Concepto de pago guardado correctamente.');
     }
 
-    public function with(ConceptoPagoService $service): array
+    public function aprobarCambioMonto(int $solicitudId, SolicitudCambioMontoService $service): void
     {
+        Gate::authorize('pagos.aprobar_montos');
+
+        $service->aprobar(SolicitudCambioMonto::query()->findOrFail($solicitudId), Auth::id());
+
+        session()->flash('status', 'Cambio de monto aprobado y aplicado.');
+    }
+
+    public function rechazarCambioMonto(int $solicitudId, SolicitudCambioMontoService $service): void
+    {
+        Gate::authorize('pagos.aprobar_montos');
+
+        $this->validate(['motivoRechazoMonto.'.$solicitudId => 'required|string|max:255']);
+
+        $service->rechazar(SolicitudCambioMonto::query()->findOrFail($solicitudId), Auth::id(), $this->motivoRechazoMonto[$solicitudId]);
+
+        unset($this->motivoRechazoMonto[$solicitudId]);
+        session()->flash('status', 'Cambio de monto rechazado.');
+    }
+
+    public function with(ConceptoPagoService $service, SolicitudCambioMontoService $solicitudes): array
+    {
+        $puedeAprobarMontos = Auth::user()->hasPermissionTo('pagos.aprobar_montos');
+
         return [
-            'conceptos' => $service->listar(),
+            'conceptos' => $service->listar()->load(['solicitudesCambioMonto' => fn ($query) => $query->where('estado', 'pendiente')]),
             'tipos' => TipoConceptoEnum::cases(),
+            'puedeAprobarMontos' => $puedeAprobarMontos,
+            'solicitudesPendientes' => $puedeAprobarMontos ? $solicitudes->pendientes() : collect(),
         ];
     }
 }; ?>
@@ -92,6 +130,41 @@ new #[Layout('layouts.app')] class extends Component
         <div class="mb-4 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">{{ session('status') }}</div>
     @endif
 
+    @if ($puedeAprobarMontos && $solicitudesPendientes->isNotEmpty())
+        <div class="mb-6 divide-y divide-border rounded-lg border border-warn/30 bg-surface">
+            <div class="px-4 py-3">
+                <h2 class="font-display text-sm text-ink">Solicitudes de cambio de monto pendientes</h2>
+                <p class="text-xs text-ink-faint">Ningún cambio de precio se aplica hasta que lo apruebes acá.</p>
+            </div>
+            @foreach ($solicitudesPendientes as $solicitud)
+                <div class="px-4 py-4 text-sm">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <p class="text-ink">{{ $solicitud->concepto->nombre }}</p>
+                            <p class="text-xs text-ink-faint">
+                                S/ {{ number_format((float) $solicitud->monto_actual, 2) }} → S/ {{ number_format((float) $solicitud->monto_propuesto, 2) }}
+                                · pedido por {{ $solicitud->solicitadoPor?->name ?? '—' }} el {{ $solicitud->fecha_solicitud->format('d/m/Y') }}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="mt-3 flex flex-wrap items-center gap-2">
+                        <x-secondary-button type="button" wire:click="aprobarCambioMonto({{ $solicitud->id }})" wire:confirm="¿Aprobar este cambio de monto? Se aplicará de inmediato.">
+                            Aprobar
+                        </x-secondary-button>
+                        <input
+                            type="text"
+                            wire:model="motivoRechazoMonto.{{ $solicitud->id }}"
+                            placeholder="Motivo de rechazo…"
+                            class="w-52 rounded-md border-border bg-surface text-xs text-ink placeholder:text-ink-faint focus:border-accent focus:ring-accent"
+                        >
+                        <button type="button" wire:click="rechazarCambioMonto({{ $solicitud->id }})" class="text-xs font-medium text-danger hover:underline">Rechazar</button>
+                        <x-input-error :messages="$errors->get('motivoRechazoMonto.'.$solicitud->id)" class="mt-0" />
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
     <div class="overflow-hidden rounded-lg border border-border bg-surface">
         <table class="min-w-full divide-y divide-border text-sm">
             <thead class="bg-surface-2">
@@ -108,7 +181,14 @@ new #[Layout('layouts.app')] class extends Component
                     <tr wire:key="concepto-{{ $concepto->id }}">
                         <td class="px-4 py-3 font-medium text-ink">{{ $concepto->nombre }}</td>
                         <td class="px-4 py-3 text-ink-dim">{{ $concepto->tipo->label() }}</td>
-                        <td class="px-4 py-3 font-mono text-ink-dim">S/ {{ number_format((float) $concepto->monto_base, 2) }}</td>
+                        <td class="px-4 py-3 font-mono text-ink-dim">
+                            S/ {{ number_format((float) $concepto->monto_base, 2) }}
+                            @if ($concepto->solicitudesCambioMonto->isNotEmpty())
+                                <span class="ml-1 rounded-full bg-warn/15 px-2 py-0.5 text-xs font-sans text-warn">
+                                    Pendiente: S/ {{ number_format((float) $concepto->solicitudesCambioMonto->first()->monto_propuesto, 2) }}
+                                </span>
+                            @endif
+                        </td>
                         <td class="px-4 py-3">
                             <span @class(['rounded-full px-2 py-0.5 text-xs font-medium', 'bg-ok/10 text-ok' => $concepto->activo, 'bg-ink-faint/10 text-ink-faint' => ! $concepto->activo])>
                                 {{ $concepto->activo ? 'Activo' : 'Inactivo' }}
