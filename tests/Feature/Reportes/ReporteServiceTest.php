@@ -5,6 +5,7 @@ namespace Tests\Feature\Reportes;
 use App\Models\User;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Asistencia\Models\Asistencia;
+use App\Modules\Certificados\Models\Certificado;
 use App\Modules\Evaluaciones\Models\Calificacion;
 use App\Modules\Evaluaciones\Models\Evaluacion;
 use App\Modules\Matricula\Models\Estudiante;
@@ -73,6 +74,64 @@ class ReporteServiceTest extends TestCase
         $reporte = app(ReporteService::class)->financiero(null, null);
 
         $this->assertSame(['Estudiante', 'Concepto', 'Monto', 'Método', 'Estado', 'Fecha de pago'], $reporte['columnas']);
+        $this->assertCount(1, $reporte['filas']);
+    }
+
+    public function test_reporte_de_matricula_filtra_por_horario(): void
+    {
+        $horarioA = Horario::factory()->create();
+        $horarioB = Horario::factory()->create();
+        Matricula::factory()->create(['horario_id' => $horarioA->id, 'fecha_matricula' => now()]);
+        Matricula::factory()->create(['horario_id' => $horarioB->id, 'fecha_matricula' => now()]);
+
+        $reporte = app(ReporteService::class)->matricula(null, null, $horarioA->id);
+
+        $this->assertCount(1, $reporte['filas']);
+    }
+
+    public function test_reporte_financiero_filtra_por_horario(): void
+    {
+        $horarioA = Horario::factory()->create();
+        $horarioB = Horario::factory()->create();
+        $estudianteA = Estudiante::factory()->create();
+        $estudianteB = Estudiante::factory()->create();
+        Matricula::factory()->create(['estudiante_id' => $estudianteA->id, 'horario_id' => $horarioA->id]);
+        Matricula::factory()->create(['estudiante_id' => $estudianteB->id, 'horario_id' => $horarioB->id]);
+        Pago::factory()->aprobado()->create(['estudiante_id' => $estudianteA->id, 'fecha_pago' => now()]);
+        Pago::factory()->aprobado()->create(['estudiante_id' => $estudianteB->id, 'fecha_pago' => now()]);
+
+        $reporte = app(ReporteService::class)->financiero(null, null, $horarioA->id);
+
+        $this->assertCount(1, $reporte['filas']);
+    }
+
+    public function test_reporte_de_certificados_filtra_por_horario(): void
+    {
+        $horarioA = Horario::factory()->create();
+        $horarioB = Horario::factory()->create();
+        $matriculaA = Matricula::factory()->create(['horario_id' => $horarioA->id]);
+        $matriculaB = Matricula::factory()->create(['horario_id' => $horarioB->id]);
+        Certificado::factory()->create(['matricula_id' => $matriculaA->id, 'fecha_emision' => now()]);
+        Certificado::factory()->create(['matricula_id' => $matriculaB->id, 'fecha_emision' => now()]);
+
+        $reporte = app(ReporteService::class)->certificados(null, null, $horarioA->id);
+
+        $this->assertCount(1, $reporte['filas']);
+    }
+
+    public function test_reporte_de_morosos_filtra_por_horario(): void
+    {
+        $horarioA = Horario::factory()->create();
+        $horarioB = Horario::factory()->create();
+        $matriculaA = Matricula::factory()->create(['horario_id' => $horarioA->id]);
+        $matriculaB = Matricula::factory()->create(['horario_id' => $horarioB->id]);
+        $planA = PlanPago::factory()->create(['matricula_id' => $matriculaA->id]);
+        $planB = PlanPago::factory()->create(['matricula_id' => $matriculaB->id]);
+        Cuota::factory()->vencida()->create(['plan_pago_id' => $planA->id, 'numero' => 1]);
+        Cuota::factory()->vencida()->create(['plan_pago_id' => $planB->id, 'numero' => 1]);
+
+        $reporte = app(ReporteService::class)->morosos(null, null, $horarioA->id);
+
         $this->assertCount(1, $reporte['filas']);
     }
 

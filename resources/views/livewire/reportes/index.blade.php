@@ -33,7 +33,7 @@ new #[Layout('layouts.app')] class extends Component
      *
      * @var list<string>
      */
-    private const TIPOS_CON_HORARIO = ['academico', 'operativo', 'propio'];
+    private const TIPOS_CON_HORARIO = ['matricula', 'academico', 'financiero', 'morosos', 'certificados', 'operativo', 'propio'];
 
     public string $tipo = '';
 
@@ -113,11 +113,11 @@ new #[Layout('layouts.app')] class extends Component
         $horarioId = $this->horarioId !== '' ? (int) $this->horarioId : null;
 
         return match ($this->tipo) {
-            'matricula' => $reportes->matricula($desde, $hasta),
+            'matricula' => $reportes->matricula($desde, $hasta, $horarioId),
             'academico' => $reportes->academico($desde, $hasta, $horarioId),
-            'financiero' => $reportes->financiero($desde, $hasta),
-            'morosos' => $reportes->morosos($desde, $hasta),
-            'certificados' => $reportes->certificados($desde, $hasta),
+            'financiero' => $reportes->financiero($desde, $hasta, $horarioId),
+            'morosos' => $reportes->morosos($desde, $hasta, $horarioId),
+            'certificados' => $reportes->certificados($desde, $hasta, $horarioId),
             'operativo' => $reportes->operativo($desde, $hasta, $horarioId),
             'propio' => $reportes->propio(Auth::user(), $desde, $hasta, $horarioId),
             default => ['columnas' => [], 'filas' => []],

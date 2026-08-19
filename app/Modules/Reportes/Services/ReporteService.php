@@ -25,12 +25,13 @@ class ReporteService
     /**
      * @return array{columnas: list<string>, filas: list<array<int, string|int|float>>}
      */
-    public function matricula(?string $desde, ?string $hasta): array
+    public function matricula(?string $desde, ?string $hasta, ?int $horarioId = null): array
     {
         $matriculas = Matricula::query()
             ->with(['estudiante', 'grado', 'ciclo'])
             ->when($desde, fn ($query) => $query->whereDate('fecha_matricula', '>=', $desde))
             ->when($hasta, fn ($query) => $query->whereDate('fecha_matricula', '<=', $hasta))
+            ->when($horarioId, fn ($query) => $query->where('horario_id', $horarioId))
             ->latest('fecha_matricula')
             ->get();
 
@@ -78,12 +79,16 @@ class ReporteService
     /**
      * @return array{columnas: list<string>, filas: list<array<int, string|int|float>>}
      */
-    public function financiero(?string $desde, ?string $hasta): array
+    public function financiero(?string $desde, ?string $hasta, ?int $horarioId = null): array
     {
         $pagos = Pago::query()
             ->with(['estudiante', 'concepto'])
             ->when($desde, fn ($query) => $query->whereDate('fecha_pago', '>=', $desde))
             ->when($hasta, fn ($query) => $query->whereDate('fecha_pago', '<=', $hasta))
+            ->when($horarioId, fn ($query) => $query->whereHas(
+                'estudiante.matriculas',
+                fn ($sub) => $sub->where('horario_id', $horarioId),
+            ))
             ->latest('fecha_pago')
             ->get();
 
@@ -103,12 +108,16 @@ class ReporteService
     /**
      * @return array{columnas: list<string>, filas: list<array<int, string|int|float>>}
      */
-    public function certificados(?string $desde, ?string $hasta): array
+    public function certificados(?string $desde, ?string $hasta, ?int $horarioId = null): array
     {
         $certificados = Certificado::query()
             ->with(['estudiante', 'matricula.grado'])
             ->when($desde, fn ($query) => $query->whereDate('fecha_emision', '>=', $desde))
             ->when($hasta, fn ($query) => $query->whereDate('fecha_emision', '<=', $hasta))
+            ->when($horarioId, fn ($query) => $query->whereHas(
+                'matricula',
+                fn ($sub) => $sub->where('horario_id', $horarioId),
+            ))
             ->latest('fecha_emision')
             ->get();
 
@@ -167,13 +176,17 @@ class ReporteService
      *
      * @return array{columnas: list<string>, filas: list<array<int, string|int|float>>}
      */
-    public function morosos(?string $desde, ?string $hasta): array
+    public function morosos(?string $desde, ?string $hasta, ?int $horarioId = null): array
     {
         $cuotasVencidas = Cuota::query()
             ->where('estado', EstadoCuotaEnum::PENDIENTE)
             ->where('fecha_vencimiento', '<', now()->toDateString())
             ->when($desde, fn ($query) => $query->whereDate('fecha_vencimiento', '>=', $desde))
             ->when($hasta, fn ($query) => $query->whereDate('fecha_vencimiento', '<=', $hasta))
+            ->when($horarioId, fn ($query) => $query->whereHas(
+                'planPago.matricula',
+                fn ($sub) => $sub->where('horario_id', $horarioId),
+            ))
             ->with('planPago.matricula.estudiante', 'planPago.matricula.grado')
             ->get()
             ->filter(fn (Cuota $cuota) => $cuota->planPago->matricula?->estudiante !== null)
