@@ -15,14 +15,19 @@ use App\Modules\Asistencia\Enums\EstadoAsistenciaEnum;
 use App\Modules\Asistencia\Services\AsistenciaService;
 use App\Modules\AulaVirtual\Enums\TipoMaterialEnum;
 use App\Modules\AulaVirtual\Enums\TipoPublicacionEnum;
+use App\Modules\AulaVirtual\Models\CursoVirtual;
+use App\Modules\AulaVirtual\Models\Tarea;
 use App\Modules\AulaVirtual\Services\CursoVirtualService;
 use App\Modules\AulaVirtual\Services\ForoService;
 use App\Modules\AulaVirtual\Services\MaterialService;
 use App\Modules\AulaVirtual\Services\PublicacionService;
 use App\Modules\AulaVirtual\Services\TareaService;
 use App\Modules\Certificados\Services\CertificadoService;
+use App\Modules\Evaluaciones\Models\Evaluacion;
 use App\Modules\Evaluaciones\Services\EvaluacionService;
 use App\Modules\Evaluaciones\Services\LibretaService;
+use App\Modules\Incidencias\Enums\TipoIncidenciaEnum;
+use App\Modules\Incidencias\Services\IncidenciaService;
 use App\Modules\Matricula\DTOs\RegistrarApoderadoData;
 use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
 use App\Modules\Matricula\DTOs\RegistrarMatriculaData;
@@ -116,6 +121,7 @@ class DemoRobustoSeeder extends Seeder
         $this->registrarEvaluacionesYLibretas($ciclo, $horarios);
         $this->poblarPagos();
         $this->poblarCertificados();
+        $this->poblarIncidencias();
         $this->poblarNotificaciones();
     }
 
@@ -625,6 +631,98 @@ class DemoRobustoSeeder extends Seeder
                 ),
                 default => null,
             };
+        }
+    }
+
+    private function poblarIncidencias(): void
+    {
+        $incidenciaService = app(IncidenciaService::class);
+
+        $reportante = User::query()->where('email', 'coordinador@ceba.test')->first()
+            ?? User::query()->where('email', 'docente@ceba.test')->first();
+
+        if (! $reportante) {
+            return;
+        }
+
+        $descripcionesConducta = [
+            'Interrumpió reiteradamente la clase con conversaciones ajenas al tema.',
+            'Usó el celular durante la evaluación sin autorización del docente.',
+            'Falta de respeto hacia un compañero durante el receso.',
+        ];
+
+        $descripcionesDisciplina = [
+            'Llegó 40 minutos tarde sin justificación.',
+            'Se retiró del aula antes de que terminara la sesión sin avisar al docente.',
+            'Tres inasistencias consecutivas sin comunicación previa a la institución.',
+        ];
+
+        $matriculas = Matricula::query()
+            ->where('estado', 'aprobada')
+            ->with('estudiante')
+            ->inRandomOrder()
+            ->limit(10)
+            ->get();
+
+        foreach ($matriculas as $indice => $matricula) {
+            $estudiante = $matricula->estudiante;
+            $tipo = TipoIncidenciaEnum::cases()[$indice % 4];
+
+            $horariosDelEstudiante = Horario::query()
+                ->where('grado_id', $matricula->grado_id)
+                ->where('ciclo_id', $matricula->ciclo_id)
+                ->pluck('id');
+
+            $horario = null;
+            $tarea = null;
+            $evaluacion = null;
+            $descripcion = null;
+
+            if ($tipo === TipoIncidenciaEnum::CONDUCTA) {
+                $descripcion = Arr::random($descripcionesConducta);
+            } elseif ($tipo === TipoIncidenciaEnum::DISCIPLINA) {
+                $descripcion = Arr::random($descripcionesDisciplina);
+            } elseif ($tipo === TipoIncidenciaEnum::TAREA_NO_REALIZADA) {
+                // Preferir una tarea realmente vencida sin entregar; en la
+                // demo casi todas tienen plazo a futuro, así que si no hay
+                // ninguna vencida se usa cualquier tarea del estudiante --
+                // sigue siendo un dato coherente, solo no "vencido" de verdad.
+                $tarea = $incidenciaService->tareasNoRealizadasDe($estudiante)->first()
+                    ?? Tarea::query()
+                        ->whereIn('curso_virtual_id', CursoVirtual::query()->whereIn('horario_id', $horariosDelEstudiante)->pluck('id'))
+                        ->inRandomOrder()
+                        ->first();
+
+                if ($tarea) {
+                    $descripcion = "No entregó la tarea «{$tarea->titulo}» dentro del plazo.";
+                }
+            } elseif ($tipo === TipoIncidenciaEnum::EVALUACION_NO_REALIZADA) {
+                $evaluacion = $incidenciaService->evaluacionesNoRealizadasDe($estudiante)->first()
+                    ?? Evaluacion::query()->whereIn('horario_id', $horariosDelEstudiante)->inRandomOrder()->first();
+
+                if ($evaluacion) {
+                    $horario = $evaluacion->horario;
+                    $descripcion = "No rindió la evaluación «{$evaluacion->nombre}».";
+                }
+            }
+
+            if ($descripcion === null) {
+                // Este estudiante no tiene ninguna tarea/evaluación con qué
+                // vincular la incidencia todavía: se salta en vez de forzar
+                // un dato huérfano.
+                continue;
+            }
+
+            $incidenciaService->crear(
+                $estudiante,
+                $reportante,
+                $tipo,
+                $descripcion,
+                now()->subDays(random_int(0, 25))->format('Y-m-d'),
+                $horario,
+                $tarea,
+                $evaluacion,
+            );
         }
     }
 
