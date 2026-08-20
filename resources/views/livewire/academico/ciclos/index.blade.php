@@ -71,7 +71,7 @@ new #[Layout('layouts.app')] class extends Component
 
 <div>
     <x-slot name="header">
-        <h1 class="font-display text-2xl text-ink">Ciclos</h1>
+        <h1 class="font-display text-2xl text-ink">Periodos</h1>
         <p class="mt-1 text-sm text-ink-dim">Mayores: enero-junio y julio-diciembre. Menores: 6, 8 o 12 meses.</p>
     </x-slot>
 
