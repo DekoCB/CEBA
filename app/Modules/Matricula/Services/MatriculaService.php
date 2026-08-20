@@ -171,6 +171,24 @@ class MatriculaService
     }
 
     /**
+     * Reasigna la sección (horario) de una matrícula ya existente, por
+     * ejemplo desde la ficha del estudiante. Reutiliza las mismas
+     * validaciones que matricular() (coherencia con la edad, pertenencia
+     * al grado/ciclo de la matrícula) para que un cambio manual no pueda
+     * dejar al estudiante en un grupo inválido.
+     */
+    public function reasignarHorario(Matricula $matricula, ?int $horarioId): Matricula
+    {
+        $horario = $this->resolverHorario($matricula->grado, $matricula->ciclo, $horarioId);
+
+        $this->validarHorarioCoherenteConEdad($matricula->estudiante, $horario);
+
+        $matricula->update(['horario_id' => $horario?->id]);
+
+        return $matricula;
+    }
+
+    /**
      * Si el grado está realmente dividido en secciones (Grupo A/B: al
      * menos un horario del grado declara una sección propia), exige
      * elegir a cuál se matricula el estudiante. Un grado con varios

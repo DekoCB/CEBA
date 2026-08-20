@@ -1,8 +1,13 @@
 <?php
 
+use App\Modules\Academico\Enums\TipoPublicoEnum;
+use App\Modules\Academico\Models\Horario;
 use App\Modules\Matricula\Models\DocumentoEstudiante;
 use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Services\DocumentoEstudianteService;
+use App\Modules\Matricula\Services\MatriculaService;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\On;
 use Livewire\Volt\Component;
@@ -19,6 +24,10 @@ new class extends Component
 
     public string $observacionesTexto = '';
 
+    public ?int $editandoHorarioMatriculaId = null;
+
+    public string $horarioSeleccionado = '';
+
     #[On('ver-estudiante')]
     public function abrir(int $estudianteId): void
     {
@@ -26,6 +35,8 @@ new class extends Component
 
         $this->estudianteId = $estudianteId;
         $this->observacionesTexto = Estudiante::query()->find($estudianteId)?->observaciones ?? '';
+        $this->editandoHorarioMatriculaId = null;
+        $this->horarioSeleccionado = '';
     }
 
     public function verificarDocumento(int $documentoId, DocumentoEstudianteService $service): void
@@ -43,15 +54,71 @@ new class extends Component
         Estudiante::query()->findOrFail($this->estudianteId)->update(['observaciones' => $this->observacionesTexto ?: null]);
     }
 
+    public function editarHorario(int $matriculaId): void
+    {
+        Gate::authorize('matricula.editar');
+
+        $matricula = Matricula::query()->findOrFail($matriculaId);
+
+        $this->editandoHorarioMatriculaId = $matriculaId;
+        $this->horarioSeleccionado = $matricula->horario_id !== null ? (string) $matricula->horario_id : '';
+    }
+
+    public function cancelarEdicionHorario(): void
+    {
+        $this->editandoHorarioMatriculaId = null;
+        $this->horarioSeleccionado = '';
+    }
+
+    public function guardarHorario(MatriculaService $service): void
+    {
+        Gate::authorize('matricula.editar');
+
+        if ($this->editandoHorarioMatriculaId === null) {
+            return;
+        }
+
+        $matricula = Matricula::query()->findOrFail($this->editandoHorarioMatriculaId);
+
+        $service->reasignarHorario($matricula, $this->horarioSeleccionado !== '' ? (int) $this->horarioSeleccionado : null);
+
+        $this->editandoHorarioMatriculaId = null;
+        $this->horarioSeleccionado = '';
+    }
+
+    /**
+     * @return Collection<int, Horario>
+     */
+    private function horariosParaMatricula(Matricula $matricula, Estudiante $estudiante): Collection
+    {
+        $publicoEsperado = $estudiante->es_menor_edad ? TipoPublicoEnum::MENOR : TipoPublicoEnum::MAYOR;
+
+        $horarios = Horario::query()
+            ->where('ciclo_id', $matricula->ciclo_id)
+            ->where('grado_id', $matricula->grado_id)
+            ->where(fn ($query) => $query->whereNull('tipo_publico')->orWhere('tipo_publico', $publicoEsperado))
+            ->with(['docente', 'dias'])
+            ->get();
+
+        if ($horarios->pluck('seccion')->filter()->isEmpty()) {
+            return collect();
+        }
+
+        return $horarios->filter(fn (Horario $horario) => $horario->seccion !== null)->values();
+    }
+
     public function with(): array
     {
         $estudiante = $this->estudianteId ? Estudiante::query()->with(['media', 'user.media'])->find($this->estudianteId) : null;
+
+        $matriculas = $estudiante?->matriculas()->with(['ciclo', 'grado', 'horario.docente', 'media'])->latest('fecha_matricula')->get();
 
         return [
             'estudiante' => $estudiante,
             'documentos' => $estudiante?->documentos()->with('media')->get(),
             'examenes' => $estudiante?->examenesUbicacion()->with('gradoAsignado')->latest('fecha')->get(),
-            'matriculas' => $estudiante?->matriculas()->with(['ciclo', 'grado', 'media'])->latest('fecha_matricula')->get(),
+            'matriculas' => $matriculas,
+            'horariosPorMatricula' => $matriculas?->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $this->horariosParaMatricula($matricula, $estudiante)]) ?? collect(),
         ];
     }
 }; ?>
@@ -77,6 +144,9 @@ new class extends Component
                     :documentos="$documentos"
                     :examenes="$examenes"
                     :matriculas="$matriculas"
+                    :horarios-por-matricula="$horariosPorMatricula"
+                    :editando-horario-matricula-id="$editandoHorarioMatriculaId"
+                    :horario-seleccionado="$horarioSeleccionado"
                 />
             @else
                 <p class="py-8 text-center text-sm text-ink-faint">Cargando…</p>

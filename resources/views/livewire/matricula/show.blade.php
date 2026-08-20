@@ -1,8 +1,13 @@
 <?php
 
+use App\Modules\Academico\Enums\TipoPublicoEnum;
+use App\Modules\Academico\Models\Horario;
 use App\Modules\Matricula\Models\DocumentoEstudiante;
 use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Services\DocumentoEstudianteService;
+use App\Modules\Matricula\Services\MatriculaService;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -12,6 +17,10 @@ new #[Layout('layouts.app')] class extends Component
     public Estudiante $estudiante;
 
     public string $observacionesTexto = '';
+
+    public ?int $editandoHorarioMatriculaId = null;
+
+    public string $horarioSeleccionado = '';
 
     public function mount(Estudiante $estudiante): void
     {
@@ -40,14 +49,76 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('status', 'Observaciones actualizadas.');
     }
 
+    public function editarHorario(int $matriculaId): void
+    {
+        Gate::authorize('matricula.editar');
+
+        $matricula = Matricula::query()->findOrFail($matriculaId);
+
+        $this->editandoHorarioMatriculaId = $matriculaId;
+        $this->horarioSeleccionado = $matricula->horario_id !== null ? (string) $matricula->horario_id : '';
+    }
+
+    public function cancelarEdicionHorario(): void
+    {
+        $this->editandoHorarioMatriculaId = null;
+        $this->horarioSeleccionado = '';
+    }
+
+    public function guardarHorario(MatriculaService $service): void
+    {
+        Gate::authorize('matricula.editar');
+
+        if ($this->editandoHorarioMatriculaId === null) {
+            return;
+        }
+
+        $matricula = Matricula::query()->findOrFail($this->editandoHorarioMatriculaId);
+
+        $service->reasignarHorario($matricula, $this->horarioSeleccionado !== '' ? (int) $this->horarioSeleccionado : null);
+
+        $this->editandoHorarioMatriculaId = null;
+        $this->horarioSeleccionado = '';
+
+        session()->flash('status', 'Sección actualizada.');
+    }
+
+    /**
+     * Mismo criterio que wizard.blade.php: solo se listan las secciones
+     * cuando el grado realmente está dividido en Grupo A/B (al menos un
+     * horario del grado/ciclo declara una sección propia).
+     *
+     * @return Collection<int, Horario>
+     */
+    private function horariosParaMatricula(Matricula $matricula): Collection
+    {
+        $publicoEsperado = $this->estudiante->es_menor_edad ? TipoPublicoEnum::MENOR : TipoPublicoEnum::MAYOR;
+
+        $horarios = Horario::query()
+            ->where('ciclo_id', $matricula->ciclo_id)
+            ->where('grado_id', $matricula->grado_id)
+            ->where(fn ($query) => $query->whereNull('tipo_publico')->orWhere('tipo_publico', $publicoEsperado))
+            ->with(['docente', 'dias'])
+            ->get();
+
+        if ($horarios->pluck('seccion')->filter()->isEmpty()) {
+            return collect();
+        }
+
+        return $horarios->filter(fn (Horario $horario) => $horario->seccion !== null)->values();
+    }
+
     public function with(): array
     {
         $this->estudiante->refresh();
 
+        $matriculas = $this->estudiante->matriculas()->with(['ciclo', 'grado', 'horario.docente', 'media'])->latest('fecha_matricula')->get();
+
         return [
             'documentos' => $this->estudiante->documentos()->with('media')->get(),
             'examenes' => $this->estudiante->examenesUbicacion()->with('gradoAsignado')->latest('fecha')->get(),
-            'matriculas' => $this->estudiante->matriculas()->with(['ciclo', 'grado', 'media'])->latest('fecha_matricula')->get(),
+            'matriculas' => $matriculas,
+            'horariosPorMatricula' => $matriculas->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $this->horariosParaMatricula($matricula)]),
         ];
     }
 }; ?>
@@ -72,5 +143,13 @@ new #[Layout('layouts.app')] class extends Component
         <div class="rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">{{ session('status') }}</div>
     @endif
 
-    <x-matricula.ficha-estudiante :estudiante="$estudiante" :documentos="$documentos" :examenes="$examenes" :matriculas="$matriculas" />
+    <x-matricula.ficha-estudiante
+        :estudiante="$estudiante"
+        :documentos="$documentos"
+        :examenes="$examenes"
+        :matriculas="$matriculas"
+        :horarios-por-matricula="$horariosPorMatricula"
+        :editando-horario-matricula-id="$editandoHorarioMatriculaId"
+        :horario-seleccionado="$horarioSeleccionado"
+    />
 </div>

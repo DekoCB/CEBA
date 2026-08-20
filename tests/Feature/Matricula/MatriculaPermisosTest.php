@@ -8,6 +8,7 @@ use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Models\PlanPago;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -461,5 +462,86 @@ class MatriculaPermisosTest extends TestCase
             'Rindió examen de ubicación, resultado pendiente.',
             $estudiante->fresh()->observaciones
         );
+    }
+
+    public function test_editar_horario_desde_la_pagina_completa_de_la_ficha(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create();
+        $grado = Grado::factory()->create();
+        $horarioA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
+        $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+        $estudiante = Estudiante::factory()->create();
+        $matricula = Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => $grado->id,
+            'horario_id' => $horarioA->id,
+        ]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('editarHorario', $matricula->id)
+            ->set('horarioSeleccionado', (string) $horarioB->id)
+            ->call('guardarHorario')
+            ->assertHasNoErrors();
+
+        $this->assertSame($horarioB->id, $matricula->fresh()->horario_id);
+    }
+
+    public function test_editar_horario_desde_el_modal_de_ficha(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create();
+        $grado = Grado::factory()->create();
+        $horarioA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
+        $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+        $estudiante = Estudiante::factory()->create();
+        $matricula = Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => $grado->id,
+            'horario_id' => $horarioA->id,
+        ]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.ficha-modal')
+            ->call('abrir', $estudiante->id)
+            ->call('editarHorario', $matricula->id)
+            ->set('horarioSeleccionado', (string) $horarioB->id)
+            ->call('guardarHorario')
+            ->assertHasNoErrors();
+
+        $this->assertSame($horarioB->id, $matricula->fresh()->horario_id);
+    }
+
+    public function test_no_se_puede_editar_horario_sin_el_permiso_de_editar_matricula(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $ciclo = Ciclo::factory()->activo()->create();
+        $grado = Grado::factory()->create();
+        $horarioA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+        $estudiante = Estudiante::factory()->create();
+        $matricula = Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => $grado->id,
+            'horario_id' => $horarioA->id,
+        ]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('editarHorario', $matricula->id)
+            ->assertForbidden();
     }
 }
