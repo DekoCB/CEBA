@@ -5,8 +5,6 @@ use App\Modules\Certificados\Models\Certificado;
 use App\Modules\Certificados\Models\PlantillaCertificado;
 use App\Modules\Certificados\Models\SolicitudCertificado;
 use App\Modules\Certificados\Services\CertificadoService;
-use App\Modules\Evaluaciones\Models\Libreta;
-use App\Modules\Evaluaciones\Services\LibretaService;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use Illuminate\Support\Facades\Auth;
@@ -54,9 +52,7 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $plantillaColorAcento = '#137A6C';
 
-    // Marcar entregado (certificado o libreta, con foto opcional)
-    public string $marcandoEntregaTipo = '';
-
+    // Marcar entregado (con foto opcional)
     public ?int $marcandoEntregaId = null;
 
     public $fotoEntrega = null;
@@ -68,10 +64,10 @@ new #[Layout('layouts.app')] class extends Component
         abort_unless($user->hasAnyPermission(['certificados.ver', 'certificados.emitir']), 403);
 
         $this->tab = $user->hasPermissionTo('certificados.emitir') ? 'solicitudes' : 'historial';
-        $this->tipoDocumentoEmitir = TipoDocumentoEnum::CERTIFICADO_ESTUDIOS->value;
+        $this->tipoDocumentoEmitir = TipoDocumentoEnum::CONSTANCIA_ESTUDIOS->value;
 
         if ($user->hasPermissionTo('certificados.gestionar_plantilla')) {
-            $this->plantillaTipo = TipoDocumentoEnum::CERTIFICADO_ESTUDIOS->value;
+            $this->plantillaTipo = TipoDocumentoEnum::CONSTANCIA_ESTUDIOS->value;
             $this->cargarPlantilla($service);
         }
     }
@@ -158,7 +154,7 @@ new #[Layout('layouts.app')] class extends Component
 
         $this->validate([
             'estudianteSeleccionadoId' => 'required|integer|exists:estudiantes,id',
-            'tipoDocumentoEmitir' => 'required|string|in:'.implode(',', array_column(array_filter(TipoDocumentoEnum::conPlantilla(), fn ($tipo) => in_array($tipo, TipoDocumentoEnum::certificados(), true)), 'value')),
+            'tipoDocumentoEmitir' => 'required|string|in:'.implode(',', array_column(TipoDocumentoEnum::constancias(), 'value')),
             'matriculaId' => 'nullable|integer|exists:matriculas,id',
             'observaciones' => 'nullable|string|max:500',
         ]);
@@ -169,7 +165,7 @@ new #[Layout('layouts.app')] class extends Component
         $service->emitir($estudiante, $matricula, null, $this->observaciones ?: null, Auth::user(), TipoDocumentoEnum::from($this->tipoDocumentoEmitir));
 
         $this->reset(['estudianteSeleccionadoId', 'estudianteSeleccionadoNombre', 'matriculaId', 'observaciones']);
-        $this->tipoDocumentoEmitir = TipoDocumentoEnum::CERTIFICADO_ESTUDIOS->value;
+        $this->tipoDocumentoEmitir = TipoDocumentoEnum::CONSTANCIA_ESTUDIOS->value;
         session()->flash('status', 'Documento emitido.');
     }
 
@@ -179,11 +175,7 @@ new #[Layout('layouts.app')] class extends Component
 
         $solicitud = SolicitudCertificado::query()->findOrFail($solicitudId);
 
-        if ($solicitud->tipo->esLibreta()) {
-            $service->emitirLibretaDesdeSolicitud($solicitud, Auth::user());
-        } else {
-            $service->emitir($solicitud->estudiante, $solicitud->matricula, $solicitud, null, Auth::user());
-        }
+        $service->emitir($solicitud->estudiante, $solicitud->matricula, $solicitud, null, Auth::user());
 
         session()->flash('status', 'Documento emitido a partir de la solicitud.');
     }
@@ -204,18 +196,16 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('status', 'Solicitud rechazada.');
     }
 
-    public function iniciarEntrega(string $tipo, int $id): void
+    public function iniciarEntrega(int $id): void
     {
         abort_unless(Auth::user()->hasPermissionTo('certificados.emitir'), 403);
 
-        $this->marcandoEntregaTipo = $tipo;
         $this->marcandoEntregaId = $id;
         $this->fotoEntrega = null;
     }
 
     public function cancelarEntrega(): void
     {
-        $this->marcandoEntregaTipo = '';
         $this->marcandoEntregaId = null;
         $this->fotoEntrega = null;
     }
@@ -226,11 +216,7 @@ new #[Layout('layouts.app')] class extends Component
 
         $this->validate(['fotoEntrega' => 'nullable|image|max:4096']);
 
-        if ($this->marcandoEntregaTipo === 'libreta') {
-            $service->marcarLibretaEntregada(Libreta::query()->findOrFail($this->marcandoEntregaId), Auth::user(), $this->fotoEntrega);
-        } else {
-            $service->marcarEntregado(Certificado::query()->findOrFail($this->marcandoEntregaId), Auth::user(), $this->fotoEntrega);
-        }
+        $service->marcarEntregado(Certificado::query()->findOrFail($this->marcandoEntregaId), Auth::user(), $this->fotoEntrega);
 
         $this->cancelarEntrega();
         session()->flash('status', 'Documento marcado como entregado.');
@@ -250,7 +236,7 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('status', 'Duplicado emitido.');
     }
 
-    public function with(CertificadoService $certificados, LibretaService $libretas): array
+    public function with(CertificadoService $certificados): array
     {
         $user = Auth::user();
         $puedeEmitir = $user->hasPermissionTo('certificados.emitir');
@@ -282,13 +268,10 @@ new #[Layout('layouts.app')] class extends Component
             }
         }
 
-        // Este módulo es solo para el certificado de estudios (las
-        // constancias tienen su propia pantalla, ver constancias/index.blade.php):
-        // se filtra por tipo tanto la lista de solicitudes/historial como
-        // las opciones de emitir/plantilla. array_intersect() no sirve aquí:
-        // compara castejando a string, y un enum de PHP no es convertible a
-        // string, así que se filtra a mano con in_array() en modo estricto.
-        $tiposDelModulo = TipoDocumentoEnum::certificados();
+        // Este módulo es solo para constancias (conducta, estudios, vacante):
+        // el certificado de estudios y la libreta tienen su propia pantalla,
+        // ver certificados/index.blade.php.
+        $tiposDelModulo = TipoDocumentoEnum::constancias();
         $enEsteModulo = fn ($documento) => in_array($documento->tipo, $tiposDelModulo, true);
 
         return [
@@ -296,10 +279,9 @@ new #[Layout('layouts.app')] class extends Component
             'puedeDuplicar' => $puedeDuplicar,
             'puedeVerHistorial' => $puedeVerHistorial,
             'puedeGestionarPlantilla' => $puedeGestionarPlantilla,
-            'tiposDocumentoConPlantilla' => array_values(array_filter(TipoDocumentoEnum::conPlantilla(), fn ($tipo) => in_array($tipo, $tiposDelModulo, true))),
+            'tiposDocumentoConPlantilla' => $tiposDelModulo,
             'solicitudesPendientes' => $puedeEmitir ? $certificados->solicitudesPendientes()->filter($enEsteModulo)->values() : collect(),
             'historial' => $puedeVerHistorial ? $certificados->todos()->filter($enEsteModulo)->values() : collect(),
-            'historialLibretas' => $puedeVerHistorial ? $libretas->todas() : collect(),
             'resultadosBusqueda' => $resultadosBusqueda,
             'matriculasDelEstudiante' => $matriculasDelEstudiante,
         ];
@@ -308,8 +290,8 @@ new #[Layout('layouts.app')] class extends Component
 
 <div>
     <x-slot name="header">
-        <h1 class="font-display text-2xl text-ink">Certificados</h1>
-        <p class="mt-1 text-sm text-ink-dim">Solicitudes de estudiantes, emisión y duplicados de certificados de estudios.</p>
+        <h1 class="font-display text-2xl text-ink">Constancias</h1>
+        <p class="mt-1 text-sm text-ink-dim">Solicitudes de estudiantes, emisión y duplicados de constancias.</p>
     </x-slot>
 
     @if (session('status'))
@@ -327,7 +309,7 @@ new #[Layout('layouts.app')] class extends Component
                 @endif
             </button>
             <button wire:click="$set('tab', 'emitir')" @class(['border-b-2 px-4 py-2 font-display text-sm font-medium transition', 'border-accent text-accent' => $tab === 'emitir', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'emitir'])>
-                Emitir certificado
+                Emitir constancia
             </button>
         @endif
         @if ($puedeVerHistorial)
@@ -482,93 +464,54 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
             @endif
 
-            <div>
-                <h2 class="mb-2 font-display text-sm text-ink">Certificados</h2>
-                <div class="divide-y divide-border rounded-lg border border-border bg-surface">
-                    @forelse ($historial as $certificado)
-                        <div class="flex flex-wrap items-center justify-between gap-4 px-4 py-3 text-sm">
-                            <div>
-                                <p class="text-ink">
-                                    {{ $certificado->estudiante?->nombreCompleto() ?? '—' }}
-                                    <span class="ml-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs text-ink-dim">{{ $certificado->tipo->label() }}</span>
-                                    @if ($certificado->es_duplicado)
-                                        <span class="ml-1 rounded-full bg-warn/10 px-2 py-0.5 text-xs text-warn">Duplicado</span>
-                                    @endif
-                                </p>
-                                <p class="text-xs text-ink-faint">
-                                    N.° {{ $certificado->numero }} · código {{ $certificado->codigo_verificacion }}
-                                    @if ($certificado->matricula)
-                                        · {{ $certificado->matricula->grado->nombre }}
-                                    @endif
-                                    · {{ $certificado->fecha_emision->format('d/m/Y') }}
-                                </p>
-                                @if ($certificado->entregado_en)
-                                    <p class="mt-1 text-xs text-ok">Entregado el {{ $certificado->entregado_en->format('d/m/Y') }} por {{ $certificado->entregadoPor?->name }}</p>
-                                @elseif ($certificado->metodo_entrega?->value === 'virtual')
-                                    <p class="mt-1 text-xs text-warn">Pendiente de envío a {{ $certificado->correo_entrega }}</p>
-                                @else
-                                    <p class="mt-1 text-xs text-warn">Pendiente de recojo</p>
+            <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+                @forelse ($historial as $certificado)
+                    <div class="flex flex-wrap items-center justify-between gap-4 px-4 py-3 text-sm">
+                        <div>
+                            <p class="text-ink">
+                                {{ $certificado->estudiante?->nombreCompleto() ?? '—' }}
+                                <span class="ml-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs text-ink-dim">{{ $certificado->tipo->label() }}</span>
+                                @if ($certificado->es_duplicado)
+                                    <span class="ml-1 rounded-full bg-warn/10 px-2 py-0.5 text-xs text-warn">Duplicado</span>
                                 @endif
-                            </div>
-                            <div class="flex items-center gap-3">
-                                @if ($certificado->getFirstMedia('pdf'))
-                                    <a href="{{ $certificado->getFirstMediaUrl('pdf') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver PDF</a>
+                            </p>
+                            <p class="text-xs text-ink-faint">
+                                N.° {{ $certificado->numero }} · código {{ $certificado->codigo_verificacion }}
+                                @if ($certificado->matricula)
+                                    · {{ $certificado->matricula->grado->nombre }}
                                 @endif
-                                @if ($certificado->getFirstMedia('foto_entrega'))
-                                    <a href="{{ $certificado->getFirstMediaUrl('foto_entrega') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver foto</a>
-                                @endif
-                                @if ($puedeEmitir && ! $certificado->entregado_en)
-                                    <button type="button" wire:click="iniciarEntrega('certificado', {{ $certificado->id }})" class="text-xs font-medium text-ok hover:underline">
-                                        Marcar entregado
-                                    </button>
-                                @endif
-                                @if ($puedeDuplicar)
-                                    <button type="button" wire:click="duplicar({{ $certificado->id }})" wire:confirm="¿Emitir un duplicado de este certificado?" class="text-xs font-medium text-ink-dim hover:underline">
-                                        Duplicar
-                                    </button>
-                                @endif
-                            </div>
+                                · {{ $certificado->fecha_emision->format('d/m/Y') }}
+                            </p>
+                            @if ($certificado->entregado_en)
+                                <p class="mt-1 text-xs text-ok">Entregado el {{ $certificado->entregado_en->format('d/m/Y') }} por {{ $certificado->entregadoPor?->name }}</p>
+                            @elseif ($certificado->metodo_entrega?->value === 'virtual')
+                                <p class="mt-1 text-xs text-warn">Pendiente de envío a {{ $certificado->correo_entrega }}</p>
+                            @else
+                                <p class="mt-1 text-xs text-warn">Pendiente de recojo</p>
+                            @endif
                         </div>
-                    @empty
-                        <p class="px-4 py-8 text-center text-sm text-ink-faint">No hay certificados emitidos.</p>
-                    @endforelse
-                </div>
-            </div>
-
-            <div>
-                <h2 class="mb-2 font-display text-sm text-ink">Libretas de notas</h2>
-                <div class="divide-y divide-border rounded-lg border border-border bg-surface">
-                    @forelse ($historialLibretas as $libreta)
-                        <div class="flex flex-wrap items-center justify-between gap-4 px-4 py-3 text-sm">
-                            <div>
-                                <p class="text-ink">{{ $libreta->estudiante?->nombreCompleto() ?? '—' }}</p>
-                                <p class="text-xs text-ink-faint">{{ $libreta->ciclo->nombre }} · generada el {{ $libreta->generado_en->format('d/m/Y') }}</p>
-                                @if ($libreta->entregado_en)
-                                    <p class="mt-1 text-xs text-ok">Entregada el {{ $libreta->entregado_en->format('d/m/Y') }} por {{ $libreta->entregadoPor?->name }}</p>
-                                @elseif ($libreta->metodo_entrega?->value === 'virtual')
-                                    <p class="mt-1 text-xs text-warn">Pendiente de envío a {{ $libreta->correo_entrega }}</p>
-                                @elseif ($libreta->metodo_entrega)
-                                    <p class="mt-1 text-xs text-warn">Pendiente de recojo</p>
-                                @endif
-                            </div>
-                            <div class="flex items-center gap-3">
-                                @if ($libreta->getFirstMedia('pdf'))
-                                    <a href="{{ $libreta->getFirstMediaUrl('pdf') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver PDF</a>
-                                @endif
-                                @if ($libreta->getFirstMedia('foto_entrega'))
-                                    <a href="{{ $libreta->getFirstMediaUrl('foto_entrega') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver foto</a>
-                                @endif
-                                @if ($puedeEmitir && $libreta->metodo_entrega && ! $libreta->entregado_en)
-                                    <button type="button" wire:click="iniciarEntrega('libreta', {{ $libreta->id }})" class="text-xs font-medium text-ok hover:underline">
-                                        Marcar entregada
-                                    </button>
-                                @endif
-                            </div>
+                        <div class="flex items-center gap-3">
+                            @if ($certificado->getFirstMedia('pdf'))
+                                <a href="{{ $certificado->getFirstMediaUrl('pdf') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver PDF</a>
+                            @endif
+                            @if ($certificado->getFirstMedia('foto_entrega'))
+                                <a href="{{ $certificado->getFirstMediaUrl('foto_entrega') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver foto</a>
+                            @endif
+                            @if ($puedeEmitir && ! $certificado->entregado_en)
+                                <button type="button" wire:click="iniciarEntrega({{ $certificado->id }})" class="text-xs font-medium text-ok hover:underline">
+                                    Marcar entregado
+                                </button>
+                            @endif
+                            @if ($puedeDuplicar)
+                                <button type="button" wire:click="duplicar({{ $certificado->id }})" wire:confirm="¿Emitir un duplicado de esta constancia?" class="text-xs font-medium text-ink-dim hover:underline">
+                                    Duplicar
+                                </button>
+                            @endif
                         </div>
-                    @empty
-                        <p class="px-4 py-8 text-center text-sm text-ink-faint">No hay libretas generadas.</p>
-                    @endforelse
-                </div>
+                    </div>
+                @empty
+                    <p class="px-4 py-8 text-center text-sm text-ink-faint">No hay constancias emitidas.</p>
+                @endforelse
             </div>
         </div>
     @endif

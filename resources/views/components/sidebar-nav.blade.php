@@ -187,7 +187,7 @@
     @canany(['certificados.ver', 'certificados.emitir', 'certificados.duplicar', 'certificados.solicitar'])
         <div class="mt-4 border-t border-border pt-4">
             <p class="sidebar-section-title px-3 text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                Certificados
+                Trámites
             </p>
         </div>
 
@@ -204,10 +204,24 @@
                 <x-heroicon-o-document-check class="h-5 w-5 shrink-0" />
                 <span class="sidebar-label">Certificados</span>
             </a>
+
+            <a
+                href="{{ route('constancias.index') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('constancias.index'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('constancias.index'),
+                ])
+            >
+                <x-heroicon-o-clipboard-document class="h-5 w-5 shrink-0" />
+                <span class="sidebar-label">Constancias</span>
+            </a>
         @endcanany
 
         {{-- certificados.solicitar también lo tiene Dirección vía '*', pero
-             mis-certificados exige además una ficha de Estudiante. --}}
+             mis-certificados/mis-constancias exigen además una ficha de
+             Estudiante. --}}
         @if (auth()->user()->can('certificados.solicitar') && auth()->user()->estudiante)
             <a
                 href="{{ route('certificados.mis-certificados') }}"
@@ -221,6 +235,19 @@
                 <x-heroicon-o-document-text class="h-5 w-5 shrink-0" />
                 <span class="sidebar-label">Mis certificados</span>
             </a>
+
+            <a
+                href="{{ route('constancias.mis-constancias') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('constancias.mis-constancias'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('constancias.mis-constancias'),
+                ])
+            >
+                <x-heroicon-o-clipboard-document-list class="h-5 w-5 shrink-0" />
+                <span class="sidebar-label">Mis constancias</span>
+            </a>
         @endif
     @endcanany
 
@@ -232,8 +259,8 @@
         </div>
 
         @foreach ([
+            ['route' => 'academico.ciclos.index', 'prefix' => 'academico.ciclos.*', 'label' => 'Periodos', 'icon' => 'arrow-path'],
             ['route' => 'academico.grados.index', 'prefix' => 'academico.grados.*', 'label' => 'Grados', 'icon' => 'academic-cap'],
-            ['route' => 'academico.ciclos.index', 'prefix' => 'academico.ciclos.*', 'label' => 'Ciclos', 'icon' => 'arrow-path'],
             ['route' => 'academico.cursos.index', 'prefix' => 'academico.cursos.*', 'label' => 'Cursos', 'icon' => 'book-open'],
             ['route' => 'academico.aulas.index', 'prefix' => 'academico.aulas.*', 'label' => 'Aulas', 'icon' => 'building-office-2'],
             ['route' => 'academico.horarios.index', 'prefix' => 'academico.horarios.*', 'label' => 'Horarios', 'icon' => 'clock'],

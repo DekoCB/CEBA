@@ -100,11 +100,20 @@ class CertificadoService
                 $estudiante->user,
                 TipoNotificacionEnum::CERTIFICADO_LISTO,
                 "Tu {$tipo->label()} está listo para recoger.",
-                route('certificados.mis-certificados'),
+                $this->rutaMisDocumentos($tipo),
             );
         }
 
         return $certificado;
+    }
+
+    /**
+     * "Mis certificados" y "Mis constancias" son dos pantallas separadas: la
+     * notificación debe apuntar a la que corresponda según el tipo emitido.
+     */
+    private function rutaMisDocumentos(TipoDocumentoEnum $tipo): string
+    {
+        return $tipo->esConstancia() ? route('constancias.mis-constancias') : route('certificados.mis-certificados');
     }
 
     /**

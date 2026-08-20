@@ -2,7 +2,6 @@
 
 use App\Modules\Certificados\Enums\TipoDocumentoEnum;
 use App\Modules\Certificados\Services\CertificadoService;
-use App\Modules\Evaluaciones\Services\LibretaService;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Services\BloqueoAccesoService;
 use App\Shared\Enums\MetodoEntregaEnum;
@@ -35,7 +34,7 @@ new #[Layout('layouts.app')] class extends Component
 
         abort_unless($user->hasPermissionTo('certificados.solicitar') && $user->estudiante, 403);
 
-        $this->tipoDocumento = TipoDocumentoEnum::CERTIFICADO_ESTUDIOS->value;
+        $this->tipoDocumento = TipoDocumentoEnum::CONSTANCIA_ESTUDIOS->value;
     }
 
     public function solicitar(CertificadoService $service, BloqueoAccesoService $bloqueos): void
@@ -44,11 +43,9 @@ new #[Layout('layouts.app')] class extends Component
         abort_unless($estudiante !== null, 403);
         abort_if($bloqueos->tieneCuotasVencidasEnCicloActual($estudiante), 403);
 
-        $esLibreta = TipoDocumentoEnum::tryFrom($this->tipoDocumento)?->esLibreta() === true;
-
         $this->validate([
-            'tipoDocumento' => 'required|string|in:'.implode(',', array_column(TipoDocumentoEnum::certificados(), 'value')),
-            'matriculaId' => $esLibreta ? 'required|integer|exists:matriculas,id' : 'nullable|integer|exists:matriculas,id',
+            'tipoDocumento' => 'required|string|in:'.implode(',', array_column(TipoDocumentoEnum::constancias(), 'value')),
+            'matriculaId' => 'nullable|integer|exists:matriculas,id',
             'motivo' => 'required|string|max:500',
             'requisitos.*' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
             'metodoEntrega' => 'required|string|in:'.implode(',', array_column(MetodoEntregaEnum::cases(), 'value')),
@@ -70,24 +67,23 @@ new #[Layout('layouts.app')] class extends Component
         );
 
         $this->reset(['matriculaId', 'motivo', 'requisitos', 'metodoEntrega', 'correoEntrega']);
-        $this->tipoDocumento = TipoDocumentoEnum::CERTIFICADO_ESTUDIOS->value;
+        $this->tipoDocumento = TipoDocumentoEnum::CONSTANCIA_ESTUDIOS->value;
         session()->flash('status', 'Solicitud enviada. Te avisaremos cuando tu documento esté listo.');
     }
 
-    public function with(CertificadoService $certificados, LibretaService $libretas, BloqueoAccesoService $bloqueos): array
+    public function with(CertificadoService $certificados, BloqueoAccesoService $bloqueos): array
     {
         $estudiante = Auth::user()->estudiante;
 
-        // Este módulo es solo para el certificado de estudios y la libreta
-        // de notas: las constancias se solicitan desde su propia pantalla
-        // (ver constancias/mis-constancias.blade.php).
-        $tiposDelModulo = TipoDocumentoEnum::certificados();
+        // Este módulo es solo para constancias (conducta, estudios,
+        // vacante): el certificado de estudios y la libreta se solicitan
+        // desde su propia pantalla (ver certificados/mis-certificados.blade.php).
+        $tiposDelModulo = TipoDocumentoEnum::constancias();
         $enEsteModulo = fn ($documento) => in_array($documento->tipo, $tiposDelModulo, true);
 
         return [
             'tiposDocumento' => $tiposDelModulo,
-            'misCertificados' => $certificados->misCertificados($estudiante)->filter($enEsteModulo)->values(),
-            'misLibretas' => $libretas->misLibretas($estudiante),
+            'misConstancias' => $certificados->misCertificados($estudiante)->filter($enEsteModulo)->values(),
             'misSolicitudes' => $certificados->misSolicitudes($estudiante)->filter($enEsteModulo)->values(),
             'matriculas' => Matricula::query()
                 ->where('estudiante_id', $estudiante->id)
@@ -101,8 +97,8 @@ new #[Layout('layouts.app')] class extends Component
 
 <div class="max-w-3xl space-y-6">
     <x-slot name="header">
-        <h1 class="font-display text-2xl text-ink">Mis certificados</h1>
-        <p class="mt-1 text-sm text-ink-dim">Solicita tu certificado de estudios o tu libreta de notas, y revisa los que ya se te emitieron.</p>
+        <h1 class="font-display text-2xl text-ink">Mis constancias</h1>
+        <p class="mt-1 text-sm text-ink-dim">Solicita una constancia de estudios, de vacante o de buena conducta, y revisa las que ya se te emitieron.</p>
     </x-slot>
 
     @if (session('status'))
@@ -112,7 +108,7 @@ new #[Layout('layouts.app')] class extends Component
     @endif
 
     <div class="rounded-lg border border-border bg-surface p-6">
-        <h2 class="text-sm font-semibold text-ink">Solicitar un documento</h2>
+        <h2 class="text-sm font-semibold text-ink">Solicitar una constancia</h2>
 
         @if ($tieneDeudaCicloActual)
             <div class="mt-4 rounded-lg border border-danger/30 bg-danger/10 px-4 py-4 text-sm text-danger">
@@ -124,7 +120,7 @@ new #[Layout('layouts.app')] class extends Component
         @else
             <form wire:submit="solicitar" class="mt-4 space-y-4">
                 <div>
-                    <x-input-label for="tipoDocumento" value="Documento" />
+                    <x-input-label for="tipoDocumento" value="Constancia" />
                     <x-select-input
                         wire:model="tipoDocumento"
                         id="tipoDocumento"
@@ -141,7 +137,6 @@ new #[Layout('layouts.app')] class extends Component
                         class="mt-1 block w-full"
                         :options="collect($matriculas)->mapWithKeys(fn ($matricula) => [$matricula->id => $matricula->grado->nombre.' · '.$matricula->ciclo->nombre])->prepend('Sin vincular a una matrícula específica', '')"
                     />
-                    <p class="mt-1 text-xs text-ink-faint">Para la libreta de notas, elige la matrícula del ciclo que quieres consultar.</p>
                     <x-input-error :messages="$errors->get('matriculaId')" class="mt-1" />
                 </div>
                 <div>
@@ -167,63 +162,37 @@ new #[Layout('layouts.app')] class extends Component
     </div>
 
     <div class="rounded-lg border border-border bg-surface p-6">
-        <h2 class="text-sm font-semibold text-ink">Mis certificados</h2>
+        <h2 class="text-sm font-semibold text-ink">Mis constancias</h2>
         <div class="mt-4 divide-y divide-border">
-            @forelse ($misCertificados as $certificado)
+            @forelse ($misConstancias as $constancia)
                 <div class="flex items-center justify-between py-3 text-sm">
                     <div>
                         <p class="text-ink">
-                            {{ $certificado->tipo->label() }} N.° {{ $certificado->numero }}
-                            @if ($certificado->es_duplicado)
+                            {{ $constancia->tipo->label() }} N.° {{ $constancia->numero }}
+                            @if ($constancia->es_duplicado)
                                 <span class="ml-1 rounded-full bg-warn/10 px-2 py-0.5 text-xs text-warn">Duplicado</span>
                             @endif
                         </p>
                         <p class="text-xs text-ink-faint">
-                            @if ($certificado->matricula)
-                                {{ $certificado->matricula->grado->nombre }} ·
+                            @if ($constancia->matricula)
+                                {{ $constancia->matricula->grado->nombre }} ·
                             @endif
-                            emitido el {{ $certificado->fecha_emision->format('d/m/Y') }}
+                            emitido el {{ $constancia->fecha_emision->format('d/m/Y') }}
                         </p>
-                        @if ($certificado->entregado_en)
-                            <p class="mt-1 text-xs text-ok">Entregado el {{ $certificado->entregado_en->format('d/m/Y') }}</p>
-                        @elseif ($certificado->metodo_entrega?->value === 'virtual')
-                            <p class="mt-1 text-xs text-warn">Pendiente de envío a {{ $certificado->correo_entrega }}</p>
+                        @if ($constancia->entregado_en)
+                            <p class="mt-1 text-xs text-ok">Entregado el {{ $constancia->entregado_en->format('d/m/Y') }}</p>
+                        @elseif ($constancia->metodo_entrega?->value === 'virtual')
+                            <p class="mt-1 text-xs text-warn">Pendiente de envío a {{ $constancia->correo_entrega }}</p>
                         @else
                             <p class="mt-1 text-xs text-warn">Pendiente de recojo en administración</p>
                         @endif
                     </div>
-                    @if ($certificado->getFirstMedia('pdf'))
-                        <a href="{{ $certificado->getFirstMediaUrl('pdf') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver PDF</a>
+                    @if ($constancia->getFirstMedia('pdf'))
+                        <a href="{{ $constancia->getFirstMediaUrl('pdf') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver PDF</a>
                     @endif
                 </div>
             @empty
-                <p class="py-4 text-sm text-ink-faint">Todavía no tienes certificados emitidos.</p>
-            @endforelse
-        </div>
-    </div>
-
-    <div class="rounded-lg border border-border bg-surface p-6">
-        <h2 class="text-sm font-semibold text-ink">Mis libretas de notas</h2>
-        <div class="mt-4 divide-y divide-border">
-            @forelse ($misLibretas as $libreta)
-                <div class="flex items-center justify-between py-3 text-sm">
-                    <div>
-                        <p class="text-ink">{{ $libreta->ciclo->nombre }}</p>
-                        <p class="text-xs text-ink-faint">generada el {{ $libreta->generado_en->format('d/m/Y') }}</p>
-                        @if ($libreta->entregado_en)
-                            <p class="mt-1 text-xs text-ok">Entregada el {{ $libreta->entregado_en->format('d/m/Y') }}</p>
-                        @elseif ($libreta->metodo_entrega?->value === 'virtual')
-                            <p class="mt-1 text-xs text-warn">Pendiente de envío a {{ $libreta->correo_entrega }}</p>
-                        @elseif ($libreta->metodo_entrega)
-                            <p class="mt-1 text-xs text-warn">Pendiente de recojo en administración</p>
-                        @endif
-                    </div>
-                    @if ($libreta->getFirstMedia('pdf'))
-                        <a href="{{ $libreta->getFirstMediaUrl('pdf') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver PDF</a>
-                    @endif
-                </div>
-            @empty
-                <p class="py-4 text-sm text-ink-faint">Todavía no tienes libretas generadas.</p>
+                <p class="py-4 text-sm text-ink-faint">Todavía no tienes constancias emitidas.</p>
             @endforelse
         </div>
     </div>
@@ -256,7 +225,7 @@ new #[Layout('layouts.app')] class extends Component
                     @endif
                 </div>
             @empty
-                <p class="py-4 text-sm text-ink-faint">No has solicitado documentos todavía.</p>
+                <p class="py-4 text-sm text-ink-faint">No has solicitado constancias todavía.</p>
             @endforelse
         </div>
     </div>

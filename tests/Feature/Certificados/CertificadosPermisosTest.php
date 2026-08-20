@@ -169,29 +169,6 @@ class CertificadosPermisosTest extends TestCase
         $this->assertNull($certificado->fresh()->entregado_en);
     }
 
-    public function test_el_estudiante_puede_solicitar_una_constancia_con_entrega_virtual(): void
-    {
-        $usuario = User::factory()->create();
-        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
-        Estudiante::factory()->create(['user_id' => $usuario->id]);
-
-        $this->actingAs($usuario);
-
-        Volt::test('certificados.mis-certificados')
-            ->set('tipoDocumento', TipoDocumentoEnum::CONSTANCIA_VACANTE->value)
-            ->set('motivo', 'Nueva vacante laboral')
-            ->set('metodoEntrega', 'virtual')
-            ->set('correoEntrega', 'estudiante@example.com')
-            ->call('solicitar')
-            ->assertHasNoErrors();
-
-        $this->assertDatabaseHas('solicitudes_certificado', [
-            'tipo' => TipoDocumentoEnum::CONSTANCIA_VACANTE->value,
-            'metodo_entrega' => 'virtual',
-            'correo_entrega' => 'estudiante@example.com',
-        ]);
-    }
-
     public function test_solicitar_entrega_virtual_sin_correo_falla_la_validacion(): void
     {
         $usuario = User::factory()->create();

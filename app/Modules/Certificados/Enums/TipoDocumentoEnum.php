@@ -41,4 +41,32 @@ enum TipoDocumentoEnum: string
     {
         return array_filter(self::cases(), fn (self $tipo) => ! $tipo->esLibreta());
     }
+
+    public function esConstancia(): bool
+    {
+        return in_array($this, self::constancias(), true);
+    }
+
+    /**
+     * Documentos que se solicitan/emiten desde el módulo Certificados: el
+     * certificado de estudios propiamente dicho y la libreta de notas (que
+     * comparte el mismo flujo de solicitud/entrega aunque no sea un
+     * certificado en sentido estricto -- nunca fue una constancia).
+     *
+     * @return list<self>
+     */
+    public static function certificados(): array
+    {
+        return [self::CERTIFICADO_ESTUDIOS, self::LIBRETA_NOTAS];
+    }
+
+    /**
+     * Documentos que se solicitan/emiten desde el módulo Constancias.
+     *
+     * @return list<self>
+     */
+    public static function constancias(): array
+    {
+        return [self::CONSTANCIA_ESTUDIOS, self::CONSTANCIA_VACANTE, self::CONSTANCIA_BUENA_CONDUCTA];
+    }
 }
