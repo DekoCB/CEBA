@@ -107,7 +107,13 @@ new #[Layout('layouts.app')] class extends Component
             return collect();
         }
 
-        return $horarios->filter(fn (Horario $horario) => $horario->seccion !== null)->values();
+        // Un grado dividido puede tener varios cursos, cada uno con su
+        // propio par de horarios A/B: se muestra una sola opción por letra
+        // de sección, no una por curso (ver wizard.blade.php).
+        return $horarios->filter(fn (Horario $horario) => $horario->seccion !== null)
+            ->unique('seccion')
+            ->sortBy('seccion')
+            ->values();
     }
 
     public function with(PlanPagoService $planes): array

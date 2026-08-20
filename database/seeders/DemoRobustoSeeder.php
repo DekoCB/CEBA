@@ -148,6 +148,12 @@ class DemoRobustoSeeder extends Seeder
     }
 
     /**
+     * Ahora que cada curso de cada grado se divide en Grupo A/B (ver
+     * crearHorarios()), hacen falta suficientes aulas para que quepan
+     * todas las secciones "A" a la vez dentro de una sola franja (lunes y
+     * miércoles) sin toparse con el límite de aulas disponibles: con 4
+     * grados x 3 cursos, hasta 12 secciones concurrentes por franja.
+     *
      * @return Collection<int, Aula>
      */
     private function asegurarAulas(): Collection
@@ -155,6 +161,9 @@ class DemoRobustoSeeder extends Seeder
         foreach ([
             ['nombre' => 'Aula 3', 'capacidad' => 28, 'ubicacion' => 'Piso 2'],
             ['nombre' => 'Aula 4', 'capacidad' => 20, 'ubicacion' => 'Piso 2'],
+            ['nombre' => 'Aula 5', 'capacidad' => 25, 'ubicacion' => 'Piso 2'],
+            ['nombre' => 'Aula 6', 'capacidad' => 30, 'ubicacion' => 'Piso 3'],
+            ['nombre' => 'Aula 7', 'capacidad' => 22, 'ubicacion' => 'Piso 3'],
         ] as $datos) {
             Aula::query()->firstOrCreate(['nombre' => $datos['nombre']], $datos);
         }
@@ -226,39 +235,39 @@ class DemoRobustoSeeder extends Seeder
 
         $docenteIdx = 0;
 
-        // Todo grado que todavía no tenga un Grupo A/B real en este ciclo
-        // recibe uno: se divide uno de sus cursos sin horario en una
-        // sección "A" (lunes y miércoles) y una "B" (martes y jueves). A
-        // diferencia del par que AcademicoDemoSeeder crea a mano para el
-        // Grado 1 (que sí está ligado a la edad, para demostrar el candado
-        // de mayores/menores), esta división es solo de turno: mismo
-        // público, sin tipo_publico, para que la sección de un estudiante
-        // sea algo que de verdad se pueda reasignar después desde la ficha
-        // (Editar sección) sin chocar con la validación de edad. Sin esto,
-        // solo el Grado 1 demuestra el flujo de elegir sección al
-        // matricular, y su elección quedaría fija de por vida porque ahí sí
-        // depende de la edad.
-        $gradosConSeccion = Horario::query()->where('ciclo_id', $ciclo->id)->whereNotNull('seccion')->pluck('grado_id');
-
+        // Todo curso sin horario en un grado con Grupo A/B recibe su propio
+        // par: una sección "A" (lunes y miércoles) y una "B" (martes y
+        // jueves), en vez de dejar solo un curso representativo dividido y
+        // el resto sin sección. El estilo de división se copia del que ya
+        // tenga el grado -- ligado a la edad, como el par que
+        // AcademicoDemoSeeder arma a mano para la Comunicación del Grado 1
+        // (para demostrar el candado de mayores/menores), o solo de turno
+        // (sin tipo_publico) para los demás grados, que fue el estilo que
+        // se usó para crearles su primera sección.
         foreach ($grados as $grado) {
-            if ($gradosConSeccion->contains($grado->id)) {
-                continue;
-            }
+            $esEstiloEdad = Horario::query()
+                ->where('ciclo_id', $ciclo->id)
+                ->where('grado_id', $grado->id)
+                ->whereNotNull('seccion')
+                ->whereNotNull('tipo_publico')
+                ->exists();
 
-            $cursoParaDividir = $cursosSinHorario->firstWhere('grado_id', $grado->id);
+            $tipoPublicoA = $esEstiloEdad ? TipoPublicoEnum::MAYOR : null;
+            $tipoPublicoB = $esEstiloEdad ? TipoPublicoEnum::MENOR : null;
 
-            if (! $cursoParaDividir) {
-                continue;
-            }
+            foreach ($cursosSinHorario->where('grado_id', $grado->id)->values() as $curso) {
+                $creadaA = $this->ubicarHorario($curso, $ciclo, [FranjaHorarioEnum::LUN_MIE], $bloques, $aulas, $docentes, $ocupacionAula, $ocupacionDocente, $docenteIdx, 'A', $tipoPublicoA);
+                $this->ubicarHorario($curso, $ciclo, [FranjaHorarioEnum::MAR_JUE], $bloques, $aulas, $docentes, $ocupacionAula, $ocupacionDocente, $docenteIdx, 'B', $tipoPublicoB);
 
-            $creadaA = $this->ubicarHorario($cursoParaDividir, $ciclo, [FranjaHorarioEnum::LUN_MIE], $bloques, $aulas, $docentes, $ocupacionAula, $ocupacionDocente, $docenteIdx, 'A');
-            $this->ubicarHorario($cursoParaDividir, $ciclo, [FranjaHorarioEnum::MAR_JUE], $bloques, $aulas, $docentes, $ocupacionAula, $ocupacionDocente, $docenteIdx, 'B');
-
-            if ($creadaA) {
-                $cursosSinHorario = $cursosSinHorario->reject(fn (Curso $curso) => $curso->id === $cursoParaDividir->id)->values();
+                if ($creadaA) {
+                    $cursosSinHorario = $cursosSinHorario->reject(fn (Curso $c) => $c->id === $curso->id)->values();
+                }
             }
         }
 
+        // Lo que no se pudo dividir por falta de aula/docente libre en las
+        // franjas de sección cae aquí, con un horario normal sin dividir en
+        // cualquier franja disponible.
         foreach ($cursosSinHorario as $curso) {
             $this->ubicarHorario($curso, $ciclo, $franjas, $bloques, $aulas, $docentes, $ocupacionAula, $ocupacionDocente, $docenteIdx);
         }

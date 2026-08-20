@@ -153,7 +153,7 @@
                                     wire:model="horarioSeleccionado"
                                     class="w-64 text-xs"
                                     placeholder="Selecciona una sección"
-                                    :options="collect($horariosPorMatricula[$matricula->id] ?? [])->mapWithKeys(fn ($horario) => [$horario->id => trim('Sección '.$horario->seccion.' · '.$horario->diasResumen().' · '.($horario->docente->name ?? 'sin docente'))])"
+                                    :options="collect($horariosPorMatricula[$matricula->id] ?? [])->mapWithKeys(fn ($horario) => [$horario->id => 'Sección '.$horario->seccion.' · '.$horario->diasResumen()])"
                                 />
                                 <x-secondary-button type="submit">Guardar</x-secondary-button>
                                 <button type="button" wire:click="cancelarEdicionHorario" class="text-xs text-ink-faint hover:text-ink">Cancelar</button>

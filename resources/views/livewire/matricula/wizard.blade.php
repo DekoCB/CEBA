@@ -158,7 +158,16 @@ new class extends Component
             return collect();
         }
 
-        return $horarios->filter(fn (Horario $horario) => $horario->seccion !== null)->values();
+        // Un grado dividido puede tener varios cursos, cada uno con su
+        // propio par de horarios A/B: no se listan todas esas filas (se
+        // verían "Sección A" repetida una vez por curso), solo una por
+        // letra de sección -- cuál curso queda como representante no
+        // importa, el horario_id elegido solo funciona como etiqueta de a
+        // qué grupo pertenece el estudiante (ver Matricula::scopeDelHorario()).
+        return $horarios->filter(fn (Horario $horario) => $horario->seccion !== null)
+            ->unique('seccion')
+            ->sortBy('seccion')
+            ->values();
     }
 
     #[Computed]
@@ -722,7 +731,7 @@ new class extends Component
                             wire:model="horarioId"
                             id="horarioId"
                             class="mt-1 block w-full"
-                            :options="collect($this->horariosDelGrado)->mapWithKeys(fn ($horario) => [$horario->id => trim(($horario->seccion ? 'Sección '.$horario->seccion.' · ' : '').$horario->diasResumen().' · '.$horario->docente->name)])"
+                            :options="collect($this->horariosDelGrado)->mapWithKeys(fn ($horario) => [$horario->id => 'Sección '.$horario->seccion.' · '.$horario->diasResumen()])"
                         />
                         <p class="mt-1 text-xs text-ink-faint">Este grado tiene más de una sección en el ciclo elegido: selecciona a cuál se matricula el estudiante.</p>
                         <x-input-error :messages="$errors->get('horarioId')" class="mt-1" />
