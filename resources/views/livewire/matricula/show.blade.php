@@ -7,6 +7,7 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Services\DocumentoEstudianteService;
 use App\Modules\Matricula\Services\MatriculaService;
+use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Pagos\Services\PlanPagoService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -27,6 +28,10 @@ new #[Layout('layouts.app')] class extends Component
     public ?int $editandoHorarioMatriculaId = null;
 
     public string $horarioSeleccionado = '';
+
+    public ?int $editandoMontoPlanId = null;
+
+    public string $montoTotalNuevo = '';
 
     public function mount(Estudiante $estudiante): void
     {
@@ -123,6 +128,42 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('status', 'Horario actualizado.');
     }
 
+    public function editarMontoPlan(int $planId): void
+    {
+        Gate::authorize('pagos.gestionar');
+
+        $plan = PlanPago::query()->findOrFail($planId);
+
+        $this->editandoMontoPlanId = $planId;
+        $this->montoTotalNuevo = (string) $plan->monto_total;
+    }
+
+    public function cancelarEdicionMontoPlan(): void
+    {
+        $this->editandoMontoPlanId = null;
+        $this->montoTotalNuevo = '';
+    }
+
+    public function guardarMontoPlan(PlanPagoService $service): void
+    {
+        Gate::authorize('pagos.gestionar');
+
+        if ($this->editandoMontoPlanId === null) {
+            return;
+        }
+
+        $this->validate(['montoTotalNuevo' => 'required|numeric|min:0.01']);
+
+        $plan = PlanPago::query()->findOrFail($this->editandoMontoPlanId);
+
+        $service->editarMontoTotal($plan, (float) $this->montoTotalNuevo);
+
+        $this->editandoMontoPlanId = null;
+        $this->montoTotalNuevo = '';
+
+        session()->flash('status', 'Monto del plan de pago actualizado.');
+    }
+
     /**
      * Mismo criterio que wizard.blade.php: solo se listan las secciones
      * cuando el grado realmente está dividido en Grupo A/B (al menos un
@@ -215,5 +256,7 @@ new #[Layout('layouts.app')] class extends Component
         :editando-horario-matricula-id="$editandoHorarioMatriculaId"
         :horario-seleccionado="$horarioSeleccionado"
         :planes-por-matricula="$planesPorMatricula"
+        :editando-monto-plan-id="$editandoMontoPlanId"
+        :monto-total-nuevo="$montoTotalNuevo"
     />
 </div>

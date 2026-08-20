@@ -7,6 +7,7 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Services\DocumentoEstudianteService;
 use App\Modules\Matricula\Services\MatriculaService;
+use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Pagos\Services\PlanPagoService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -34,6 +35,10 @@ new class extends Component
 
     public string $horarioSeleccionado = '';
 
+    public ?int $editandoMontoPlanId = null;
+
+    public string $montoTotalNuevo = '';
+
     #[On('ver-estudiante')]
     public function abrir(int $estudianteId): void
     {
@@ -45,6 +50,8 @@ new class extends Component
         $this->seccionSeleccionada = '';
         $this->editandoHorarioMatriculaId = null;
         $this->horarioSeleccionado = '';
+        $this->editandoMontoPlanId = null;
+        $this->montoTotalNuevo = '';
     }
 
     public function verificarDocumento(int $documentoId, DocumentoEstudianteService $service): void
@@ -124,6 +131,40 @@ new class extends Component
 
         $this->editandoHorarioMatriculaId = null;
         $this->horarioSeleccionado = '';
+    }
+
+    public function editarMontoPlan(int $planId): void
+    {
+        Gate::authorize('pagos.gestionar');
+
+        $plan = PlanPago::query()->findOrFail($planId);
+
+        $this->editandoMontoPlanId = $planId;
+        $this->montoTotalNuevo = (string) $plan->monto_total;
+    }
+
+    public function cancelarEdicionMontoPlan(): void
+    {
+        $this->editandoMontoPlanId = null;
+        $this->montoTotalNuevo = '';
+    }
+
+    public function guardarMontoPlan(PlanPagoService $service): void
+    {
+        Gate::authorize('pagos.gestionar');
+
+        if ($this->editandoMontoPlanId === null) {
+            return;
+        }
+
+        $this->validate(['montoTotalNuevo' => 'required|numeric|min:0.01']);
+
+        $plan = PlanPago::query()->findOrFail($this->editandoMontoPlanId);
+
+        $service->editarMontoTotal($plan, (float) $this->montoTotalNuevo);
+
+        $this->editandoMontoPlanId = null;
+        $this->montoTotalNuevo = '';
     }
 
     /**
@@ -206,6 +247,8 @@ new class extends Component
                     :editando-horario-matricula-id="$editandoHorarioMatriculaId"
                     :horario-seleccionado="$horarioSeleccionado"
                     :planes-por-matricula="$planesPorMatricula"
+                    :editando-monto-plan-id="$editandoMontoPlanId"
+                    :monto-total-nuevo="$montoTotalNuevo"
                 />
             @else
                 <p class="py-8 text-center text-sm text-ink-faint">Cargando…</p>

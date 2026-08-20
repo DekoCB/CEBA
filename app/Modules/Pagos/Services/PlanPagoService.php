@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Pagos\Services;
 
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Pagos\Enums\EstadoCuotaEnum;
 use App\Modules\Pagos\Enums\NumeroCuotasEnum;
 use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Models\PlanPago;
@@ -74,5 +75,62 @@ class PlanPagoService
     public function planDe(Matricula $matricula): ?PlanPago
     {
         return PlanPago::query()->where('matricula_id', $matricula->id)->with('cuotas')->first();
+    }
+
+    /**
+     * Cambia el monto total del plan y reparte la diferencia entre las
+     * cuotas todavía pendientes (nunca las ya pagadas ni las exoneradas,
+     * cuyo monto ya quedó resuelto): la última pendiente absorbe el
+     * redondeo, igual que crear(). El número y la fecha de vencimiento de
+     * cada cuota no cambian, solo su monto.
+     */
+    public function editarMontoTotal(PlanPago $plan, float $nuevoMontoTotal): PlanPago
+    {
+        if ($nuevoMontoTotal <= 0) {
+            throw ValidationException::withMessages([
+                'montoTotal' => 'El monto total debe ser mayor a cero.',
+            ]);
+        }
+
+        $plan->loadMissing('cuotas');
+
+        $montoResuelto = (float) $plan->cuotas
+            ->whereIn('estado', [EstadoCuotaEnum::PAGADO, EstadoCuotaEnum::EXONERADO])
+            ->sum('monto');
+
+        $cuotasPendientes = $plan->cuotas
+            ->where('estado', EstadoCuotaEnum::PENDIENTE)
+            ->sortBy('numero')
+            ->values();
+
+        if ($nuevoMontoTotal < $montoResuelto) {
+            throw ValidationException::withMessages([
+                'montoTotal' => 'El nuevo monto no puede ser menor a lo ya pagado y exonerado (S/ '.number_format($montoResuelto, 2).').',
+            ]);
+        }
+
+        if ($cuotasPendientes->isEmpty()) {
+            throw ValidationException::withMessages([
+                'montoTotal' => 'Este plan ya no tiene cuotas pendientes: no hay nada que repartir con el nuevo monto.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($plan, $nuevoMontoTotal, $cuotasPendientes, $montoResuelto) {
+            $montoPendienteNuevo = round($nuevoMontoTotal - $montoResuelto, 2);
+            $montoPorCuota = round($montoPendienteNuevo / $cuotasPendientes->count(), 2);
+            $montoAcumulado = 0.0;
+
+            foreach ($cuotasPendientes as $indice => $cuota) {
+                $esUltima = $indice === $cuotasPendientes->count() - 1;
+                $monto = $esUltima ? round($montoPendienteNuevo - $montoAcumulado, 2) : $montoPorCuota;
+                $montoAcumulado += $monto;
+
+                $cuota->update(['monto' => $monto]);
+            }
+
+            $plan->update(['monto_total' => $nuevoMontoTotal]);
+
+            return $plan->fresh('cuotas');
+        });
     }
 }

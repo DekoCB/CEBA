@@ -602,4 +602,89 @@ class MatriculaPermisosTest extends TestCase
             ->call('editarHorario', $matricula->id)
             ->assertForbidden();
     }
+
+    public function test_editar_monto_del_plan_de_pago_desde_la_pagina_completa_de_la_ficha(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id, 'monto_total' => 600]);
+        $plan->cuotas()->create(['numero' => 1, 'monto' => 300, 'fecha_vencimiento' => now()->addMonth(), 'estado' => 'pagado']);
+        $plan->cuotas()->create(['numero' => 2, 'monto' => 300, 'fecha_vencimiento' => now()->addMonths(2), 'estado' => 'pendiente']);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('editarMontoPlan', $plan->id)
+            ->set('montoTotalNuevo', '900')
+            ->call('guardarMontoPlan')
+            ->assertHasNoErrors();
+
+        $plan->refresh();
+        $this->assertSame('900.00', $plan->monto_total);
+        $this->assertSame('300.00', $plan->cuotas()->where('numero', 1)->first()->monto);
+        $this->assertSame('600.00', $plan->cuotas()->where('numero', 2)->first()->monto);
+    }
+
+    public function test_editar_monto_del_plan_de_pago_desde_el_modal_de_ficha(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id, 'monto_total' => 600]);
+        $plan->cuotas()->create(['numero' => 1, 'monto' => 600, 'fecha_vencimiento' => now()->addMonth(), 'estado' => 'pendiente']);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.ficha-modal')
+            ->call('abrir', $estudiante->id)
+            ->call('editarMontoPlan', $plan->id)
+            ->set('montoTotalNuevo', '450')
+            ->call('guardarMontoPlan')
+            ->assertHasNoErrors();
+
+        $this->assertSame('450.00', $plan->fresh()->monto_total);
+    }
+
+    public function test_no_se_puede_editar_monto_del_plan_de_pago_sin_el_permiso_de_gestionar_pagos(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('editarMontoPlan', $plan->id)
+            ->assertForbidden();
+    }
+
+    public function test_editar_monto_menor_a_lo_ya_pagado_muestra_error(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id, 'monto_total' => 600]);
+        $plan->cuotas()->create(['numero' => 1, 'monto' => 300, 'fecha_vencimiento' => now()->addMonth(), 'estado' => 'pagado']);
+        $plan->cuotas()->create(['numero' => 2, 'monto' => 300, 'fecha_vencimiento' => now()->addMonths(2), 'estado' => 'pendiente']);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('editarMontoPlan', $plan->id)
+            ->set('montoTotalNuevo', '100')
+            ->call('guardarMontoPlan')
+            ->assertHasErrors(['montoTotal']);
+
+        $this->assertSame('600.00', $plan->fresh()->monto_total);
+    }
 }

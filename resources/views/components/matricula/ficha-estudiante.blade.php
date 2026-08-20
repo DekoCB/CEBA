@@ -10,6 +10,8 @@
     'editandoHorarioMatriculaId' => null,
     'horarioSeleccionado' => '',
     'planesPorMatricula' => [],
+    'editandoMontoPlanId' => null,
+    'montoTotalNuevo' => '',
 ])
 
 {{--
@@ -194,7 +196,7 @@
                                     wire:model="horarioSeleccionado"
                                     class="w-72 text-xs"
                                     placeholder="Sin horario asignado"
-                                    :options="collect($horariosPorMatricula[$matricula->id] ?? [])->mapWithKeys(fn ($horario) => [$horario->id => ($horario->seccion ? 'Sección '.$horario->seccion.' · ' : '').$horario->curso->nombre.' · '.$horario->docente?->name.' · '.$horario->diasResumen()])"
+                                    :options="collect($horariosPorMatricula[$matricula->id] ?? [])->mapWithKeys(fn ($horario) => [$horario->id => $horario->curso->nombre.' · '.$horario->docente?->name.' · '.$horario->diasResumen()])"
                                 />
                                 <x-secondary-button type="submit">Guardar</x-secondary-button>
                                 <button type="button" wire:click="cancelarEdicionHorario" class="text-xs text-ink-faint hover:text-ink">Cancelar</button>
@@ -222,9 +224,31 @@
                             @if (! $plan)
                                 <p class="text-xs text-ink-faint">Sin plan de pago asignado para este ciclo.</p>
                             @else
-                                <p class="text-xs font-medium text-ink-dim">
-                                    Plan de pago · {{ $plan->numero_cuotas }} {{ $plan->numero_cuotas === 1 ? 'cuota' : 'cuotas' }} · S/ {{ number_format((float) $plan->monto_total, 2) }}
-                                </p>
+                                <div class="flex items-center justify-between gap-2">
+                                    <p class="text-xs font-medium text-ink-dim">
+                                        Plan de pago · {{ $plan->numero_cuotas }} {{ $plan->numero_cuotas === 1 ? 'cuota' : 'cuotas' }} · S/ {{ number_format((float) $plan->monto_total, 2) }}
+                                    </p>
+                                    @can('pagos.gestionar')
+                                        @if ($editandoMontoPlanId !== $plan->id)
+                                            <button type="button" wire:click="editarMontoPlan({{ $plan->id }})" class="shrink-0 text-xs font-medium text-accent hover:underline">Editar monto</button>
+                                        @endif
+                                    @endcan
+                                </div>
+
+                                @can('pagos.gestionar')
+                                    @if ($editandoMontoPlanId === $plan->id)
+                                        <form wire:submit="guardarMontoPlan" class="mt-2 flex flex-wrap items-center gap-2">
+                                            <span class="text-xs text-ink-faint">Monto total (S/)</span>
+                                            <input type="number" step="0.01" min="0.01" wire:model="montoTotalNuevo" class="w-28 rounded-md border-border bg-surface text-xs text-ink focus:border-accent focus:ring-accent">
+                                            <x-secondary-button type="submit">Guardar</x-secondary-button>
+                                            <button type="button" wire:click="cancelarEdicionMontoPlan" class="text-xs text-ink-faint hover:text-ink">Cancelar</button>
+                                        </form>
+                                        <p class="mt-1 text-xs text-ink-faint">La diferencia se reparte entre las cuotas pendientes; las ya pagadas o exoneradas no cambian.</p>
+                                        <x-input-error :messages="$errors->get('montoTotalNuevo')" class="mt-1" />
+                                        <x-input-error :messages="$errors->get('montoTotal')" class="mt-1" />
+                                    @endif
+                                @endcan
+
                                 <div class="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
                                     @foreach ($plan->cuotas as $cuota)
                                         <div class="flex items-center justify-between gap-2 rounded-md bg-surface-2 px-2 py-1 text-xs">

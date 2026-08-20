@@ -3,6 +3,7 @@
 namespace Tests\Feature\Pagos;
 
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Pagos\Enums\EstadoCuotaEnum;
 use App\Modules\Pagos\Enums\NumeroCuotasEnum;
 use App\Modules\Pagos\Services\PlanPagoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -74,5 +75,80 @@ class PlanPagoServiceTest extends TestCase
         $this->expectException(ValidationException::class);
 
         $this->service()->crear($matricula, NumeroCuotasEnum::SEIS, 600.0);
+    }
+
+    public function test_editar_monto_total_reparte_la_diferencia_entre_las_cuotas_pendientes(): void
+    {
+        $matricula = Matricula::factory()->create(['fecha_matricula' => now()]);
+        $plan = $this->service()->crear($matricula, NumeroCuotasEnum::CUATRO, 400.0);
+        $cuotas = $plan->cuotas()->orderBy('numero')->get();
+        $cuotas[0]->update(['estado' => EstadoCuotaEnum::PAGADO]);
+
+        $plan = $this->service()->editarMontoTotal($plan, 700.0);
+
+        $this->assertSame('700.00', $plan->monto_total);
+        // Las 3 cuotas pendientes (600 = 700 - 100 ya pagada) se reparten en partes iguales.
+        $pendientes = $plan->cuotas->where('estado', EstadoCuotaEnum::PENDIENTE)->sortBy('numero')->values();
+        $this->assertEquals(200.0, (float) $pendientes[0]->monto);
+        $this->assertEquals(200.0, (float) $pendientes[1]->monto);
+        $this->assertEquals(200.0, (float) $pendientes[2]->monto);
+    }
+
+    public function test_editar_monto_total_no_toca_cuotas_pagadas_ni_exoneradas(): void
+    {
+        $matricula = Matricula::factory()->create(['fecha_matricula' => now()]);
+        $plan = $this->service()->crear($matricula, NumeroCuotasEnum::CUATRO, 400.0);
+        $cuotas = $plan->cuotas()->orderBy('numero')->get();
+        $cuotas[0]->update(['estado' => EstadoCuotaEnum::PAGADO]);
+        $cuotas[1]->update(['estado' => EstadoCuotaEnum::EXONERADO]);
+
+        $this->service()->editarMontoTotal($plan, 500.0);
+
+        $this->assertSame('100.00', $cuotas[0]->fresh()->monto);
+        $this->assertSame('100.00', $cuotas[1]->fresh()->monto);
+    }
+
+    public function test_editar_monto_total_la_ultima_cuota_pendiente_absorbe_el_redondeo(): void
+    {
+        $matricula = Matricula::factory()->create(['fecha_matricula' => now()]);
+        $plan = $this->service()->crear($matricula, NumeroCuotasEnum::CUATRO, 400.0);
+
+        $plan = $this->service()->editarMontoTotal($plan, 100.0);
+
+        $pendientes = $plan->cuotas->sortBy('numero')->values();
+        $this->assertEquals(100.0, (float) $pendientes->sum('monto'));
+        $this->assertEqualsWithDelta(25.0, (float) $pendientes[0]->monto, 0.01);
+    }
+
+    public function test_editar_monto_total_menor_a_lo_ya_pagado_lanza_excepcion(): void
+    {
+        $matricula = Matricula::factory()->create(['fecha_matricula' => now()]);
+        $plan = $this->service()->crear($matricula, NumeroCuotasEnum::CUATRO, 400.0);
+        $plan->cuotas()->first()->update(['estado' => EstadoCuotaEnum::PAGADO]);
+
+        $this->expectException(ValidationException::class);
+
+        $this->service()->editarMontoTotal($plan, 50.0);
+    }
+
+    public function test_editar_monto_total_sin_cuotas_pendientes_lanza_excepcion(): void
+    {
+        $matricula = Matricula::factory()->create(['fecha_matricula' => now()]);
+        $plan = $this->service()->crear($matricula, NumeroCuotasEnum::UNA, 100.0);
+        $plan->cuotas()->update(['estado' => EstadoCuotaEnum::PAGADO]);
+
+        $this->expectException(ValidationException::class);
+
+        $this->service()->editarMontoTotal($plan, 200.0);
+    }
+
+    public function test_editar_monto_total_cero_o_negativo_lanza_excepcion(): void
+    {
+        $matricula = Matricula::factory()->create(['fecha_matricula' => now()]);
+        $plan = $this->service()->crear($matricula, NumeroCuotasEnum::UNA, 100.0);
+
+        $this->expectException(ValidationException::class);
+
+        $this->service()->editarMontoTotal($plan, 0.0);
     }
 }
