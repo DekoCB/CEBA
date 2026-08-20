@@ -144,4 +144,44 @@ class PagosPermisosTest extends TestCase
             ->get(route('pagos.cuentas-bancarias'))
             ->assertForbidden();
     }
+
+    public function test_tesoreria_registra_una_billetera_digital_sin_datos_bancarios(): void
+    {
+        $tesoreria = User::factory()->create();
+        $tesoreria->assignRole(RolEnum::TESORERIA->value);
+
+        $this->actingAs($tesoreria);
+
+        Volt::test('pagos.cuentas-bancarias')
+            ->call('abrirModal')
+            ->set('medio', 'billetera')
+            ->set('tipoBilletera', 'yape')
+            ->set('celular', '987654321')
+            ->set('titular', 'CEBA E.I.R.L.')
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('cuentas_bancarias', [
+            'medio' => 'billetera',
+            'tipo_billetera' => 'yape',
+            'celular' => '987654321',
+            'banco' => null,
+        ]);
+    }
+
+    public function test_registrar_una_billetera_sin_elegir_tipo_falla(): void
+    {
+        $tesoreria = User::factory()->create();
+        $tesoreria->assignRole(RolEnum::TESORERIA->value);
+
+        $this->actingAs($tesoreria);
+
+        Volt::test('pagos.cuentas-bancarias')
+            ->call('abrirModal')
+            ->set('medio', 'billetera')
+            ->set('celular', '987654321')
+            ->set('titular', 'CEBA E.I.R.L.')
+            ->call('guardar')
+            ->assertHasErrors('tipoBilletera');
+    }
 }

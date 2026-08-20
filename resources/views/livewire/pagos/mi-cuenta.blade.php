@@ -187,15 +187,20 @@ new #[Layout('layouts.app')] class extends Component
             @forelse ($cuentasBancarias as $cuenta)
                 <div class="flex items-center justify-between text-sm">
                     <div>
-                        <p class="text-ink">{{ $cuenta->banco }} — {{ $cuenta->numero_cuenta }}</p>
-                        <p class="text-xs text-ink-faint">{{ $cuenta->titular }}@if ($cuenta->cci) · CCI {{ $cuenta->cci }} @endif</p>
+                        @if ($cuenta->medio === \App\Modules\Pagos\Enums\MedioCuentaEnum::BANCO)
+                            <p class="text-ink">{{ $cuenta->banco }} — {{ $cuenta->numero_cuenta }}</p>
+                            <p class="text-xs text-ink-faint">{{ $cuenta->titular }}@if ($cuenta->cci) · CCI {{ $cuenta->cci }} @endif</p>
+                        @else
+                            <p class="text-ink">{{ $cuenta->tipo_billetera?->label() }} — {{ $cuenta->celular }}</p>
+                            <p class="text-xs text-ink-faint">{{ $cuenta->titular }}</p>
+                        @endif
                     </div>
                     @if ($cuenta->getFirstMedia('qr'))
                         <a href="{{ $cuenta->getFirstMediaUrl('qr') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver QR</a>
                     @endif
                 </div>
             @empty
-                <p class="text-sm text-ink-faint">No hay cuentas bancarias registradas todavía.</p>
+                <p class="text-sm text-ink-faint">No hay cuentas registradas todavía.</p>
             @endforelse
         </div>
     </div>

@@ -1,8 +1,11 @@
 <?php
 
+use App\Modules\Pagos\Enums\MedioCuentaEnum;
+use App\Modules\Pagos\Enums\TipoBilleteraEnum;
 use App\Modules\Pagos\Models\CuentaBancaria;
 use App\Modules\Pagos\Services\CuentaBancariaService;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
@@ -15,11 +18,17 @@ new #[Layout('layouts.app')] class extends Component
 
     public ?int $editandoId = null;
 
+    public string $medio = 'banco';
+
     public string $banco = '';
 
     public string $numeroCuenta = '';
 
     public string $cci = '';
+
+    public string $tipoBilletera = '';
+
+    public string $celular = '';
 
     public string $titular = '';
 
@@ -40,13 +49,17 @@ new #[Layout('layouts.app')] class extends Component
 
         if ($cuentaId) {
             $cuenta = CuentaBancaria::query()->findOrFail($cuentaId);
-            $this->banco = $cuenta->banco;
-            $this->numeroCuenta = $cuenta->numero_cuenta;
+            $this->medio = $cuenta->medio->value;
+            $this->banco = (string) $cuenta->banco;
+            $this->numeroCuenta = (string) $cuenta->numero_cuenta;
             $this->cci = (string) $cuenta->cci;
+            $this->tipoBilletera = $cuenta->tipo_billetera?->value ?? '';
+            $this->celular = (string) $cuenta->celular;
             $this->titular = $cuenta->titular;
             $this->activa = $cuenta->activa;
         } else {
-            $this->reset(['banco', 'numeroCuenta', 'cci', 'titular']);
+            $this->reset(['banco', 'numeroCuenta', 'cci', 'tipoBilletera', 'celular', 'titular']);
+            $this->medio = 'banco';
             $this->activa = true;
         }
 
@@ -55,44 +68,70 @@ new #[Layout('layouts.app')] class extends Component
 
     public function guardar(CuentaBancariaService $service): void
     {
-        $this->validate([
-            'banco' => 'required|string|max:50',
-            'numeroCuenta' => 'required|string|max:30',
-            'cci' => 'nullable|string|max:30',
+        $reglas = [
+            'medio' => ['required', Rule::in(array_column(MedioCuentaEnum::cases(), 'value'))],
             'titular' => 'required|string|max:100',
             'qr' => 'nullable|image|max:2048',
-        ]);
+        ];
+
+        if ($this->medio === MedioCuentaEnum::BANCO->value) {
+            $reglas['banco'] = 'required|string|max:50';
+            $reglas['numeroCuenta'] = 'required|string|max:30';
+            $reglas['cci'] = 'nullable|string|max:30';
+        } else {
+            $reglas['tipoBilletera'] = ['required', Rule::in(array_column(TipoBilleteraEnum::cases(), 'value'))];
+            $reglas['celular'] = 'required|string|max:20';
+        }
+
+        $this->validate($reglas);
+
+        $medio = MedioCuentaEnum::from($this->medio);
+        $esBanco = $medio === MedioCuentaEnum::BANCO;
 
         if ($this->editandoId) {
             $service->actualizar(
                 CuentaBancaria::query()->findOrFail($this->editandoId),
-                $this->banco,
-                $this->numeroCuenta,
-                $this->cci ?: null,
+                $medio,
+                $esBanco ? $this->banco : null,
+                $esBanco ? $this->numeroCuenta : null,
+                $esBanco ? ($this->cci ?: null) : null,
+                $esBanco ? null : TipoBilleteraEnum::from($this->tipoBilletera),
+                $esBanco ? null : $this->celular,
                 $this->titular,
                 $this->activa,
                 $this->qr,
             );
         } else {
-            $service->crear($this->banco, $this->numeroCuenta, $this->cci ?: null, $this->titular, $this->qr);
+            $service->crear(
+                $medio,
+                $esBanco ? $this->banco : null,
+                $esBanco ? $this->numeroCuenta : null,
+                $esBanco ? ($this->cci ?: null) : null,
+                $esBanco ? null : TipoBilleteraEnum::from($this->tipoBilletera),
+                $esBanco ? null : $this->celular,
+                $this->titular,
+                $this->qr,
+            );
         }
 
         $this->mostrarModal = false;
-        session()->flash('status', 'Cuenta bancaria guardada correctamente.');
+        session()->flash('status', 'Cuenta guardada correctamente.');
     }
 
     public function with(CuentaBancariaService $service): array
     {
         return [
             'cuentas' => $service->listar(),
+            'medios' => MedioCuentaEnum::cases(),
+            'tiposBilletera' => TipoBilleteraEnum::cases(),
         ];
     }
 }; ?>
 
 <div>
     <x-slot name="header">
-        <h1 class="font-display text-2xl text-ink">Cuentas bancarias</h1>
-        <p class="mt-1 text-sm text-ink-dim">Cuentas y QR que ven los estudiantes para pagar su mensualidad.</p>
+        <h1 class="font-display text-2xl text-ink">Cuentas para pagar</h1>
+        <p class="mt-1 text-sm text-ink-dim">Cuentas bancarias y billeteras digitales que ven los estudiantes para pagar su mensualidad.</p>
     </x-slot>
 
     {{-- Ver academico/grados/index.blade.php: el botón no puede vivir en x-slot="header". --}}
@@ -112,10 +151,16 @@ new #[Layout('layouts.app')] class extends Component
             <div class="rounded-lg border border-border bg-surface p-4">
                 <div class="flex items-start justify-between">
                     <div>
-                        <p class="font-display text-lg text-ink">{{ $cuenta->banco }}</p>
-                        <p class="text-sm text-ink-dim">{{ $cuenta->numero_cuenta }}</p>
-                        @if ($cuenta->cci)
-                            <p class="text-xs text-ink-faint">CCI {{ $cuenta->cci }}</p>
+                        <p class="text-xs font-medium uppercase tracking-wide text-ink-faint">{{ $cuenta->medio->label() }}</p>
+                        @if ($cuenta->medio === MedioCuentaEnum::BANCO)
+                            <p class="font-display text-lg text-ink">{{ $cuenta->banco }}</p>
+                            <p class="text-sm text-ink-dim">{{ $cuenta->numero_cuenta }}</p>
+                            @if ($cuenta->cci)
+                                <p class="text-xs text-ink-faint">CCI {{ $cuenta->cci }}</p>
+                            @endif
+                        @else
+                            <p class="font-display text-lg text-ink">{{ $cuenta->tipo_billetera?->label() }}</p>
+                            <p class="text-sm text-ink-dim">{{ $cuenta->celular }}</p>
                         @endif
                         <p class="mt-1 text-xs text-ink-faint">{{ $cuenta->titular }}</p>
                     </div>
@@ -133,7 +178,7 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
             </div>
         @empty
-            <p class="col-span-full py-8 text-center text-sm text-ink-faint">No hay cuentas bancarias registradas.</p>
+            <p class="col-span-full py-8 text-center text-sm text-ink-faint">No hay cuentas registradas.</p>
         @endforelse
     </div>
 
@@ -162,24 +207,58 @@ new #[Layout('layouts.app')] class extends Component
                 <h2 class="font-display text-lg text-ink">{{ $editandoId ? 'Editar cuenta' : 'Nueva cuenta' }}</h2>
 
                 <form wire:submit="guardar" class="mt-4 space-y-4">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <x-input-label for="banco" value="Banco" />
-                            <x-text-input wire:model="banco" id="banco" class="mt-1 block w-full" />
-                            <x-input-error :messages="$errors->get('banco')" class="mt-1" />
-                        </div>
-                        <div>
-                            <x-input-label for="numeroCuenta" value="N.° de cuenta" />
-                            <x-text-input wire:model="numeroCuenta" id="numeroCuenta" class="mt-1 block w-full" />
-                            <x-input-error :messages="$errors->get('numeroCuenta')" class="mt-1" />
-                        </div>
+                    <div>
+                        <x-input-label for="medio" value="Medio" />
+                        <x-select-input
+                            wire:model.live="medio"
+                            id="medio"
+                            class="mt-1 block w-full"
+                            :options="collect($medios)->mapWithKeys(fn ($opcion) => [$opcion->value => $opcion->label()])"
+                        />
+                        <x-input-error :messages="$errors->get('medio')" class="mt-1" />
                     </div>
 
-                    <div>
-                        <x-input-label for="cci" value="CCI (opcional)" />
-                        <x-text-input wire:model="cci" id="cci" class="mt-1 block w-full" />
-                        <x-input-error :messages="$errors->get('cci')" class="mt-1" />
-                    </div>
+                    @if ($medio === 'banco')
+                        <div wire:key="campos-banco" class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <x-input-label for="banco" value="Banco" />
+                                    <x-text-input wire:model="banco" id="banco" class="mt-1 block w-full" />
+                                    <x-input-error :messages="$errors->get('banco')" class="mt-1" />
+                                </div>
+                                <div>
+                                    <x-input-label for="numeroCuenta" value="N.° de cuenta" />
+                                    <x-text-input wire:model="numeroCuenta" id="numeroCuenta" class="mt-1 block w-full" />
+                                    <x-input-error :messages="$errors->get('numeroCuenta')" class="mt-1" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <x-input-label for="cci" value="CCI (opcional)" />
+                                <x-text-input wire:model="cci" id="cci" class="mt-1 block w-full" />
+                                <x-input-error :messages="$errors->get('cci')" class="mt-1" />
+                            </div>
+                        </div>
+                    @else
+                        <div wire:key="campos-billetera" class="grid grid-cols-2 gap-4">
+                            <div>
+                                <x-input-label for="tipoBilletera" value="Billetera" />
+                                <x-select-input
+                                    wire:model="tipoBilletera"
+                                    id="tipoBilletera"
+                                    class="mt-1 block w-full"
+                                    placeholder="Selecciona…"
+                                    :options="collect($tiposBilletera)->mapWithKeys(fn ($opcion) => [$opcion->value => $opcion->label()])"
+                                />
+                                <x-input-error :messages="$errors->get('tipoBilletera')" class="mt-1" />
+                            </div>
+                            <div>
+                                <x-input-label for="celular" value="Celular" />
+                                <x-text-input wire:model="celular" id="celular" class="mt-1 block w-full" />
+                                <x-input-error :messages="$errors->get('celular')" class="mt-1" />
+                            </div>
+                        </div>
+                    @endif
 
                     <div>
                         <x-input-label for="titular" value="Titular" />

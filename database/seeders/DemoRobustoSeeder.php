@@ -38,8 +38,10 @@ use App\Modules\Matricula\Services\MatriculaService;
 use App\Modules\Notificaciones\Services\CampaniaWhatsappService;
 use App\Modules\Notificaciones\Services\PlantillaService;
 use App\Modules\Notificaciones\Services\RecordatorioCuotaService;
+use App\Modules\Pagos\Enums\MedioCuentaEnum;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use App\Modules\Pagos\Enums\NumeroCuotasEnum;
+use App\Modules\Pagos\Enums\TipoBilleteraEnum;
 use App\Modules\Pagos\Enums\TipoConceptoEnum;
 use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Cuota;
@@ -588,8 +590,10 @@ class DemoRobustoSeeder extends Seeder
         $conceptoService->crear('Penalidad por atraso', TipoConceptoEnum::PENALIDAD, 15.00);
         $conceptoService->crear('Otros', TipoConceptoEnum::OTRO, 0.00);
 
-        $cuentaService->crear('BCP', '194-2345678-0-12', '00219400234567801277', 'CEBA E.I.R.L.', null);
-        $cuentaService->crear('Interbank', '898-3012345678-9', '00389800301234567899', 'CEBA E.I.R.L.', null);
+        $cuentaService->crear(MedioCuentaEnum::BANCO, 'BCP', '194-2345678-0-12', '00219400234567801277', null, null, 'CEBA E.I.R.L.', null);
+        $cuentaService->crear(MedioCuentaEnum::BANCO, 'Interbank', '898-3012345678-9', '00389800301234567899', null, null, 'CEBA E.I.R.L.', null);
+        $cuentaService->crear(MedioCuentaEnum::BILLETERA, null, null, null, TipoBilleteraEnum::YAPE, '987654321', 'CEBA E.I.R.L.', null);
+        $cuentaService->crear(MedioCuentaEnum::BILLETERA, null, null, null, TipoBilleteraEnum::PLIN, '912345678', 'CEBA E.I.R.L.', null);
 
         $registradorId = User::query()->where('email', 'coordinador@ceba.test')->value('id');
         $aprobadorId = User::query()->where('email', 'tesoreria@ceba.test')->value('id');
