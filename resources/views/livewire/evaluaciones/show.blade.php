@@ -285,7 +285,12 @@ new #[Layout('layouts.app')] class extends Component
 <div>
     <x-slot name="header">
         <a href="{{ route('evaluaciones.index') }}" wire:navigate class="text-sm text-ink-faint hover:text-ink">← Evaluaciones</a>
-        <h1 class="mt-1 font-display text-2xl text-ink">{{ $horario->curso->nombre }}</h1>
+        <div class="mt-1 flex items-center gap-2">
+            <h1 class="font-display text-2xl text-ink">{{ $horario->curso->nombre }}</h1>
+            @if ($horario->seccion)
+                <span class="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">Sección {{ $horario->seccion }}</span>
+            @endif
+        </div>
         <p class="mt-1 text-sm text-ink-dim">
             {{ $horario->grado->nombre }} · {{ $horario->ciclo->nombre }} · {{ $horario->docente->name }}
         </p>

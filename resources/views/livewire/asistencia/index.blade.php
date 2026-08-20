@@ -26,14 +26,27 @@ new #[Layout('layouts.app')] class extends Component
         // sin ser realmente docente, y quedaría viendo "sus" horarios
         // (ninguno) en vez de la vista de supervisión.
         if ($user->hasPermissionTo('asistencia.registrar') && $user->hasRole(RolEnum::DOCENTE->value)) {
-            return ['horarios' => $service->horariosDelDocente($user->id), 'rol' => 'docente'];
+            $horarios = $service->horariosDelDocente($user->id);
+            $rol = 'docente';
+        } elseif ($user->hasPermissionTo('asistencia.ver_propio') && $user->estudiante) {
+            $horarios = $service->horariosDelEstudiante($user->estudiante);
+            $rol = 'estudiante';
+        } else {
+            $horarios = $service->todos();
+            $rol = 'supervisor';
         }
 
-        if ($user->hasPermissionTo('asistencia.ver_propio') && $user->estudiante) {
-            return ['horarios' => $service->horariosDelEstudiante($user->estudiante), 'rol' => 'estudiante'];
-        }
+        // Un mismo curso puede tener varias secciones (Grupo A/B), cada una
+        // con su propio Horario: se agrupan por curso para que, si quien
+        // mira tiene acceso a más de una sección del mismo curso, elija
+        // cuál quiere ver en vez de toparse con dos tarjetas casi
+        // idénticas. Un estudiante nunca ve más de una sección por curso
+        // (AsistenciaService::horariosDelEstudiante() ya filtra por su
+        // propia sección), así que para él el grupo siempre trae un solo
+        // horario.
+        $grupos = $horarios->groupBy(fn ($horario) => $horario->curso_id.'|'.$horario->ciclo_id);
 
-        return ['horarios' => $service->todos(), 'rol' => 'supervisor'];
+        return ['grupos' => $grupos, 'rol' => $rol];
     }
 }; ?>
 
@@ -71,21 +84,40 @@ new #[Layout('layouts.app')] class extends Component
     @endif
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        @forelse ($horarios as $horario)
-            <a
-                href="{{ route('asistencia.show', $horario) }}"
-                wire:navigate
-                class="block rounded-lg border border-border bg-surface p-4 transition hover:border-accent"
-            >
-                <p class="font-display text-lg text-ink">{{ $horario->curso->nombre }}</p>
-                <p class="mt-1 text-sm text-ink-dim">{{ $horario->grado->nombre }} · {{ $horario->ciclo->nombre }}</p>
-                <p class="mt-3 text-xs text-ink-faint">
-                    @if ($rol !== 'docente')
-                        {{ $horario->docente->name }} ·
-                    @endif
-                    {{ $horario->diasResumen() }}
-                </p>
-            </a>
+        @forelse ($grupos as $grupo)
+            @php $primero = $grupo->first(); @endphp
+            <div class="rounded-lg border border-border bg-surface p-4">
+                <p class="font-display text-lg text-ink">{{ $primero->curso->nombre }}</p>
+                <p class="mt-1 text-sm text-ink-dim">{{ $primero->grado->nombre }} · {{ $primero->ciclo->nombre }}</p>
+
+                @if ($grupo->count() === 1)
+                    <p class="mt-3 text-xs text-ink-faint">
+                        @if ($rol !== 'docente')
+                            {{ $primero->docente->name }} ·
+                        @endif
+                        {{ $primero->diasResumen() }}
+                        @if ($primero->seccion)
+                            · Sección {{ $primero->seccion }}
+                        @endif
+                    </p>
+                    <a href="{{ route('asistencia.show', $primero) }}" wire:navigate class="mt-3 block text-sm font-medium text-accent hover:underline">
+                        Entrar
+                    </a>
+                @else
+                    <p class="mt-3 text-xs text-ink-faint">Elige tu sección:</p>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        @foreach ($grupo->sortBy('seccion') as $opcion)
+                            <a
+                                href="{{ route('asistencia.show', $opcion) }}"
+                                wire:navigate
+                                class="rounded-full border border-border bg-surface-2 px-3 py-1 text-xs font-medium text-ink transition hover:border-accent hover:text-accent"
+                            >
+                                Sección {{ $opcion->seccion }}
+                            </a>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
         @empty
             <p class="col-span-full py-8 text-center text-sm text-ink-faint">
                 @if ($rol === 'docente')
