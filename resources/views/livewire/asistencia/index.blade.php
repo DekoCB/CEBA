@@ -86,11 +86,14 @@ new #[Layout('layouts.app')] class extends Component
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         @forelse ($grupos as $grupo)
             @php $primero = $grupo->first(); @endphp
-            <div class="rounded-lg border border-border bg-surface p-4">
-                <p class="font-display text-lg text-ink">{{ $primero->curso->nombre }}</p>
-                <p class="mt-1 text-sm text-ink-dim">{{ $primero->grado->nombre }} · {{ $primero->ciclo->nombre }}</p>
-
-                @if ($grupo->count() === 1)
+            @if ($grupo->count() === 1)
+                <a
+                    href="{{ route('asistencia.show', $primero) }}"
+                    wire:navigate
+                    class="block rounded-lg border border-border bg-surface p-4 transition hover:border-accent"
+                >
+                    <p class="font-display text-lg text-ink">{{ $primero->curso->nombre }}</p>
+                    <p class="mt-1 text-sm text-ink-dim">{{ $primero->grado->nombre }} · {{ $primero->ciclo->nombre }}</p>
                     <p class="mt-3 text-xs text-ink-faint">
                         @if ($rol !== 'docente')
                             {{ $primero->docente->name }} ·
@@ -100,11 +103,13 @@ new #[Layout('layouts.app')] class extends Component
                             · Sección {{ $primero->seccion }}
                         @endif
                     </p>
-                    <a href="{{ route('asistencia.show', $primero) }}" wire:navigate class="mt-3 block text-sm font-medium text-accent hover:underline">
-                        Entrar
-                    </a>
-                @else
-                    <p class="mt-3 text-xs text-ink-faint">Elige tu sección:</p>
+                </a>
+            @else
+                <div class="rounded-lg border border-border bg-surface p-4">
+                    <p class="font-display text-lg text-ink">{{ $primero->curso->nombre }}</p>
+                    <p class="mt-1 text-sm text-ink-dim">{{ $primero->grado->nombre }} · {{ $primero->ciclo->nombre }}</p>
+
+                    <p class="mt-3 text-xs text-ink-faint">Selecciona una sección</p>
                     <div class="mt-2 flex flex-wrap gap-2">
                         @foreach ($grupo->sortBy('seccion') as $opcion)
                             <a
@@ -116,8 +121,8 @@ new #[Layout('layouts.app')] class extends Component
                             </a>
                         @endforeach
                     </div>
-                @endif
-            </div>
+                </div>
+            @endif
         @empty
             <p class="col-span-full py-8 text-center text-sm text-ink-faint">
                 @if ($rol === 'docente')
