@@ -100,6 +100,43 @@ class LibretaServiceTest extends TestCase
         $this->assertSame('AD', $resumen->first()['letra']);
     }
 
+    /**
+     * Si el curso está dividido en Grupo A/B, el resumen no debe traer una
+     * fila por el horario de la OTRA sección: antes de este fix,
+     * resumenPorCursos() traía todos los horarios del grado/ciclo sin
+     * filtrar por sección, así que un curso dividido aparecía dos veces --
+     * una con el promedio real (de la sección del estudiante) y otra
+     * fantasma, sin notas, por el horario de la sección ajena.
+     */
+    public function test_resumen_por_cursos_no_duplica_un_curso_dividido_en_secciones(): void
+    {
+        $ciclo = Ciclo::factory()->create();
+        $estudiante = Estudiante::factory()->create();
+        $horarioA = Horario::factory()->create(['ciclo_id' => $ciclo->id, 'seccion' => 'A']);
+        Horario::factory()->create([
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => $horarioA->grado_id,
+            'curso_id' => $horarioA->curso_id,
+            'seccion' => 'B',
+        ]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => $horarioA->grado_id,
+            'horario_id' => $horarioA->id,
+        ]);
+
+        $evaluacionService = $this->app->make(EvaluacionService::class);
+        $evaluacion = $evaluacionService->crear($horarioA, 'Evaluación', '2026-07-15');
+        $evaluacionService->calificar($evaluacion, $estudiante, 15.0, null, null);
+        $evaluacionService->publicar($evaluacion);
+
+        $resumen = $this->libretaService()->resumenPorCursos($estudiante, $ciclo);
+
+        $this->assertCount(1, $resumen);
+        $this->assertSame(15.0, $resumen->first()['promedio']);
+    }
+
     public function test_resumen_por_cursos_esta_vacio_sin_matricula_aprobada(): void
     {
         $estudiante = Estudiante::factory()->create();

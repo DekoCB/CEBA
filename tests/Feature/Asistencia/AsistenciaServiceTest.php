@@ -4,6 +4,7 @@ namespace Tests\Feature\Asistencia;
 
 use App\Modules\Academico\Enums\DiaSemanaEnum;
 use App\Modules\Academico\Models\Ciclo;
+use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Asistencia\Enums\EstadoAsistenciaEnum;
 use App\Modules\Asistencia\Models\Asistencia;
@@ -93,6 +94,38 @@ class AsistenciaServiceTest extends TestCase
 
         $this->assertTrue($estudiantesDeA->contains('id', $estudianteA->id));
         $this->assertFalse($estudiantesDeA->contains('id', $estudianteB->id));
+    }
+
+    /**
+     * Cuando un grado tiene varios cursos, cada uno con su propio par de
+     * horarios A/B, la matrícula de un estudiante guarda un horario_id de
+     * UNO solo de esos cursos (el que se usó para elegir su sección), pero
+     * eso lo hace pertenecer a la sección "A" de TODOS los cursos del
+     * grado, no solo al curso cuyo horario_id quedó guardado -- comparar
+     * por horario_id exacto (el bug original) lo excluía del roster de
+     * cualquier otro curso de su propia sección.
+     */
+    public function test_estudiantes_del_horario_incluye_a_quien_eligio_su_seccion_en_otro_curso_del_mismo_grado(): void
+    {
+        $grado = Grado::factory()->create();
+        $ciclo = Ciclo::factory()->create();
+
+        $curso1SeccionA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+        $curso2SeccionA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+
+        $estudiante = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $grado->id,
+            'ciclo_id' => $ciclo->id,
+            'horario_id' => $curso1SeccionA->id,
+        ]);
+
+        $estudiantesDelOtroCurso = $this->service()->estudiantesDelHorario($curso2SeccionA);
+
+        $this->assertTrue($estudiantesDelOtroCurso->contains('id', $estudiante->id));
     }
 
     public function test_registrar_crea_un_registro_de_asistencia_por_estudiante(): void

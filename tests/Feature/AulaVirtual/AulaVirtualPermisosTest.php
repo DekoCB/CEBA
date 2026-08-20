@@ -83,6 +83,44 @@ class AulaVirtualPermisosTest extends TestCase
             ->assertOk();
     }
 
+    /**
+     * Un estudiante de la Sección A no debe poder entrar al aula virtual de
+     * la Sección B del mismo grado/ciclo solo por conocer su URL, aunque el
+     * listado nunca le muestre ese enlace -- antes de este fix, la policy
+     * solo comparaba grado_id/ciclo_id, sin mirar a qué sección pertenece
+     * la matrícula del estudiante.
+     */
+    public function test_un_estudiante_no_puede_ver_el_aula_virtual_de_la_otra_seccion(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+
+        $horarioA = Horario::factory()->create(['docente_id' => $docente->id, 'seccion' => 'A']);
+        $horarioB = Horario::factory()->create([
+            'docente_id' => $docente->id,
+            'grado_id' => $horarioA->grado_id,
+            'ciclo_id' => $horarioA->ciclo_id,
+            'seccion' => 'B',
+        ]);
+
+        $cursoB = CursoVirtual::factory()->create(['horario_id' => $horarioB->id]);
+
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $horarioA->ciclo_id,
+            'grado_id' => $horarioA->grado_id,
+            'horario_id' => $horarioA->id,
+        ]);
+
+        $this->actingAs($usuario)
+            ->get(route('aula-virtual.show', $cursoB))
+            ->assertForbidden();
+    }
+
     public function test_un_estudiante_matriculado_puede_responder_en_un_foro(): void
     {
         $usuario = User::factory()->create();

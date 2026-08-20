@@ -39,6 +39,11 @@ class HorarioAsistenciaPolicy
         return $this->estudianteMatriculado($user, $horario);
     }
 
+    /**
+     * Si el horario pertenece a una sección (Grupo A/B) real, solo cuenta
+     * como matriculado el estudiante de esa misma sección (ver
+     * Matricula::scopeDelHorario()), no cualquiera del grado/ciclo.
+     */
     private function estudianteMatriculado(User $user, Horario $horario): bool
     {
         if (! $user->hasPermissionTo('asistencia.ver_propio')) {
@@ -53,9 +58,7 @@ class HorarioAsistenciaPolicy
 
         return Matricula::query()
             ->where('estudiante_id', $estudiante->id)
-            ->where('grado_id', $horario->grado_id)
-            ->where('ciclo_id', $horario->ciclo_id)
-            ->where('estado', 'aprobada')
+            ->delHorario($horario)
             ->exists();
     }
 }

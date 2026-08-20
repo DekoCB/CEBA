@@ -41,6 +41,13 @@ class CursoVirtualPolicy
         return $user->hasPermissionTo('aula_virtual.gestionar_propio') && $curso->esDelDocente($user->id);
     }
 
+    /**
+     * Si el horario pertenece a una sección (Grupo A/B) real, solo cuenta
+     * como matriculado el estudiante de esa misma sección -- sin este
+     * chequeo, cualquier estudiante del grado/ciclo podía entrar al aula
+     * virtual de la OTRA sección con solo conocer su URL, aunque nunca se
+     * le mostrara el enlace (ver Matricula::scopeDelHorario()).
+     */
     private function estudianteMatriculado(User $user, CursoVirtual $curso): bool
     {
         if (! $user->hasPermissionTo('aula_virtual.ver_propio')) {
@@ -55,9 +62,7 @@ class CursoVirtualPolicy
 
         return Matricula::query()
             ->where('estudiante_id', $estudiante->id)
-            ->where('ciclo_id', $curso->horario->ciclo_id)
-            ->where('grado_id', $curso->horario->grado_id)
-            ->where('estado', 'aprobada')
+            ->delHorario($curso->horario)
             ->exists();
     }
 }

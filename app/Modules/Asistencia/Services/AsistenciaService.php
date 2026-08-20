@@ -71,26 +71,20 @@ class AsistenciaService
     }
 
     /**
-     * Estudiantes matriculados (aprobados) en el grado y ciclo de un horario.
-     * Si el grado tiene varias secciones (Grupo A/B) y la matrícula ya tiene
-     * un horario_id asignado, solo cuentan los de esa sección específica;
-     * las matrículas sin horario_id (registradas antes de que existiera
-     * este campo, o de un grado con una sola sección) siguen contando en
-     * cualquier horario de su grado+ciclo, como antes de este cambio.
+     * Estudiantes matriculados (aprobados) en el grado y ciclo de un
+     * horario. Si el horario pertenece a una sección (Grupo A/B) real, solo
+     * cuentan los estudiantes de esa misma sección -- ver
+     * Matricula::scopeDelHorario() para el criterio exacto (compara por
+     * letra de sección, no por horario_id exacto, porque un mismo
+     * estudiante tiene un horario_id fijo pero el grado puede tener varios
+     * cursos, cada uno con su propio par de filas A/B).
      *
      * @return Collection<int, Estudiante>
      */
     public function estudiantesDelHorario(Horario $horario): Collection
     {
         return Estudiante::query()
-            ->whereIn('id', Matricula::query()
-                ->where('grado_id', $horario->grado_id)
-                ->where('ciclo_id', $horario->ciclo_id)
-                ->where('estado', 'aprobada')
-                ->where(function ($query) use ($horario) {
-                    $query->where('horario_id', $horario->id)->orWhereNull('horario_id');
-                })
-                ->pluck('estudiante_id'))
+            ->whereIn('id', Matricula::query()->delHorario($horario)->pluck('estudiante_id'))
             ->orderBy('apellidos')
             ->orderBy('nombres')
             ->get();

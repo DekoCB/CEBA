@@ -47,9 +47,13 @@ class LibretaService
             return collect();
         }
 
+        // Si el grado tiene cursos divididos en Grupo A/B, solo entran a la
+        // libreta los horarios de la sección del estudiante (o sin dividir)
+        // -- sin este filtro, cada curso dividido aparecía dos veces: una
+        // con el promedio real y otra fantasma (sin notas) por el horario
+        // de la sección ajena.
         $horarios = Horario::query()
-            ->where('ciclo_id', $ciclo->id)
-            ->where('grado_id', $matricula->grado_id)
+            ->deLaMatricula($matricula)
             ->with('curso')
             ->get();
 
