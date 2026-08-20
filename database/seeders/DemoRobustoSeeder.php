@@ -228,11 +228,16 @@ class DemoRobustoSeeder extends Seeder
 
         // Todo grado que todavía no tenga un Grupo A/B real en este ciclo
         // recibe uno: se divide uno de sus cursos sin horario en una
-        // sección "A" (mayores, lunes y miércoles) y una "B" (menores,
-        // martes y jueves) -- la misma pareja que AcademicoDemoSeeder crea
-        // a mano para el Grado 1. Sin esto, solo el Grado 1 demuestra el
-        // flujo de elegir sección al matricular; el resto de grados se
-        // queda sin nada que asignar en la ficha del estudiante.
+        // sección "A" (lunes y miércoles) y una "B" (martes y jueves). A
+        // diferencia del par que AcademicoDemoSeeder crea a mano para el
+        // Grado 1 (que sí está ligado a la edad, para demostrar el candado
+        // de mayores/menores), esta división es solo de turno: mismo
+        // público, sin tipo_publico, para que la sección de un estudiante
+        // sea algo que de verdad se pueda reasignar después desde la ficha
+        // (Editar sección) sin chocar con la validación de edad. Sin esto,
+        // solo el Grado 1 demuestra el flujo de elegir sección al
+        // matricular, y su elección quedaría fija de por vida porque ahí sí
+        // depende de la edad.
         $gradosConSeccion = Horario::query()->where('ciclo_id', $ciclo->id)->whereNotNull('seccion')->pluck('grado_id');
 
         foreach ($grados as $grado) {
@@ -246,8 +251,8 @@ class DemoRobustoSeeder extends Seeder
                 continue;
             }
 
-            $creadaA = $this->ubicarHorario($cursoParaDividir, $ciclo, [FranjaHorarioEnum::LUN_MIE], $bloques, $aulas, $docentes, $ocupacionAula, $ocupacionDocente, $docenteIdx, 'A', TipoPublicoEnum::MAYOR);
-            $this->ubicarHorario($cursoParaDividir, $ciclo, [FranjaHorarioEnum::MAR_JUE], $bloques, $aulas, $docentes, $ocupacionAula, $ocupacionDocente, $docenteIdx, 'B', TipoPublicoEnum::MENOR);
+            $creadaA = $this->ubicarHorario($cursoParaDividir, $ciclo, [FranjaHorarioEnum::LUN_MIE], $bloques, $aulas, $docentes, $ocupacionAula, $ocupacionDocente, $docenteIdx, 'A');
+            $this->ubicarHorario($cursoParaDividir, $ciclo, [FranjaHorarioEnum::MAR_JUE], $bloques, $aulas, $docentes, $ocupacionAula, $ocupacionDocente, $docenteIdx, 'B');
 
             if ($creadaA) {
                 $cursosSinHorario = $cursosSinHorario->reject(fn (Curso $curso) => $curso->id === $cursoParaDividir->id)->values();
@@ -414,11 +419,17 @@ class DemoRobustoSeeder extends Seeder
     {
         $publicoEsperado = $esMenor ? TipoPublicoEnum::MENOR : TipoPublicoEnum::MAYOR;
 
+        // inRandomOrder() reparte a los estudiantes entre las secciones
+        // cuando hay varias compatibles con su edad (el caso normal: una
+        // división por turno sin tipo_publico, donde cualquiera de las dos
+        // sirve) -- si no, todos caerían siempre en la primera y la otra
+        // sección se vería vacía en la demo.
         return Horario::query()
             ->where('grado_id', $grado->id)
             ->where('ciclo_id', $ciclo->id)
             ->whereNotNull('seccion')
             ->where(fn ($query) => $query->whereNull('tipo_publico')->orWhere('tipo_publico', $publicoEsperado))
+            ->inRandomOrder()
             ->value('id');
     }
 
