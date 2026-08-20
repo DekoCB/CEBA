@@ -93,7 +93,7 @@ class EvaluacionServiceTest extends TestCase
             'estudiante_id' => $estudianteA->id,
             'grado_id' => $grado->id,
             'ciclo_id' => $ciclo->id,
-            'horario_id' => $horarioA->id,
+            'seccion' => $horarioA->seccion,
         ]);
 
         $estudianteB = Estudiante::factory()->create();
@@ -101,7 +101,7 @@ class EvaluacionServiceTest extends TestCase
             'estudiante_id' => $estudianteB->id,
             'grado_id' => $grado->id,
             'ciclo_id' => $ciclo->id,
-            'horario_id' => $horarioB->id,
+            'seccion' => $horarioB->seccion,
         ]);
 
         $estudiantesDeA = $this->service()->estudiantesDelHorario($horarioA);
@@ -143,7 +143,7 @@ class EvaluacionServiceTest extends TestCase
             'estudiante_id' => $estudianteA->id,
             'grado_id' => $grado->id,
             'ciclo_id' => $ciclo->id,
-            'horario_id' => $horarioComunicacionA->id,
+            'seccion' => $horarioComunicacionA->seccion,
         ]);
 
         $estudiantesDeMatematica = $this->service()->estudiantesDelHorario($horarioMatematicaSinDividir);
@@ -164,7 +164,7 @@ class EvaluacionServiceTest extends TestCase
             'estudiante_id' => $estudianteA->id,
             'grado_id' => $grado->id,
             'ciclo_id' => $ciclo->id,
-            'horario_id' => $horarioComunicacionA->id,
+            'seccion' => $horarioComunicacionA->seccion,
         ]);
 
         $horarios = $this->service()->horariosDelEstudiante($estudianteA);
@@ -273,7 +273,7 @@ class EvaluacionServiceTest extends TestCase
             'estudiante_id' => $estudiante->id,
             'grado_id' => $grado->id,
             'ciclo_id' => $ciclo->id,
-            'horario_id' => $horarioA->id,
+            'seccion' => $horarioA->seccion,
         ]);
 
         $horarios = $this->service()->horariosDelEstudiante($estudiante);

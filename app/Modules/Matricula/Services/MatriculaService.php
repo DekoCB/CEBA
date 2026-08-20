@@ -146,7 +146,7 @@ class MatriculaService
             ]);
         }
 
-        $horario = $this->resolverHorario($grado, $ciclo, $data->horarioId);
+        $horario = $this->resolverHorarioParaValidacion($grado, $ciclo, $data->seccion);
 
         $this->validarHorarioCoherenteConEdad($estudiante, $horario);
 
@@ -155,7 +155,7 @@ class MatriculaService
                 'estudiante_id' => $estudiante->id,
                 'ciclo_id' => $ciclo->id,
                 'grado_id' => $grado->id,
-                'horario_id' => $horario?->id,
+                'seccion' => $horario?->seccion,
                 'fecha_matricula' => now(),
                 'estado' => EstadoMatriculaEnum::APROBADA,
                 'observaciones' => $data->observaciones,
@@ -171,19 +171,54 @@ class MatriculaService
     }
 
     /**
-     * Reasigna la sección (horario) de una matrícula ya existente, por
+     * Reasigna la sección (Grupo A/B) de una matrícula ya existente, por
      * ejemplo desde la ficha del estudiante. Reutiliza las mismas
      * validaciones que matricular() (coherencia con la edad, pertenencia
      * al grado/ciclo de la matrícula) para que un cambio manual no pueda
-     * dejar al estudiante en un grupo inválido.
+     * dejar al estudiante en un grupo inválido. Es independiente de
+     * horario_id: cambiar de sección no toca a qué horario específico
+     * apunta la matrícula (ver reasignarHorario()).
      */
-    public function reasignarHorario(Matricula $matricula, ?int $horarioId): Matricula
+    public function reasignarSeccion(Matricula $matricula, ?string $seccion): Matricula
     {
-        $horario = $this->resolverHorario($matricula->grado, $matricula->ciclo, $horarioId);
+        $horario = $this->resolverHorarioParaValidacion($matricula->grado, $matricula->ciclo, $seccion);
 
         $this->validarHorarioCoherenteConEdad($matricula->estudiante, $horario);
 
-        $matricula->update(['horario_id' => $horario?->id]);
+        $matricula->update(['seccion' => $horario?->seccion]);
+
+        return $matricula;
+    }
+
+    /**
+     * Reasigna a qué horario específico (curso + docente + día/hora)
+     * apunta la matrícula, por ejemplo desde la ficha del estudiante. Es
+     * puramente informativo/de referencia: independiente de la sección
+     * (Grupo A/B) del estudiante -- ver reasignarSeccion() -- así que no
+     * exige que el horario elegido comparta la sección de la matrícula, ni
+     * valida coherencia de edad. Solo exige que el horario pertenezca al
+     * mismo grado y ciclo de la matrícula.
+     */
+    public function reasignarHorario(Matricula $matricula, ?int $horarioId): Matricula
+    {
+        if ($horarioId === null) {
+            $matricula->update(['horario_id' => null]);
+
+            return $matricula;
+        }
+
+        $horario = Horario::query()
+            ->where('grado_id', $matricula->grado_id)
+            ->where('ciclo_id', $matricula->ciclo_id)
+            ->find($horarioId);
+
+        if ($horario === null) {
+            throw ValidationException::withMessages([
+                'horario' => 'El horario seleccionado no pertenece al grado y ciclo de esta matrícula.',
+            ]);
+        }
+
+        $matricula->update(['horario_id' => $horario->id]);
 
         return $matricula;
     }
@@ -191,16 +226,18 @@ class MatriculaService
     /**
      * Si el grado está realmente dividido en secciones (Grupo A/B: al
      * menos un horario del grado declara una sección propia), exige
-     * elegir a cuál se matricula el estudiante. Un grado con varios
-     * horarios que corresponden a distintos cursos pero SIN sección
-     * propia (lo normal: cada curso del grado tiene su propio horario, sin
-     * que eso implique grupos) no cuenta como "varias secciones" y no
-     * pide nada -- la matrícula queda sin horario_id, y
-     * Matricula::scopeDelHorario()/Horario::scopeDeLaMatricula() ya tratan
-     * ese caso como "aplica a cualquier horario del grado". Si el grado no
-     * tiene ningún horario todavía, también queda sin horario_id.
+     * elegir a cuál se matricula el estudiante y devuelve un horario
+     * representante de esa sección (de cualquiera de sus cursos -- cuál
+     * quede como representante no importa, solo sirve para leer su
+     * sección y su tipo_publico). Un grado con varios horarios que
+     * corresponden a distintos cursos pero SIN sección propia (lo normal:
+     * cada curso del grado tiene su propio horario, sin que eso implique
+     * grupos) no cuenta como "varias secciones" y no pide nada -- la
+     * matrícula queda sin sección. Si el grado no tiene ningún horario
+     * todavía, o tiene uno solo, también queda sin exigir nada: ese único
+     * horario (con o sin sección) se usa tal cual para validar edad.
      */
-    private function resolverHorario(Grado $grado, Ciclo $ciclo, ?int $horarioId): ?Horario
+    private function resolverHorarioParaValidacion(Grado $grado, Ciclo $ciclo, ?string $seccionElegida): ?Horario
     {
         $horariosDelGrado = Horario::query()
             ->where('grado_id', $grado->id)
@@ -215,17 +252,17 @@ class MatriculaService
             return null;
         }
 
-        if ($horarioId === null) {
+        if ($seccionElegida === null) {
             throw ValidationException::withMessages([
-                'horario' => "El grado «{$grado->nombre}» tiene varias secciones en este ciclo: selecciona a cuál se matricula el estudiante.",
+                'seccion' => "El grado «{$grado->nombre}» tiene varias secciones en este ciclo: selecciona a cuál se matricula el estudiante.",
             ]);
         }
 
-        $horario = $horariosDelGrado->firstWhere('id', $horarioId);
+        $horario = $horariosDelGrado->firstWhere('seccion', $seccionElegida);
 
         if ($horario === null) {
             throw ValidationException::withMessages([
-                'horario' => 'La sección seleccionada no pertenece a este grado y ciclo.',
+                'seccion' => 'La sección seleccionada no pertenece a este grado y ciclo.',
             ]);
         }
 
@@ -249,7 +286,7 @@ class MatriculaService
             $seccion = $horario->seccion ? "«{$horario->seccion}»" : 'seleccionado';
 
             throw ValidationException::withMessages([
-                'horario' => "El grupo {$seccion} es para {$horario->tipo_publico->label()}, pero el estudiante es {$publicoEsperado->label()}.",
+                'seccion' => "El grupo {$seccion} es para {$horario->tipo_publico->label()}, pero el estudiante es {$publicoEsperado->label()}.",
             ]);
         }
     }
@@ -381,7 +418,7 @@ class MatriculaService
                 $this->matricular($estudiante, new RegistrarMatriculaData(
                     cicloId: $cicloId,
                     gradoId: $grado->id,
-                    horarioId: null,
+                    seccion: null,
                     observaciones: $this->celdaOpcional($fila, 'observaciones'),
                     registradoPor: $registradoPor,
                 ));

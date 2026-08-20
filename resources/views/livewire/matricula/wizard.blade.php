@@ -95,7 +95,7 @@ new class extends Component
 
     public string $gradoId = '';
 
-    public string $horarioId = '';
+    public string $seccionElegida = '';
 
     public string $observacionesMatricula = '';
 
@@ -119,27 +119,29 @@ new class extends Component
 
     public function updatedGradoId(): void
     {
-        $this->horarioId = '';
+        $this->seccionElegida = '';
     }
 
     public function updatedCicloId(): void
     {
-        $this->horarioId = '';
+        $this->seccionElegida = '';
     }
 
     /**
      * Solo las secciones (Grupo A/B) reales del grado, compatibles con la
-     * edad del estudiante: los horarios que declaran una sección propia y
-     * no declaran público (sin restricción) o coinciden con el suyo. Si el
-     * grado no está realmente dividido en secciones -- aunque tenga varios
+     * edad del estudiante: las letras que declara algún horario sin
+     * público (sin restricción) o que coincide con el suyo. Si el grado no
+     * está realmente dividido en secciones -- aunque tenga varios
      * horarios, uno por cada curso -- no hay nada que elegir y se devuelve
-     * vacío, igual que MatriculaService::resolverHorario() decide cuándo
-     * pedir sección.
+     * vacío, igual que MatriculaService::resolverHorarioParaValidacion()
+     * decide cuándo pedir sección. La sección elegida aquí es independiente
+     * del horario específico de la matrícula (ver
+     * Matricula::scopeDelHorario()): solo importa la letra.
      *
-     * @return Collection<int, Horario>
+     * @return Collection<int, string>
      */
     #[Computed]
-    public function horariosDelGrado()
+    public function seccionesDelGrado()
     {
         if ($this->cicloId === '' || $this->gradoId === '') {
             return collect();
@@ -147,26 +149,14 @@ new class extends Component
 
         $publicoEsperado = $this->esMenorDeEdad ? TipoPublicoEnum::MENOR : TipoPublicoEnum::MAYOR;
 
-        $horarios = Horario::query()
+        return Horario::query()
             ->where('ciclo_id', (int) $this->cicloId)
             ->where('grado_id', (int) $this->gradoId)
+            ->whereNotNull('seccion')
             ->where(fn ($query) => $query->whereNull('tipo_publico')->orWhere('tipo_publico', $publicoEsperado))
-            ->with(['docente', 'aula', 'dias'])
-            ->get();
-
-        if ($horarios->pluck('seccion')->filter()->isEmpty()) {
-            return collect();
-        }
-
-        // Un grado dividido puede tener varios cursos, cada uno con su
-        // propio par de horarios A/B: no se listan todas esas filas (se
-        // verían "Sección A" repetida una vez por curso), solo una por
-        // letra de sección -- cuál curso queda como representante no
-        // importa, el horario_id elegido solo funciona como etiqueta de a
-        // qué grupo pertenece el estudiante (ver Matricula::scopeDelHorario()).
-        return $horarios->filter(fn (Horario $horario) => $horario->seccion !== null)
-            ->unique('seccion')
-            ->sortBy('seccion')
+            ->pluck('seccion')
+            ->unique()
+            ->sort()
             ->values();
     }
 
@@ -255,7 +245,7 @@ new class extends Component
             $this->validate([
                 'cicloId' => 'required|integer|exists:ciclos,id',
                 'gradoId' => 'required|integer|exists:grados,id',
-                'horarioId' => 'nullable|integer|exists:horarios,id',
+                'seccionElegida' => 'nullable|string|max:10',
             ]);
 
             $this->paso = 6;
@@ -405,7 +395,7 @@ new class extends Component
             $matricula = $matriculaService->matricular($estudiante, new RegistrarMatriculaData(
                 cicloId: (int) $this->cicloId,
                 gradoId: (int) $this->gradoId,
-                horarioId: $this->horarioId !== '' ? (int) $this->horarioId : null,
+                seccion: $this->seccionElegida !== '' ? $this->seccionElegida : null,
                 observaciones: $this->observacionesMatricula ?: null,
                 registradoPor: auth()->id(),
             ));
@@ -724,18 +714,18 @@ new class extends Component
                     />
                     <x-input-error :messages="$errors->get('gradoId')" class="mt-1" />
                 </div>
-                @if ($this->horariosDelGrado->count() > 1)
+                @if ($this->seccionesDelGrado->count() > 1)
                     <div class="sm:col-span-2">
-                        <x-input-label for="horarioId" value="Sección" />
+                        <x-input-label for="seccionElegida" value="Sección" />
                         <x-select-input
-                            wire:model="horarioId"
-                            id="horarioId"
+                            wire:model="seccionElegida"
+                            id="seccionElegida"
                             class="mt-1 block w-full"
-                            :options="collect($this->horariosDelGrado)->mapWithKeys(fn ($horario) => [$horario->id => 'Sección '.$horario->seccion.' · '.$horario->diasResumen()])"
+                            :options="collect($this->seccionesDelGrado)->mapWithKeys(fn ($seccion) => [$seccion => 'Sección '.$seccion])"
                         />
                         <p class="mt-1 text-xs text-ink-faint">Este grado tiene más de una sección en el ciclo elegido: selecciona a cuál se matricula el estudiante.</p>
-                        <x-input-error :messages="$errors->get('horarioId')" class="mt-1" />
-                        <x-input-error :messages="$errors->get('horario')" class="mt-1" />
+                        <x-input-error :messages="$errors->get('seccionElegida')" class="mt-1" />
+                        <x-input-error :messages="$errors->get('seccion')" class="mt-1" />
                     </div>
                 @endif
                 <div class="sm:col-span-2">

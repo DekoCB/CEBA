@@ -123,7 +123,7 @@ class LibretaServiceTest extends TestCase
             'estudiante_id' => $estudiante->id,
             'ciclo_id' => $ciclo->id,
             'grado_id' => $horarioA->grado_id,
-            'horario_id' => $horarioA->id,
+            'seccion' => $horarioA->seccion,
         ]);
 
         $evaluacionService = $this->app->make(EvaluacionService::class);

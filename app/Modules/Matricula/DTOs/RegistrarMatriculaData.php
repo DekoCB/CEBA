@@ -9,7 +9,7 @@ final readonly class RegistrarMatriculaData
     public function __construct(
         public int $cicloId,
         public int $gradoId,
-        public ?int $horarioId,
+        public ?string $seccion,
         public ?string $observaciones,
         public ?int $registradoPor,
     ) {}

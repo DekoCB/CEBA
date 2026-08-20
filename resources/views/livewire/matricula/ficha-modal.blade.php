@@ -26,6 +26,10 @@ new class extends Component
 
     public string $observacionesTexto = '';
 
+    public ?int $editandoSeccionMatriculaId = null;
+
+    public string $seccionSeleccionada = '';
+
     public ?int $editandoHorarioMatriculaId = null;
 
     public string $horarioSeleccionado = '';
@@ -37,6 +41,8 @@ new class extends Component
 
         $this->estudianteId = $estudianteId;
         $this->observacionesTexto = Estudiante::query()->find($estudianteId)?->observaciones ?? '';
+        $this->editandoSeccionMatriculaId = null;
+        $this->seccionSeleccionada = '';
         $this->editandoHorarioMatriculaId = null;
         $this->horarioSeleccionado = '';
     }
@@ -54,6 +60,38 @@ new class extends Component
         Gate::authorize('matricula.editar');
 
         Estudiante::query()->findOrFail($this->estudianteId)->update(['observaciones' => $this->observacionesTexto ?: null]);
+    }
+
+    public function editarSeccion(int $matriculaId): void
+    {
+        Gate::authorize('matricula.editar');
+
+        $matricula = Matricula::query()->findOrFail($matriculaId);
+
+        $this->editandoSeccionMatriculaId = $matriculaId;
+        $this->seccionSeleccionada = $matricula->seccion ?? '';
+    }
+
+    public function cancelarEdicionSeccion(): void
+    {
+        $this->editandoSeccionMatriculaId = null;
+        $this->seccionSeleccionada = '';
+    }
+
+    public function guardarSeccion(MatriculaService $service): void
+    {
+        Gate::authorize('matricula.editar');
+
+        if ($this->editandoSeccionMatriculaId === null) {
+            return;
+        }
+
+        $matricula = Matricula::query()->findOrFail($this->editandoSeccionMatriculaId);
+
+        $service->reasignarSeccion($matricula, $this->seccionSeleccionada !== '' ? $this->seccionSeleccionada : null);
+
+        $this->editandoSeccionMatriculaId = null;
+        $this->seccionSeleccionada = '';
     }
 
     public function editarHorario(int $matriculaId): void
@@ -89,29 +127,34 @@ new class extends Component
     }
 
     /**
-     * @return Collection<int, Horario>
+     * @return Collection<int, string>
      */
-    private function horariosParaMatricula(Matricula $matricula, Estudiante $estudiante): Collection
+    private function seccionesParaMatricula(Matricula $matricula, Estudiante $estudiante): Collection
     {
         $publicoEsperado = $estudiante->es_menor_edad ? TipoPublicoEnum::MENOR : TipoPublicoEnum::MAYOR;
 
-        $horarios = Horario::query()
+        return Horario::query()
             ->where('ciclo_id', $matricula->ciclo_id)
             ->where('grado_id', $matricula->grado_id)
+            ->whereNotNull('seccion')
             ->where(fn ($query) => $query->whereNull('tipo_publico')->orWhere('tipo_publico', $publicoEsperado))
-            ->with(['docente', 'dias'])
-            ->get();
+            ->pluck('seccion')
+            ->unique()
+            ->sort()
+            ->values();
+    }
 
-        if ($horarios->pluck('seccion')->filter()->isEmpty()) {
-            return collect();
-        }
-
-        // Un grado dividido puede tener varios cursos, cada uno con su
-        // propio par de horarios A/B: se muestra una sola opción por letra
-        // de sección, no una por curso (ver wizard.blade.php).
-        return $horarios->filter(fn (Horario $horario) => $horario->seccion !== null)
-            ->unique('seccion')
-            ->sortBy('seccion')
+    /**
+     * @return Collection<int, Horario>
+     */
+    private function horariosParaMatricula(Matricula $matricula): Collection
+    {
+        return Horario::query()
+            ->where('ciclo_id', $matricula->ciclo_id)
+            ->where('grado_id', $matricula->grado_id)
+            ->with(['curso', 'docente', 'dias'])
+            ->get()
+            ->sortBy(fn (Horario $horario) => ($horario->seccion ?? '').'|'.$horario->curso->nombre)
             ->values();
     }
 
@@ -119,14 +162,15 @@ new class extends Component
     {
         $estudiante = $this->estudianteId ? Estudiante::query()->with(['media', 'user.media'])->find($this->estudianteId) : null;
 
-        $matriculas = $estudiante?->matriculas()->with(['ciclo', 'grado', 'horario.docente', 'media'])->latest('fecha_matricula')->get();
+        $matriculas = $estudiante?->matriculas()->with(['ciclo', 'grado', 'horario.curso', 'horario.docente', 'media'])->latest('fecha_matricula')->get();
 
         return [
             'estudiante' => $estudiante,
             'documentos' => $estudiante?->documentos()->with('media')->get(),
             'examenes' => $estudiante?->examenesUbicacion()->with('gradoAsignado')->latest('fecha')->get(),
             'matriculas' => $matriculas,
-            'horariosPorMatricula' => $matriculas?->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $this->horariosParaMatricula($matricula, $estudiante)]) ?? collect(),
+            'seccionesPorMatricula' => $matriculas?->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $this->seccionesParaMatricula($matricula, $estudiante)]) ?? collect(),
+            'horariosPorMatricula' => $matriculas?->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $this->horariosParaMatricula($matricula)]) ?? collect(),
             'planesPorMatricula' => $matriculas !== null && Auth::user()->hasPermissionTo('pagos.ver')
                 ? $matriculas->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $planes->planDe($matricula)])
                 : collect(),
@@ -155,6 +199,9 @@ new class extends Component
                     :documentos="$documentos"
                     :examenes="$examenes"
                     :matriculas="$matriculas"
+                    :secciones-por-matricula="$seccionesPorMatricula"
+                    :editando-seccion-matricula-id="$editandoSeccionMatriculaId"
+                    :seccion-seleccionada="$seccionSeleccionada"
                     :horarios-por-matricula="$horariosPorMatricula"
                     :editando-horario-matricula-id="$editandoHorarioMatriculaId"
                     :horario-seleccionado="$horarioSeleccionado"

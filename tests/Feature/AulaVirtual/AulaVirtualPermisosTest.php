@@ -113,7 +113,7 @@ class AulaVirtualPermisosTest extends TestCase
             'estudiante_id' => $estudiante->id,
             'ciclo_id' => $horarioA->ciclo_id,
             'grado_id' => $horarioA->grado_id,
-            'horario_id' => $horarioA->id,
+            'seccion' => $horarioA->seccion,
         ]);
 
         $this->actingAs($usuario)

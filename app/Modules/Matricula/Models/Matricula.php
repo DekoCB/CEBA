@@ -26,6 +26,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property int $ciclo_id
  * @property int $grado_id
  * @property int|null $horario_id
+ * @property string|null $seccion
  * @property Carbon $fecha_matricula
  * @property EstadoMatriculaEnum $estado
  * @property-read Estudiante|null $estudiante
@@ -43,6 +44,7 @@ class Matricula extends Model implements HasMedia
         'ciclo_id',
         'grado_id',
         'horario_id',
+        'seccion',
         'fecha_matricula',
         'estado',
         'observaciones',
@@ -100,9 +102,10 @@ class Matricula extends Model implements HasMedia
      * aplica cualquier horario de su grado) o que eligieron esa misma
      * sección; nunca las de la sección contraria. Si el horario consultado
      * no tiene sección (un curso del grado sin dividir en grupos), no se
-     * filtra en absoluto: cualquier matrícula del grado y ciclo cuenta, sin
-     * importar a qué horario específico haya quedado apuntando su
-     * horario_id por otro curso que sí esté dividido.
+     * filtra en absoluto: cualquier matrícula del grado y ciclo cuenta. La
+     * sección de la matrícula vive en su propia columna (seccion),
+     * independiente de horario_id -- ver la migración
+     * 2027_01_05_090000_add_seccion_to_matriculas_table.
      */
     public function scopeDelHorario(Builder $query, Horario $horario): Builder
     {
@@ -111,10 +114,7 @@ class Matricula extends Model implements HasMedia
             ->where('estado', 'aprobada');
 
         if ($horario->seccion !== null) {
-            $query->where(function (Builder $query) use ($horario) {
-                $query->whereNull('horario_id')
-                    ->orWhereHas('horario', fn (Builder $query) => $query->where('seccion', $horario->seccion));
-            });
+            $query->where(fn (Builder $query) => $query->whereNull('seccion')->orWhere('seccion', $horario->seccion));
         }
 
         return $query;

@@ -405,7 +405,7 @@ class DemoRobustoSeeder extends Seeder
                     $servicio->matricular($estudiante, new RegistrarMatriculaData(
                         cicloId: $ciclo->id,
                         gradoId: $grado->id,
-                        horarioId: $this->horarioDeSeccionCompatible($grado, $ciclo, $esMenor),
+                        seccion: $this->seccionCompatible($grado, $ciclo, $esMenor),
                         observaciones: null,
                         registradoPor: null,
                     ));
@@ -420,13 +420,14 @@ class DemoRobustoSeeder extends Seeder
 
     /**
      * Si el grado está realmente dividido en secciones (Grupo A/B), elige
-     * la que corresponda a la edad del estudiante para que la matrícula no
-     * falle por "selecciona a cuál se matricula el estudiante" (ver
-     * MatriculaService::resolverHorario()). Si el grado no tiene ninguna
-     * sección propia -- lo normal, un horario por curso sin dividir --
-     * devuelve null y resolverHorario() lo resuelve solo.
+     * la letra que corresponda a la edad del estudiante para que la
+     * matrícula no falle por "selecciona a cuál se matricula el
+     * estudiante" (ver MatriculaService::resolverHorarioParaValidacion()).
+     * Si el grado no tiene ninguna sección propia -- lo normal, un
+     * horario por curso sin dividir -- devuelve null y ese método lo
+     * resuelve solo.
      */
-    private function horarioDeSeccionCompatible(Grado $grado, Ciclo $ciclo, bool $esMenor): ?int
+    private function seccionCompatible(Grado $grado, Ciclo $ciclo, bool $esMenor): ?string
     {
         $publicoEsperado = $esMenor ? TipoPublicoEnum::MENOR : TipoPublicoEnum::MAYOR;
 
@@ -441,7 +442,7 @@ class DemoRobustoSeeder extends Seeder
             ->whereNotNull('seccion')
             ->where(fn ($query) => $query->whereNull('tipo_publico')->orWhere('tipo_publico', $publicoEsperado))
             ->inRandomOrder()
-            ->value('id');
+            ->value('seccion');
     }
 
     private function diversificarEstadosDeEstudiantes(): void

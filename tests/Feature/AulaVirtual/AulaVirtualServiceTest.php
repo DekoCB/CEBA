@@ -58,7 +58,7 @@ class AulaVirtualServiceTest extends TestCase
             'estudiante_id' => $estudianteA->id,
             'grado_id' => $horarioA->grado_id,
             'ciclo_id' => $horarioA->ciclo_id,
-            'horario_id' => $horarioA->id,
+            'seccion' => $horarioA->seccion,
         ]);
 
         $cursos = $this->cursoVirtualService()->delEstudiante($estudianteA);

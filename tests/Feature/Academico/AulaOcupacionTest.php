@@ -86,7 +86,7 @@ class AulaOcupacionTest extends TestCase
             'estudiante_id' => $estudiante->id,
             'grado_id' => $horarioA->grado_id,
             'ciclo_id' => $ciclo->id,
-            'horario_id' => $horarioA->id,
+            'seccion' => $horarioA->seccion,
         ]);
 
         $horarioB = Horario::factory()->create(['ciclo_id' => $ciclo->id, 'aula_id' => $aula->id, 'seccion' => 'B', 'grado_id' => $horarioA->grado_id]);

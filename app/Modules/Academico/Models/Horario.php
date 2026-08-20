@@ -113,17 +113,15 @@ class Horario extends Model
      * como cualquier curso sin dividir en grupos) o los que comparten esa
      * misma sección; nunca los de la sección contraria. Complementa a
      * Matricula::scopeDelHorario(), la misma regla vista desde el otro
-     * lado. Necesita $matricula->horario cargado (o cargable) para conocer
-     * la sección elegida.
+     * lado. La sección de la matrícula vive en su propia columna
+     * (seccion), independiente de a qué horario apunte horario_id.
      */
     public function scopeDeLaMatricula(Builder $query, Matricula $matricula): Builder
     {
         $query->where('grado_id', $matricula->grado_id)->where('ciclo_id', $matricula->ciclo_id);
 
-        $seccionElegida = $matricula->horario?->seccion;
-
-        if ($seccionElegida !== null) {
-            $query->where(fn (Builder $query) => $query->whereNull('seccion')->orWhere('seccion', $seccionElegida));
+        if ($matricula->seccion !== null) {
+            $query->where(fn (Builder $query) => $query->whereNull('seccion')->orWhere('seccion', $matricula->seccion));
         }
 
         return $query;

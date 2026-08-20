@@ -36,8 +36,7 @@ class EloquentCursoVirtualRepository extends BaseRepository implements CursoVirt
     {
         $matriculas = $estudiante->matriculas()
             ->where('estado', 'aprobada')
-            ->with('horario:id,seccion')
-            ->get(['id', 'grado_id', 'ciclo_id', 'horario_id']);
+            ->get(['id', 'grado_id', 'ciclo_id', 'seccion']);
 
         if ($matriculas->isEmpty()) {
             return new Collection;

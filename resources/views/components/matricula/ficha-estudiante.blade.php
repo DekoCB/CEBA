@@ -1,4 +1,16 @@
-@props(['estudiante', 'documentos', 'examenes', 'matriculas', 'horariosPorMatricula' => [], 'editandoHorarioMatriculaId' => null, 'horarioSeleccionado' => '', 'planesPorMatricula' => []])
+@props([
+    'estudiante',
+    'documentos',
+    'examenes',
+    'matriculas',
+    'seccionesPorMatricula' => [],
+    'editandoSeccionMatriculaId' => null,
+    'seccionSeleccionada' => '',
+    'horariosPorMatricula' => [],
+    'editandoHorarioMatriculaId' => null,
+    'horarioSeleccionado' => '',
+    'planesPorMatricula' => [],
+])
 
 {{--
     Contenido de la ficha del estudiante, compartido entre la página
@@ -130,18 +142,47 @@
                     <p class="mt-1 text-ink-faint">Matriculado el {{ $matricula->fecha_matricula->format('d/m/Y') }}</p>
 
                     <div class="mt-2 flex items-center gap-2">
-                        @if ($matricula->horario)
-                            <p class="text-ink-faint">
-                                Sección: {{ $matricula->horario->seccion ? "Sección {$matricula->horario->seccion}" : 'Sin dividir' }}
-                                @if ($matricula->horario->docente) · {{ $matricula->horario->docente->name }} @endif
-                            </p>
-                        @else
-                            <p class="text-ink-faint">Sin sección asignada</p>
-                        @endif
+                        <p class="text-ink-faint">Sección: {{ $matricula->seccion ? "Sección {$matricula->seccion}" : 'Sin dividir' }}</p>
 
                         @can('matricula.editar')
-                            @if ((($horariosPorMatricula[$matricula->id] ?? collect())->count() > 1) && $editandoHorarioMatriculaId !== $matricula->id)
-                                <button type="button" wire:click="editarHorario({{ $matricula->id }})" class="text-xs font-medium text-accent hover:underline">Editar sección</button>
+                            @if ((($seccionesPorMatricula[$matricula->id] ?? collect())->count() > 1) && $editandoSeccionMatriculaId !== $matricula->id)
+                                <button type="button" wire:click="editarSeccion({{ $matricula->id }})" class="text-xs font-medium text-accent hover:underline">Editar sección</button>
+                            @endif
+                        @endcan
+                    </div>
+
+                    @can('matricula.editar')
+                        @if ($editandoSeccionMatriculaId === $matricula->id)
+                            <form wire:submit="guardarSeccion" class="mt-2 flex flex-wrap items-center gap-2">
+                                <x-select-input
+                                    wire:model="seccionSeleccionada"
+                                    class="w-40 text-xs"
+                                    placeholder="Selecciona una sección"
+                                    :options="collect($seccionesPorMatricula[$matricula->id] ?? [])->mapWithKeys(fn ($seccion) => [$seccion => 'Sección '.$seccion])"
+                                />
+                                <x-secondary-button type="submit">Guardar</x-secondary-button>
+                                <button type="button" wire:click="cancelarEdicionSeccion" class="text-xs text-ink-faint hover:text-ink">Cancelar</button>
+                            </form>
+                            <x-input-error :messages="$errors->get('seccionSeleccionada')" class="mt-1" />
+                            <x-input-error :messages="$errors->get('seccion')" class="mt-1" />
+                        @endif
+                    @endcan
+
+                    <div class="mt-2 flex items-center gap-2">
+                        <p class="text-ink-faint">
+                            Horario:
+                            @if ($matricula->horario)
+                                {{ $matricula->horario->curso->nombre }}
+                                @if ($matricula->horario->docente) · {{ $matricula->horario->docente->name }} @endif
+                                · {{ $matricula->horario->diasResumen() }}
+                            @else
+                                Sin asignar
+                            @endif
+                        </p>
+
+                        @can('matricula.editar')
+                            @if (($horariosPorMatricula[$matricula->id] ?? collect())->isNotEmpty() && $editandoHorarioMatriculaId !== $matricula->id)
+                                <button type="button" wire:click="editarHorario({{ $matricula->id }})" class="text-xs font-medium text-accent hover:underline">Editar horario</button>
                             @endif
                         @endcan
                     </div>
@@ -151,9 +192,9 @@
                             <form wire:submit="guardarHorario" class="mt-2 flex flex-wrap items-center gap-2">
                                 <x-select-input
                                     wire:model="horarioSeleccionado"
-                                    class="w-64 text-xs"
-                                    placeholder="Selecciona una sección"
-                                    :options="collect($horariosPorMatricula[$matricula->id] ?? [])->mapWithKeys(fn ($horario) => [$horario->id => 'Sección '.$horario->seccion.' · '.$horario->diasResumen()])"
+                                    class="w-72 text-xs"
+                                    placeholder="Sin horario asignado"
+                                    :options="collect($horariosPorMatricula[$matricula->id] ?? [])->mapWithKeys(fn ($horario) => [$horario->id => ($horario->seccion ? 'Sección '.$horario->seccion.' · ' : '').$horario->curso->nombre.' · '.$horario->docente?->name.' · '.$horario->diasResumen()])"
                                 />
                                 <x-secondary-button type="submit">Guardar</x-secondary-button>
                                 <button type="button" wire:click="cancelarEdicionHorario" class="text-xs text-ink-faint hover:text-ink">Cancelar</button>

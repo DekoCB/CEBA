@@ -20,6 +20,10 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $observacionesTexto = '';
 
+    public ?int $editandoSeccionMatriculaId = null;
+
+    public string $seccionSeleccionada = '';
+
     public ?int $editandoHorarioMatriculaId = null;
 
     public string $horarioSeleccionado = '';
@@ -49,6 +53,40 @@ new #[Layout('layouts.app')] class extends Component
         $this->estudiante->update(['observaciones' => $this->observacionesTexto ?: null]);
 
         session()->flash('status', 'Observaciones actualizadas.');
+    }
+
+    public function editarSeccion(int $matriculaId): void
+    {
+        Gate::authorize('matricula.editar');
+
+        $matricula = Matricula::query()->findOrFail($matriculaId);
+
+        $this->editandoSeccionMatriculaId = $matriculaId;
+        $this->seccionSeleccionada = $matricula->seccion ?? '';
+    }
+
+    public function cancelarEdicionSeccion(): void
+    {
+        $this->editandoSeccionMatriculaId = null;
+        $this->seccionSeleccionada = '';
+    }
+
+    public function guardarSeccion(MatriculaService $service): void
+    {
+        Gate::authorize('matricula.editar');
+
+        if ($this->editandoSeccionMatriculaId === null) {
+            return;
+        }
+
+        $matricula = Matricula::query()->findOrFail($this->editandoSeccionMatriculaId);
+
+        $service->reasignarSeccion($matricula, $this->seccionSeleccionada !== '' ? $this->seccionSeleccionada : null);
+
+        $this->editandoSeccionMatriculaId = null;
+        $this->seccionSeleccionada = '';
+
+        session()->flash('status', 'Sección actualizada.');
     }
 
     public function editarHorario(int $matriculaId): void
@@ -82,7 +120,7 @@ new #[Layout('layouts.app')] class extends Component
         $this->editandoHorarioMatriculaId = null;
         $this->horarioSeleccionado = '';
 
-        session()->flash('status', 'Sección actualizada.');
+        session()->flash('status', 'Horario actualizado.');
     }
 
     /**
@@ -90,29 +128,39 @@ new #[Layout('layouts.app')] class extends Component
      * cuando el grado realmente está dividido en Grupo A/B (al menos un
      * horario del grado/ciclo declara una sección propia).
      *
+     * @return Collection<int, string>
+     */
+    private function seccionesParaMatricula(Matricula $matricula): Collection
+    {
+        $publicoEsperado = $this->estudiante->es_menor_edad ? TipoPublicoEnum::MENOR : TipoPublicoEnum::MAYOR;
+
+        return Horario::query()
+            ->where('ciclo_id', $matricula->ciclo_id)
+            ->where('grado_id', $matricula->grado_id)
+            ->whereNotNull('seccion')
+            ->where(fn ($query) => $query->whereNull('tipo_publico')->orWhere('tipo_publico', $publicoEsperado))
+            ->pluck('seccion')
+            ->unique()
+            ->sort()
+            ->values();
+    }
+
+    /**
+     * Todos los horarios (cualquier curso) del grado y ciclo de la
+     * matrícula, sin filtrar por sección ni por edad: a diferencia de
+     * seccionesParaMatricula(), esto alimenta "Editar horario", que es
+     * independiente de a qué sección pertenece el estudiante.
+     *
      * @return Collection<int, Horario>
      */
     private function horariosParaMatricula(Matricula $matricula): Collection
     {
-        $publicoEsperado = $this->estudiante->es_menor_edad ? TipoPublicoEnum::MENOR : TipoPublicoEnum::MAYOR;
-
-        $horarios = Horario::query()
+        return Horario::query()
             ->where('ciclo_id', $matricula->ciclo_id)
             ->where('grado_id', $matricula->grado_id)
-            ->where(fn ($query) => $query->whereNull('tipo_publico')->orWhere('tipo_publico', $publicoEsperado))
-            ->with(['docente', 'dias'])
-            ->get();
-
-        if ($horarios->pluck('seccion')->filter()->isEmpty()) {
-            return collect();
-        }
-
-        // Un grado dividido puede tener varios cursos, cada uno con su
-        // propio par de horarios A/B: se muestra una sola opción por letra
-        // de sección, no una por curso (ver wizard.blade.php).
-        return $horarios->filter(fn (Horario $horario) => $horario->seccion !== null)
-            ->unique('seccion')
-            ->sortBy('seccion')
+            ->with(['curso', 'docente', 'dias'])
+            ->get()
+            ->sortBy(fn (Horario $horario) => ($horario->seccion ?? '').'|'.$horario->curso->nombre)
             ->values();
     }
 
@@ -120,12 +168,13 @@ new #[Layout('layouts.app')] class extends Component
     {
         $this->estudiante->refresh();
 
-        $matriculas = $this->estudiante->matriculas()->with(['ciclo', 'grado', 'horario.docente', 'media'])->latest('fecha_matricula')->get();
+        $matriculas = $this->estudiante->matriculas()->with(['ciclo', 'grado', 'horario.curso', 'horario.docente', 'media'])->latest('fecha_matricula')->get();
 
         return [
             'documentos' => $this->estudiante->documentos()->with('media')->get(),
             'examenes' => $this->estudiante->examenesUbicacion()->with('gradoAsignado')->latest('fecha')->get(),
             'matriculas' => $matriculas,
+            'seccionesPorMatricula' => $matriculas->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $this->seccionesParaMatricula($matricula)]),
             'horariosPorMatricula' => $matriculas->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $this->horariosParaMatricula($matricula)]),
             'planesPorMatricula' => Auth::user()->hasPermissionTo('pagos.ver')
                 ? $matriculas->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $planes->planDe($matricula)])
@@ -159,6 +208,9 @@ new #[Layout('layouts.app')] class extends Component
         :documentos="$documentos"
         :examenes="$examenes"
         :matriculas="$matriculas"
+        :secciones-por-matricula="$seccionesPorMatricula"
+        :editando-seccion-matricula-id="$editandoSeccionMatriculaId"
+        :seccion-seleccionada="$seccionSeleccionada"
         :horarios-por-matricula="$horariosPorMatricula"
         :editando-horario-matricula-id="$editandoHorarioMatriculaId"
         :horario-seleccionado="$horarioSeleccionado"
