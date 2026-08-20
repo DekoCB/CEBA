@@ -110,7 +110,7 @@ class DemoRobustoSeeder extends Seeder
         $this->asegurarCursos($grados);
         $aulas = $this->asegurarAulas();
         $docentes = $this->crearDocentes(5);
-        $this->crearHorarios($ciclo, $aulas, $docentes);
+        $this->crearHorarios($ciclo, $grados, $aulas, $docentes);
         $this->crearEstudiantesYMatriculas($ciclo, $grados);
         $this->diversificarEstadosDeEstudiantes();
 
@@ -188,10 +188,11 @@ class DemoRobustoSeeder extends Seeder
     }
 
     /**
+     * @param  Collection<int, Grado>  $grados
      * @param  Collection<int, Aula>  $aulas
      * @param  Collection<int, User>  $docentesNuevos
      */
-    private function crearHorarios(Ciclo $ciclo, Collection $aulas, Collection $docentesNuevos): void
+    private function crearHorarios(Ciclo $ciclo, Collection $grados, Collection $aulas, Collection $docentesNuevos): void
     {
         $docenteBase = User::query()->where('email', 'docente@ceba.test')->first();
         $docentes = $docenteBase ? $docentesNuevos->push($docenteBase) : $docentesNuevos;
@@ -225,72 +226,125 @@ class DemoRobustoSeeder extends Seeder
 
         $docenteIdx = 0;
 
-        foreach ($cursosSinHorario as $curso) {
-            $asignado = false;
+        // Todo grado que todavía no tenga un Grupo A/B real en este ciclo
+        // recibe uno: se divide uno de sus cursos sin horario en una
+        // sección "A" (mayores, lunes y miércoles) y una "B" (menores,
+        // martes y jueves) -- la misma pareja que AcademicoDemoSeeder crea
+        // a mano para el Grado 1. Sin esto, solo el Grado 1 demuestra el
+        // flujo de elegir sección al matricular; el resto de grados se
+        // queda sin nada que asignar en la ficha del estudiante.
+        $gradosConSeccion = Horario::query()->where('ciclo_id', $ciclo->id)->whereNotNull('seccion')->pluck('grado_id');
 
-            foreach ($franjas as $franja) {
-                $diasFranja = $franja->dias();
-
-                foreach ($bloques as $bloqueIdx => $bloque) {
-                    foreach ($aulas as $aula) {
-                        $aulaLibre = collect($diasFranja)->every(
-                            fn (DiaSemanaEnum $dia) => ! isset($ocupacionAula["{$aula->id}|{$dia->value}|{$bloqueIdx}"])
-                        );
-
-                        if (! $aulaLibre) {
-                            continue;
-                        }
-
-                        $docente = null;
-
-                        for ($i = 0; $i < $docentes->count(); $i++) {
-                            $candidato = $docentes[($docenteIdx + $i) % $docentes->count()];
-
-                            $docenteLibre = collect($diasFranja)->every(
-                                fn (DiaSemanaEnum $dia) => ! isset($ocupacionDocente["{$candidato->id}|{$dia->value}|{$bloqueIdx}"])
-                            );
-
-                            if ($docenteLibre) {
-                                $docente = $candidato;
-                                $docenteIdx = ($docenteIdx + $i + 1) % $docentes->count();
-                                break;
-                            }
-                        }
-
-                        if (! $docente) {
-                            continue;
-                        }
-
-                        $horario = Horario::query()->create([
-                            'curso_id' => $curso->id,
-                            'docente_id' => $docente->id,
-                            'aula_id' => $aula->id,
-                            'ciclo_id' => $ciclo->id,
-                            'grado_id' => $curso->grado_id,
-                        ]);
-
-                        foreach ($diasFranja as $dia) {
-                            $horario->dias()->create([
-                                'dia_semana' => $dia,
-                                'hora_inicio' => $bloque[0],
-                                'hora_fin' => $bloque[1],
-                            ]);
-
-                            $ocupacionAula["{$aula->id}|{$dia->value}|{$bloqueIdx}"] = true;
-                            $ocupacionDocente["{$docente->id}|{$dia->value}|{$bloqueIdx}"] = true;
-                        }
-
-                        $asignado = true;
-
-                        break 3;
-                    }
-                }
+        foreach ($grados as $grado) {
+            if ($gradosConSeccion->contains($grado->id)) {
+                continue;
             }
 
-            if (! $asignado) {
-                break;
+            $cursoParaDividir = $cursosSinHorario->firstWhere('grado_id', $grado->id);
+
+            if (! $cursoParaDividir) {
+                continue;
+            }
+
+            $creadaA = $this->ubicarHorario($cursoParaDividir, $ciclo, [FranjaHorarioEnum::LUN_MIE], $bloques, $aulas, $docentes, $ocupacionAula, $ocupacionDocente, $docenteIdx, 'A', TipoPublicoEnum::MAYOR);
+            $this->ubicarHorario($cursoParaDividir, $ciclo, [FranjaHorarioEnum::MAR_JUE], $bloques, $aulas, $docentes, $ocupacionAula, $ocupacionDocente, $docenteIdx, 'B', TipoPublicoEnum::MENOR);
+
+            if ($creadaA) {
+                $cursosSinHorario = $cursosSinHorario->reject(fn (Curso $curso) => $curso->id === $cursoParaDividir->id)->values();
             }
         }
+
+        foreach ($cursosSinHorario as $curso) {
+            $this->ubicarHorario($curso, $ciclo, $franjas, $bloques, $aulas, $docentes, $ocupacionAula, $ocupacionDocente, $docenteIdx);
+        }
+    }
+
+    /**
+     * Busca la primera franja/bloque/aula/docente libres (en ese orden) y
+     * crea el Horario correspondiente para $curso, actualizando los mapas
+     * de ocupación pasados por referencia. Devuelve false si no quedaba
+     * ningún espacio disponible entre las franjas dadas.
+     *
+     * @param  list<FranjaHorarioEnum>  $franjas
+     * @param  list<array{0: string, 1: string}>  $bloques
+     * @param  Collection<int, Aula>  $aulas
+     * @param  Collection<int, User>  $docentes
+     * @param  array<string, bool>  $ocupacionAula
+     * @param  array<string, bool>  $ocupacionDocente
+     */
+    private function ubicarHorario(
+        Curso $curso,
+        Ciclo $ciclo,
+        array $franjas,
+        array $bloques,
+        Collection $aulas,
+        Collection $docentes,
+        array &$ocupacionAula,
+        array &$ocupacionDocente,
+        int &$docenteIdx,
+        ?string $seccion = null,
+        ?TipoPublicoEnum $tipoPublico = null,
+    ): bool {
+        foreach ($franjas as $franja) {
+            $diasFranja = $franja->dias();
+
+            foreach ($bloques as $bloqueIdx => $bloque) {
+                foreach ($aulas as $aula) {
+                    $aulaLibre = collect($diasFranja)->every(
+                        fn (DiaSemanaEnum $dia) => ! isset($ocupacionAula["{$aula->id}|{$dia->value}|{$bloqueIdx}"])
+                    );
+
+                    if (! $aulaLibre) {
+                        continue;
+                    }
+
+                    $docente = null;
+
+                    for ($i = 0; $i < $docentes->count(); $i++) {
+                        $candidato = $docentes[($docenteIdx + $i) % $docentes->count()];
+
+                        $docenteLibre = collect($diasFranja)->every(
+                            fn (DiaSemanaEnum $dia) => ! isset($ocupacionDocente["{$candidato->id}|{$dia->value}|{$bloqueIdx}"])
+                        );
+
+                        if ($docenteLibre) {
+                            $docente = $candidato;
+                            $docenteIdx = ($docenteIdx + $i + 1) % $docentes->count();
+                            break;
+                        }
+                    }
+
+                    if (! $docente) {
+                        continue;
+                    }
+
+                    $horario = Horario::query()->create([
+                        'curso_id' => $curso->id,
+                        'docente_id' => $docente->id,
+                        'aula_id' => $aula->id,
+                        'ciclo_id' => $ciclo->id,
+                        'grado_id' => $curso->grado_id,
+                        'seccion' => $seccion,
+                        'tipo_publico' => $tipoPublico,
+                    ]);
+
+                    foreach ($diasFranja as $dia) {
+                        $horario->dias()->create([
+                            'dia_semana' => $dia,
+                            'hora_inicio' => $bloque[0],
+                            'hora_fin' => $bloque[1],
+                        ]);
+
+                        $ocupacionAula["{$aula->id}|{$dia->value}|{$bloqueIdx}"] = true;
+                        $ocupacionDocente["{$docente->id}|{$dia->value}|{$bloqueIdx}"] = true;
+                    }
+
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

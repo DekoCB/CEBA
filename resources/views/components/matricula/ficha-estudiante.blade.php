@@ -1,4 +1,4 @@
-@props(['estudiante', 'documentos', 'examenes', 'matriculas', 'horariosPorMatricula' => [], 'editandoHorarioMatriculaId' => null, 'horarioSeleccionado' => ''])
+@props(['estudiante', 'documentos', 'examenes', 'matriculas', 'horariosPorMatricula' => [], 'editandoHorarioMatriculaId' => null, 'horarioSeleccionado' => '', 'planesPorMatricula' => []])
 
 {{--
     Contenido de la ficha del estudiante, compartido entre la página
@@ -174,6 +174,33 @@
                             <span class="text-xs text-ink-faint">Generando constancia…</span>
                         @endif
                     </div>
+
+                    @can('pagos.ver')
+                        @php $plan = $planesPorMatricula[$matricula->id] ?? null; @endphp
+                        <div class="mt-3 border-t border-border pt-3">
+                            @if (! $plan)
+                                <p class="text-xs text-ink-faint">Sin plan de pago asignado para este ciclo.</p>
+                            @else
+                                <p class="text-xs font-medium text-ink-dim">
+                                    Plan de pago · {{ $plan->numero_cuotas }} {{ $plan->numero_cuotas === 1 ? 'cuota' : 'cuotas' }} · S/ {{ number_format((float) $plan->monto_total, 2) }}
+                                </p>
+                                <div class="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
+                                    @foreach ($plan->cuotas as $cuota)
+                                        <div class="flex items-center justify-between gap-2 rounded-md bg-surface-2 px-2 py-1 text-xs">
+                                            <span class="text-ink-dim">Cuota {{ $cuota->numero }} · S/ {{ number_format((float) $cuota->monto, 2) }} · vence {{ $cuota->fecha_vencimiento->format('d/m/Y') }}</span>
+                                            <span @class([
+                                                'shrink-0 rounded-full px-1.5 py-0.5 text-xs',
+                                                'bg-ok/10 text-ok' => $cuota->estado->value === 'pagado',
+                                                'bg-warn/10 text-warn' => $cuota->estado->value === 'pendiente' && ! $cuota->estaVencida(),
+                                                'bg-danger/10 text-danger' => $cuota->estaVencida(),
+                                                'bg-surface text-ink-faint' => $cuota->estado->value === 'exonerado',
+                                            ])>{{ $cuota->estaVencida() ? 'Vencida' : $cuota->estado->label() }}</span>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
+                    @endcan
                 </div>
             @empty
                 <p class="py-4 text-sm text-ink-faint">Este estudiante todavía no tiene matrículas registradas.</p>

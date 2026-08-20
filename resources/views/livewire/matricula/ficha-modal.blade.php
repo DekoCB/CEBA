@@ -7,7 +7,9 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Services\DocumentoEstudianteService;
 use App\Modules\Matricula\Services\MatriculaService;
+use App\Modules\Pagos\Services\PlanPagoService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\On;
 use Livewire\Volt\Component;
@@ -107,7 +109,7 @@ new class extends Component
         return $horarios->filter(fn (Horario $horario) => $horario->seccion !== null)->values();
     }
 
-    public function with(): array
+    public function with(PlanPagoService $planes): array
     {
         $estudiante = $this->estudianteId ? Estudiante::query()->with(['media', 'user.media'])->find($this->estudianteId) : null;
 
@@ -119,6 +121,9 @@ new class extends Component
             'examenes' => $estudiante?->examenesUbicacion()->with('gradoAsignado')->latest('fecha')->get(),
             'matriculas' => $matriculas,
             'horariosPorMatricula' => $matriculas?->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $this->horariosParaMatricula($matricula, $estudiante)]) ?? collect(),
+            'planesPorMatricula' => $matriculas !== null && Auth::user()->hasPermissionTo('pagos.ver')
+                ? $matriculas->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $planes->planDe($matricula)])
+                : collect(),
         ];
     }
 }; ?>
@@ -147,6 +152,7 @@ new class extends Component
                     :horarios-por-matricula="$horariosPorMatricula"
                     :editando-horario-matricula-id="$editandoHorarioMatriculaId"
                     :horario-seleccionado="$horarioSeleccionado"
+                    :planes-por-matricula="$planesPorMatricula"
                 />
             @else
                 <p class="py-8 text-center text-sm text-ink-faint">Cargando…</p>

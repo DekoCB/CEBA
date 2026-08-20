@@ -13,6 +13,7 @@ use App\Modules\Pagos\Services\PagoService;
 use App\Modules\Pagos\Services\PlanPagoService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
@@ -110,7 +111,7 @@ new #[Layout('layouts.app')] class extends Component
         abort_unless(Auth::user()->hasAnyPermission(['pagos.gestionar']), 403);
 
         $this->validate([
-            "numeroCuotasPorMatricula.{$matriculaId}" => 'required|integer|in:1,6,8',
+            "numeroCuotasPorMatricula.{$matriculaId}" => ['required', 'integer', Rule::in(array_column(NumeroCuotasEnum::cases(), 'value'))],
             "montoTotalPorMatricula.{$matriculaId}" => 'required|numeric|min:1',
         ]);
 

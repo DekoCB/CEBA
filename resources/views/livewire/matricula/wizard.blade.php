@@ -19,6 +19,7 @@ use App\Shared\ValueObjects\Telefono;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
@@ -262,7 +263,7 @@ new class extends Component
     public function generarCronogramaAutomatico(): void
     {
         $this->validate([
-            'numeroCuotasCronograma' => 'required|in:1,6,8',
+            'numeroCuotasCronograma' => ['required', Rule::in(array_column(NumeroCuotasEnum::cases(), 'value'))],
             'montoTotalCronograma' => 'required|numeric|min:1',
         ]);
 
@@ -310,7 +311,7 @@ new class extends Component
 
         if ($this->configurarCronograma) {
             $this->validate([
-                'numeroCuotasCronograma' => 'required|in:1,6,8',
+                'numeroCuotasCronograma' => ['required', Rule::in(array_column(NumeroCuotasEnum::cases(), 'value'))],
                 'cuotaMontos' => 'required|array|min:1',
                 'cuotaMontos.*' => 'required|numeric|min:0.01',
                 'cuotaFechas' => 'required|array|min:1',

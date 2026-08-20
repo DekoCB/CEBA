@@ -32,7 +32,7 @@
             return `${d.getFullYear()}-${this.pad(d.getMonth() + 1)}-${this.pad(d.getDate())}T${this.pad(d.getHours())}:${this.pad(d.getMinutes())}`;
         },
         partesActuales() {
-            return this.partesDesdeIso(this.$wire.{{ $propiedad }}) ?? this.partesDesdeIso(this.hoyIso());
+            return this.partesDesdeIso(this.$wire.get('{{ $propiedad }}')) ?? this.partesDesdeIso(this.hoyIso());
         },
         formatear(iso) {
             const p = this.partesDesdeIso(iso);
@@ -49,7 +49,7 @@
             return Array(primerDia).fill(null).concat(Array.from({ length: total }, (_, i) => i + 1));
         },
         esSeleccionado(dia) {
-            const p = this.partesDesdeIso(this.$wire.{{ $propiedad }});
+            const p = this.partesDesdeIso(this.$wire.get('{{ $propiedad }}'));
             return !!p && dia === p.dia && this.vistaMes === p.mes - 1 && this.vistaAnio === p.anio;
         },
         esHoy(dia) {
@@ -107,7 +107,7 @@
             this.abierto = true;
         },
     }"
-    x-effect="texto = formatear($wire.{{ $propiedad }})"
+    x-effect="texto = formatear($wire.get('{{ $propiedad }}'))"
     @click.outside="abierto = false"
     @keydown.escape="abierto = false"
     class="relative"

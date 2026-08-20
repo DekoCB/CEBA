@@ -36,7 +36,7 @@
             return p ? `${String(p.dia).padStart(2, '0')}/${String(p.mes).padStart(2, '0')}/${p.anio}` : '';
         },
         posicionarVista() {
-            const base = this.partesDesdeIso(this.$wire.{{ $propiedad }}) ?? this.partesDesdeIso(this.hoyIso());
+            const base = this.partesDesdeIso(this.$wire.get('{{ $propiedad }}')) ?? this.partesDesdeIso(this.hoyIso());
             this.vistaAnio = base.anio;
             this.vistaMes = base.mes - 1;
         },
@@ -46,7 +46,7 @@
             return Array(primerDia).fill(null).concat(Array.from({ length: total }, (_, i) => i + 1));
         },
         esSeleccionado(dia) {
-            const p = this.partesDesdeIso(this.$wire.{{ $propiedad }});
+            const p = this.partesDesdeIso(this.$wire.get('{{ $propiedad }}'));
             return !!p && dia === p.dia && this.vistaMes === p.mes - 1 && this.vistaAnio === p.anio;
         },
         esHoy(dia) {
@@ -80,7 +80,7 @@
             this.abierto = true;
         },
     }"
-    x-effect="texto = formatear($wire.{{ $propiedad }})"
+    x-effect="texto = formatear($wire.get('{{ $propiedad }}'))"
     @click.outside="abierto = false"
     @keydown.escape="abierto = false"
     class="relative"
