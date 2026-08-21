@@ -13,10 +13,10 @@ use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Ciclos de mayores (2 al año, ene-jun / jul-dic) y de menores (6 u 8
- * meses, fecha de inicio libre). Aplica la "doble validación" del roadmap:
- * las fechas del propio ciclo deben ser coherentes con su tipo, y las
- * fechas de matrícula deben ser coherentes con las del ciclo.
+ * Las 4 ventanas de admisión rotativas del año (Grupo 1 a 4). Aplica la
+ * "doble validación" del roadmap: las fechas del propio ciclo deben ser
+ * coherentes con su tipo, y las fechas de matrícula deben ser coherentes
+ * con las del ciclo.
  */
 class CicloService
 {
@@ -58,9 +58,9 @@ class CicloService
 
     /**
      * Primera validación: las fechas del ciclo deben cuadrar con su tipo.
-     * Mayores tienen mes de inicio fijo (enero o julio); todos los tipos
-     * tienen una duración objetivo (6 u 8 meses) con un margen de una
-     * semana para acomodar feriados/ajustes administrativos.
+     * Los 4 grupos tienen mes de inicio fijo, y una duración objetivo (6
+     * meses) con un margen de una semana para acomodar feriados/ajustes
+     * administrativos.
      */
     public function validarFechasDelCiclo(TipoCicloEnum $tipo, string $fechaInicio, string $fechaFin): void
     {
@@ -73,7 +73,7 @@ class CicloService
             ]);
         }
 
-        if ($tipo->mesInicioFijo() !== null && $inicio->month !== $tipo->mesInicioFijo()) {
+        if ($inicio->month !== $tipo->mesInicioFijo()) {
             throw ValidationException::withMessages([
                 'fecha_inicio' => "Un ciclo {$tipo->label()} debe iniciar en el mes ".Carbon::create(month: $tipo->mesInicioFijo())->translatedFormat('F').'.',
             ]);
@@ -146,5 +146,21 @@ class CicloService
                 'fecha_fin' => "La matrícula debe cerrar a más tardar el {$ciclo->fecha_fin->format('d/m/Y')}, fecha en que termina el ciclo.",
             ]);
         }
+    }
+
+    /**
+     * El grupo al que pasaría un estudiante de $actual al culminar su
+     * grado (ver TipoCicloEnum::siguiente()), si ya existe una fila
+     * creada para ese grupo+año. Null si todavía no se ha creado (p. ej.
+     * personal aún no armó el siguiente grupo).
+     */
+    public function siguienteCiclo(Ciclo $actual): ?Ciclo
+    {
+        $siguienteAnio = $actual->anio + ($actual->tipo->avanzaAlSiguienteAnio() ? 1 : 0);
+
+        return Ciclo::query()
+            ->where('tipo', $actual->tipo->siguiente())
+            ->where('anio', $siguienteAnio)
+            ->first();
     }
 }

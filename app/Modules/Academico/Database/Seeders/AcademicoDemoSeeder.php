@@ -15,6 +15,7 @@ use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Carbon;
 
 class AcademicoDemoSeeder extends Seeder
 {
@@ -26,11 +27,6 @@ class AcademicoDemoSeeder extends Seeder
             ['nombre' => 'Grado 3', 'orden' => 3],
             ['nombre' => 'Grado 4', 'orden' => 4],
         ])->map(fn (array $datos) => Grado::query()->create($datos));
-
-        $aulas = collect([
-            ['nombre' => 'Aula 1', 'capacidad' => 30, 'ubicacion' => 'Piso 1'],
-            ['nombre' => 'Aula 2', 'capacidad' => 25, 'ubicacion' => 'Piso 1'],
-        ])->map(fn (array $datos) => Aula::query()->create($datos));
 
         $cursoComunicacion = Curso::query()->create([
             'nombre' => 'Comunicación',
@@ -46,30 +42,57 @@ class AcademicoDemoSeeder extends Seeder
             'horas' => 80,
         ]);
 
-        $anio = (int) now()->format('Y');
-        $mesActual = (int) now()->format('n');
+        // Los 4 grupos rotativos del año, cada uno con su propia Aula A
+        // (grados 1-2) y Aula B (grados 3-4). El "activo" para la demo es
+        // el que ya empezó más recientemente sin pasarse de hoy, para que
+        // haya datos con los que probar el resto de módulos desde ya.
+        $hoy = now();
+        $anio = (int) $hoy->format('Y');
 
-        // Ciclo activo del semestre en curso, para que haya datos con los
-        // que probar el resto de módulos desde ya.
-        if ($mesActual >= 7) {
+        $ventanas = collect(TipoCicloEnum::cases())->mapWithKeys(function (TipoCicloEnum $tipo) use ($anio) {
+            $inicio = Carbon::create($anio, $tipo->mesInicioFijo(), 1);
+            $fin = $inicio->copy()->addMonths($tipo->duracionEnMeses())->subDay();
+
+            return [$tipo->value => ['tipo' => $tipo, 'inicio' => $inicio, 'fin' => $fin]];
+        });
+
+        $tipoActivo = $ventanas
+            ->filter(fn (array $datos) => $datos['inicio']->lessThanOrEqualTo($hoy))
+            ->sortByDesc(fn (array $datos) => $datos['inicio'])
+            ->first()['tipo'] ?? TipoCicloEnum::GRUPO_1;
+
+        $grupos = $ventanas->map(function (array $datos) use ($tipoActivo) {
             $ciclo = Ciclo::query()->create([
-                'nombre' => "Julio - Diciembre {$anio}",
-                'tipo' => TipoCicloEnum::JUL_DIC,
-                'anio' => $anio,
-                'fecha_inicio' => "{$anio}-07-01",
-                'fecha_fin' => "{$anio}-12-31",
-                'estado' => EstadoCicloEnum::ACTIVO,
+                'nombre' => $datos['tipo']->label(),
+                'tipo' => $datos['tipo'],
+                'anio' => $datos['inicio']->year,
+                'fecha_inicio' => $datos['inicio']->toDateString(),
+                'fecha_fin' => $datos['fin']->toDateString(),
+                'estado' => $datos['tipo'] === $tipoActivo ? EstadoCicloEnum::ACTIVO : EstadoCicloEnum::PLANIFICADO,
             ]);
-        } else {
-            $ciclo = Ciclo::query()->create([
-                'nombre' => "Enero - Junio {$anio}",
-                'tipo' => TipoCicloEnum::ENE_JUN,
-                'anio' => $anio,
-                'fecha_inicio' => "{$anio}-01-01",
-                'fecha_fin' => "{$anio}-06-30",
-                'estado' => EstadoCicloEnum::ACTIVO,
+
+            $aulaA = Aula::query()->create([
+                'ciclo_id' => $ciclo->id,
+                'letra' => 'A',
+                'nombre' => "Aula A. {$ciclo->nombre}",
+                'capacidad' => 30,
+                'ubicacion' => 'Piso 1',
             ]);
-        }
+
+            $aulaB = Aula::query()->create([
+                'ciclo_id' => $ciclo->id,
+                'letra' => 'B',
+                'nombre' => "Aula B. {$ciclo->nombre}",
+                'capacidad' => 25,
+                'ubicacion' => 'Piso 1',
+            ]);
+
+            return ['ciclo' => $ciclo, 'aulaA' => $aulaA, 'aulaB' => $aulaB];
+        });
+
+        $ciclo = $grupos[$tipoActivo->value]['ciclo'];
+        $aulaA = $grupos[$tipoActivo->value]['aulaA'];
+        $aulaB = $grupos[$tipoActivo->value]['aulaB'];
 
         // Centrado en "hoy" (no en el inicio del ciclo) para que el periodo
         // quede abierto sin importar en qué punto del ciclo se corra el seeder.
@@ -88,7 +111,7 @@ class AcademicoDemoSeeder extends Seeder
             $horarioA = Horario::query()->create([
                 'curso_id' => $cursoComunicacion->id,
                 'docente_id' => $docente->id,
-                'aula_id' => $aulas[0]->id,
+                'aula_id' => $aulaA->id,
                 'ciclo_id' => $ciclo->id,
                 'grado_id' => $grados[0]->id,
                 'seccion' => 'A',
@@ -103,7 +126,7 @@ class AcademicoDemoSeeder extends Seeder
             $horarioB = Horario::query()->create([
                 'curso_id' => $cursoComunicacion->id,
                 'docente_id' => $docente->id,
-                'aula_id' => $aulas[1]->id,
+                'aula_id' => $aulaB->id,
                 'ciclo_id' => $ciclo->id,
                 'grado_id' => $grados[0]->id,
                 'seccion' => 'B',

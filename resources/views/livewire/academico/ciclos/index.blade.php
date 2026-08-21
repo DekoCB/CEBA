@@ -57,7 +57,7 @@ new #[Layout('layouts.app')] class extends Component
         ]);
 
         $this->mostrarModal = false;
-        session()->flash('status', 'Ciclo creado correctamente.');
+        session()->flash('status', 'Grupo creado correctamente.');
     }
 
     public function with(CicloService $service): array
@@ -71,8 +71,8 @@ new #[Layout('layouts.app')] class extends Component
 
 <div>
     <x-slot name="header">
-        <h1 class="font-display text-2xl text-ink">Periodos</h1>
-        <p class="mt-1 text-sm text-ink-dim">Mayores: enero-junio y julio-diciembre. Menores: 6, 8 o 12 meses.</p>
+        <h1 class="font-display text-2xl text-ink">Grupos</h1>
+        <p class="mt-1 text-sm text-ink-dim">4 ventanas de admisión rotativas al año: Grupo 1 (ene-jun), Grupo 2 (may-oct), Grupo 3 (jul-dic), Grupo 4 (nov-abr).</p>
     </x-slot>
 
     {{-- Ver academico/grados/index.blade.php: el botón no puede vivir en x-slot="header". --}}
@@ -80,7 +80,7 @@ new #[Layout('layouts.app')] class extends Component
         <div class="mb-4 flex justify-end">
             <button wire:click="abrirModal" class="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 font-display text-sm font-medium text-white hover:opacity-90">
                 <x-heroicon-o-plus class="h-4 w-4" />
-                Nuevo ciclo
+                Nuevo grupo
             </button>
         </div>
     @endcan
@@ -126,7 +126,7 @@ new #[Layout('layouts.app')] class extends Component
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="px-4 py-8 text-center text-sm text-ink-faint">No hay ciclos registrados.</td></tr>
+                    <tr><td colspan="5" class="px-4 py-8 text-center text-sm text-ink-faint">No hay grupos registrados.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -156,12 +156,12 @@ new #[Layout('layouts.app')] class extends Component
             x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
             x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
         >
-            <h2 class="font-display text-lg text-ink">Nuevo ciclo</h2>
+            <h2 class="font-display text-lg text-ink">Nuevo grupo</h2>
 
             <form wire:submit="guardar" class="mt-4 space-y-4">
                 <div>
                     <x-input-label for="nombre" value="Nombre" />
-                    <x-text-input wire:model="nombre" id="nombre" class="mt-1 block w-full" placeholder="Ej. Enero - Junio 2027" />
+                    <x-text-input wire:model="nombre" id="nombre" class="mt-1 block w-full" placeholder="Ej. Grupo 1 - 2027" />
                     <x-input-error :messages="$errors->get('nombre')" class="mt-1" />
                 </div>
 
@@ -172,7 +172,7 @@ new #[Layout('layouts.app')] class extends Component
                             wire:model="tipo"
                             id="tipo"
                             class="mt-1 block w-full"
-                            :options="collect($tipos)->mapWithKeys(fn ($tipoOpcion) => [$tipoOpcion->value => $tipoOpcion->label().' ('.$tipoOpcion->publico()->label().')'])"
+                            :options="collect($tipos)->mapWithKeys(fn ($tipoOpcion) => [$tipoOpcion->value => $tipoOpcion->label()])"
                         />
                         <x-input-error :messages="$errors->get('tipo')" class="mt-1" />
                     </div>

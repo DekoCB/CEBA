@@ -21,6 +21,10 @@ new #[Layout('layouts.app')] class extends Component
 
     public bool $activa = true;
 
+    public string $cicloId = '';
+
+    public string $letra = '';
+
     public string $cicloFiltro = '';
 
     public function mount(): void
@@ -44,12 +48,41 @@ new #[Layout('layouts.app')] class extends Component
             $this->capacidad = (string) $aula->capacidad;
             $this->ubicacion = (string) $aula->ubicacion;
             $this->activa = $aula->activa;
+            $this->cicloId = $aula->ciclo_id !== null ? (string) $aula->ciclo_id : '';
+            $this->letra = $aula->letra ?? '';
         } else {
-            $this->reset(['nombre', 'capacidad', 'ubicacion']);
+            $this->reset(['nombre', 'capacidad', 'ubicacion', 'cicloId', 'letra']);
             $this->activa = true;
         }
 
         $this->mostrarModal = true;
+    }
+
+    /**
+     * Al elegir grupo+letra, se sugiere el nombre "Aula {letra}. {grupo}"
+     * -- el campo sigue editable a mano si el personal prefiere otro.
+     */
+    public function updatedCicloId(): void
+    {
+        $this->autocompletarNombre();
+    }
+
+    public function updatedLetra(): void
+    {
+        $this->autocompletarNombre();
+    }
+
+    private function autocompletarNombre(): void
+    {
+        if ($this->cicloId === '' || $this->letra === '') {
+            return;
+        }
+
+        $ciclo = Ciclo::query()->find($this->cicloId);
+
+        if ($ciclo) {
+            $this->nombre = "Aula {$this->letra}. {$ciclo->nombre}";
+        }
     }
 
     public function guardar(AulaService $service): void
@@ -60,12 +93,16 @@ new #[Layout('layouts.app')] class extends Component
             'nombre' => 'required|string|max:50',
             'capacidad' => 'required|integer|min:1|max:200',
             'ubicacion' => 'nullable|string|max:100',
+            'cicloId' => 'nullable|integer|exists:ciclos,id',
+            'letra' => 'nullable|string|in:A,B',
         ]);
 
         $datos = [
             'nombre' => $this->nombre,
             'capacidad' => (int) $this->capacidad,
             'ubicacion' => $this->ubicacion ?: null,
+            'ciclo_id' => $this->cicloId !== '' ? (int) $this->cicloId : null,
+            'letra' => $this->letra ?: null,
         ];
 
         if ($this->editandoId) {
@@ -152,9 +189,6 @@ new #[Layout('layouts.app')] class extends Component
                                             @foreach ($grupoFranja['horarios'] as $item)
                                                 <p class="text-xs text-ink-dim">
                                                     {{ $item['horario']->curso->nombre }} · {{ $item['horario']->grado->nombre }}
-                                                    @if ($item['horario']->seccion)
-                                                        · Grupo {{ $item['horario']->seccion }}
-                                                    @endif
                                                     <span class="text-ink-faint">— {{ $item['estudiantes'] }} estudiante{{ $item['estudiantes'] === 1 ? '' : 's' }}</span>
                                                 </p>
                                             @endforeach
@@ -217,6 +251,31 @@ new #[Layout('layouts.app')] class extends Component
                 <h2 class="font-display text-lg text-ink">{{ $editandoId ? 'Editar aula' : 'Nueva aula' }}</h2>
 
                 <form wire:submit="guardar" class="mt-4 space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <x-input-label for="cicloId" value="Grupo (opcional)" />
+                            <x-select-input
+                                wire:model.live="cicloId"
+                                id="cicloId"
+                                class="mt-1 block w-full"
+                                placeholder="Aula suelta, sin grupo"
+                                :options="collect($ciclos)->mapWithKeys(fn ($ciclo) => [$ciclo->id => $ciclo->nombre])"
+                            />
+                            <x-input-error :messages="$errors->get('cicloId')" class="mt-1" />
+                        </div>
+                        <div>
+                            <x-input-label for="letra" value="Letra (opcional)" />
+                            <x-select-input
+                                wire:model.live="letra"
+                                id="letra"
+                                class="mt-1 block w-full"
+                                placeholder="Sin letra"
+                                :options="['A' => 'Aula A (grados 1-2)', 'B' => 'Aula B (grados 3-4)']"
+                            />
+                            <x-input-error :messages="$errors->get('letra')" class="mt-1" />
+                        </div>
+                    </div>
+
                     <div>
                         <x-input-label for="nombre" value="Nombre" />
                         <x-text-input wire:model="nombre" id="nombre" class="mt-1 block w-full" />

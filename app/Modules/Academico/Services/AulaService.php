@@ -22,7 +22,7 @@ class AulaService
     }
 
     /**
-     * @param  array{nombre: string, capacidad: int, ubicacion: ?string}  $datos
+     * @param  array{nombre: string, capacidad: int, ubicacion: ?string, ciclo_id: ?int, letra: ?string}  $datos
      */
     public function crear(array $datos): Aula
     {
@@ -30,7 +30,7 @@ class AulaService
     }
 
     /**
-     * @param  array{nombre: string, capacidad: int, ubicacion: ?string, activa: bool}  $datos
+     * @param  array{nombre: string, capacidad: int, ubicacion: ?string, ciclo_id: ?int, letra: ?string, activa: bool}  $datos
      */
     public function actualizar(Aula $aula, array $datos): Aula
     {
@@ -40,17 +40,23 @@ class AulaService
     }
 
     /**
-     * Ocupación de cada aula activa en un ciclo, agrupada por turno
-     * (franja institucional): cuántos estudiantes le corresponden a cada
-     * horario que usa esa aula, frente a su capacidad máxima. Un aula sin
-     * horarios en el ciclo aparece igual, con "porFranja" vacío, para que
-     * el personal también vea qué aulas están libres.
+     * Ocupación de cada aula activa de un ciclo (más las aulas sueltas,
+     * sin grupo asignado), agrupada por turno (franja institucional):
+     * cuántos estudiantes le corresponden a cada horario que usa esa
+     * aula, frente a su capacidad máxima. Un aula sin horarios en el
+     * ciclo aparece igual, con "porFranja" vacío, para que el personal
+     * también vea qué aulas están libres.
      *
      * @return SupportCollection<int, array{aula: Aula, porFranja: SupportCollection<string, array{label: string, horarios: SupportCollection<int, array{horario: Horario, estudiantes: int}>, totalEstudiantes: int}>}>
      */
     public function ocupacion(int $cicloId): SupportCollection
     {
-        $aulas = Aula::query()->where('activa', true)->orderBy('nombre')->get();
+        $aulas = Aula::query()
+            ->where('activa', true)
+            ->where(fn ($query) => $query->where('ciclo_id', $cicloId)->orWhereNull('ciclo_id'))
+            ->orderBy('letra')
+            ->orderBy('nombre')
+            ->get();
 
         $horarios = Horario::query()
             ->where('ciclo_id', $cicloId)

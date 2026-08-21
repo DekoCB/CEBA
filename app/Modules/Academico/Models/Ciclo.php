@@ -16,6 +16,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property string $nombre
+ * @property int $anio
  * @property Carbon $fecha_inicio
  * @property Carbon $fecha_fin
  * @property TipoCicloEnum $tipo
