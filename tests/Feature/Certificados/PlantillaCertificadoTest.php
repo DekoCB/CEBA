@@ -8,6 +8,7 @@ use App\Modules\Certificados\Models\PlantillaCertificado;
 use App\Modules\Certificados\Services\CertificadoService;
 use App\Modules\Matricula\Models\Estudiante;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class PlantillaCertificadoTest extends TestCase
@@ -42,6 +43,44 @@ class PlantillaCertificadoTest extends TestCase
         $this->assertNotSame($certificado->id, $constancia->id);
         $this->assertNotSame($certificado->titulo, $constancia->titulo);
         $this->assertDatabaseCount('plantilla_certificados', 2);
+    }
+
+    /**
+     * @return iterable<string, array{TipoDocumentoEnum}>
+     */
+    public static function tiposDeDocumento(): iterable
+    {
+        foreach (TipoDocumentoEnum::cases() as $tipo) {
+            yield $tipo->value => [$tipo];
+        }
+    }
+
+    /**
+     * Todo caso del enum debe tener su arm en
+     * PlantillaCertificado::valoresPorDefecto(), o esto lanza
+     * UnhandledMatchError -- incluye explícitamente constancia_vacante
+     * (retirada del módulo Constancias, pero sus registros antiguos siguen
+     * necesitando poder resolver una plantilla).
+     */
+    #[DataProvider('tiposDeDocumento')]
+    public function test_para_tipo_tiene_valores_por_defecto_para_todos_los_casos_del_enum(TipoDocumentoEnum $tipo): void
+    {
+        $plantilla = PlantillaCertificado::paraTipo($tipo);
+
+        $this->assertSame($tipo, $plantilla->tipo);
+        $this->assertNotSame('', $plantilla->titulo);
+        $this->assertMatchesRegularExpression('/^#[0-9A-Fa-f]{6}$/', $plantilla->color_acento);
+    }
+
+    public function test_constancias_incluye_matricula_egresado_y_estudios_pero_no_vacante(): void
+    {
+        $valores = array_map(fn (TipoDocumentoEnum $tipo) => $tipo->value, TipoDocumentoEnum::constancias());
+
+        $this->assertContains('constancia_estudios', $valores);
+        $this->assertContains('constancia_matricula', $valores);
+        $this->assertContains('constancia_egresado', $valores);
+        $this->assertContains('constancia_buena_conducta', $valores);
+        $this->assertNotContains('constancia_vacante', $valores);
     }
 
     public function test_guardar_plantilla_persiste_los_cambios(): void

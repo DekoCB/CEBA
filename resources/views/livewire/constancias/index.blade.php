@@ -549,6 +549,8 @@ new #[Layout('layouts.app')] class extends Component
                     Puedes usar: <code class="rounded bg-surface-2 px-1">@{{estudiante}}</code>
                     <code class="rounded bg-surface-2 px-1">@{{dni}}</code>
                     <code class="rounded bg-surface-2 px-1">@{{detalle_matricula}}</code>
+                    <code class="rounded bg-surface-2 px-1">@{{grado}}</code>
+                    <code class="rounded bg-surface-2 px-1">@{{periodo}}</code>
                     <code class="rounded bg-surface-2 px-1">@{{numero}}</code>
                     <code class="rounded bg-surface-2 px-1">@{{fecha_emision}}</code>
                     <code class="rounded bg-surface-2 px-1">@{{codigo_verificacion}}</code>

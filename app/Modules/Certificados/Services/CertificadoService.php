@@ -377,6 +377,12 @@ class CertificadoService
             'estudiante' => $certificado->estudiante?->nombreCompleto() ?? '—',
             'dni' => $certificado->estudiante->dni ?? '—',
             'detalle_matricula' => $detalleMatricula,
+            'grado' => $certificado->matricula?->grado->nombre ?? 'grado correspondiente',
+            // Sin "periodo" al inicio (a diferencia de "grado"): las plantillas ya
+            // escriben la palabra "periodo" antes de este placeholder (p. ej. "en el
+            // presente periodo {{periodo}}"), así que repetirla acá duplicaría la
+            // palabra en el texto final.
+            'periodo' => $certificado->matricula?->ciclo->nombre ?? 'correspondiente',
             'numero' => $certificado->numero,
             'fecha_emision' => $certificado->fecha_emision->format('d/m/Y'),
             'codigo_verificacion' => $certificado->codigo_verificacion,

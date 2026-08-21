@@ -14,8 +14,11 @@ enum TipoDocumentoEnum: string
 {
     case CERTIFICADO_ESTUDIOS = 'certificado_estudios';
     case CONSTANCIA_ESTUDIOS = 'constancia_estudios';
+    /** @deprecated Ya no se ofrece en el módulo Constancias (ver constancias() abajo); se conserva solo para no romper el casteo de registros antiguos que ya la usan. */
     case CONSTANCIA_VACANTE = 'constancia_vacante';
     case CONSTANCIA_BUENA_CONDUCTA = 'constancia_buena_conducta';
+    case CONSTANCIA_MATRICULA = 'constancia_matricula';
+    case CONSTANCIA_EGRESADO = 'constancia_egresado';
     case LIBRETA_NOTAS = 'libreta_notas';
 
     public function label(): string
@@ -25,6 +28,8 @@ enum TipoDocumentoEnum: string
             self::CONSTANCIA_ESTUDIOS => 'Constancia de estudios',
             self::CONSTANCIA_VACANTE => 'Constancia de vacante',
             self::CONSTANCIA_BUENA_CONDUCTA => 'Constancia de buena conducta',
+            self::CONSTANCIA_MATRICULA => 'Constancia de matrícula',
+            self::CONSTANCIA_EGRESADO => 'Constancia de egresado',
             self::LIBRETA_NOTAS => 'Libreta de notas',
         };
     }
@@ -62,11 +67,14 @@ enum TipoDocumentoEnum: string
 
     /**
      * Documentos que se solicitan/emiten desde el módulo Constancias.
+     * CONSTANCIA_VACANTE se dejó de ofrecer aquí (ver caso arriba: el valor
+     * del enum se conserva para no romper certificados/solicitudes/plantillas
+     * ya emitidos con ese tipo, solo se retiró de esta lista).
      *
      * @return list<self>
      */
     public static function constancias(): array
     {
-        return [self::CONSTANCIA_ESTUDIOS, self::CONSTANCIA_VACANTE, self::CONSTANCIA_BUENA_CONDUCTA];
+        return [self::CONSTANCIA_ESTUDIOS, self::CONSTANCIA_MATRICULA, self::CONSTANCIA_EGRESADO, self::CONSTANCIA_BUENA_CONDUCTA];
     }
 }

@@ -75,15 +75,15 @@ class ConstanciasPermisosTest extends TestCase
         $this->actingAs($usuario);
 
         Volt::test('constancias.mis-constancias')
-            ->set('tipoDocumento', TipoDocumentoEnum::CONSTANCIA_VACANTE->value)
-            ->set('motivo', 'Nueva vacante laboral')
+            ->set('tipoDocumento', TipoDocumentoEnum::CONSTANCIA_MATRICULA->value)
+            ->set('motivo', 'Trámite laboral')
             ->set('metodoEntrega', 'virtual')
             ->set('correoEntrega', 'estudiante@example.com')
             ->call('solicitar')
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('solicitudes_certificado', [
-            'tipo' => TipoDocumentoEnum::CONSTANCIA_VACANTE->value,
+            'tipo' => TipoDocumentoEnum::CONSTANCIA_MATRICULA->value,
             'metodo_entrega' => 'virtual',
             'correo_entrega' => 'estudiante@example.com',
         ]);
@@ -103,6 +103,91 @@ class ConstanciasPermisosTest extends TestCase
             ->set('metodoEntrega', 'fisica')
             ->call('solicitar')
             ->assertHasErrors(['tipoDocumento']);
+    }
+
+    /**
+     * Retirada del módulo Constancias (ver TipoDocumentoEnum::constancias()):
+     * ya no debe poder solicitarse ni emitirse, aunque el valor del enum
+     * siga existiendo para no romper registros antiguos.
+     */
+    public function test_no_se_puede_solicitar_una_constancia_de_vacante(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        Estudiante::factory()->create(['user_id' => $usuario->id]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('constancias.mis-constancias')
+            ->set('tipoDocumento', TipoDocumentoEnum::CONSTANCIA_VACANTE->value)
+            ->set('motivo', 'Trámite laboral')
+            ->set('metodoEntrega', 'fisica')
+            ->call('solicitar')
+            ->assertHasErrors(['tipoDocumento']);
+    }
+
+    public function test_no_se_puede_emitir_una_constancia_de_vacante_desde_el_panel(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $estudiante = Estudiante::factory()->create();
+
+        $this->actingAs($coordinador);
+
+        Volt::test('constancias.index')
+            ->set('tab', 'emitir')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->set('tipoDocumentoEmitir', TipoDocumentoEnum::CONSTANCIA_VACANTE->value)
+            ->call('emitir')
+            ->assertHasErrors(['tipoDocumentoEmitir']);
+    }
+
+    /**
+     * Cubre de punta a punta el pipeline nuevo (enum -> valores por
+     * defecto de PlantillaCertificado -> render del PDF con el membrete):
+     * si falta un caso en el match de PlantillaCertificado::valoresPorDefecto()
+     * para un tipo nuevo, esto falla con UnhandledMatchError.
+     */
+    public function test_coordinador_puede_emitir_una_constancia_de_matricula_directamente(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $estudiante = Estudiante::factory()->create();
+
+        $this->actingAs($coordinador);
+
+        Volt::test('constancias.index')
+            ->set('tab', 'emitir')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->set('tipoDocumentoEmitir', TipoDocumentoEnum::CONSTANCIA_MATRICULA->value)
+            ->call('emitir')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('certificados', [
+            'estudiante_id' => $estudiante->id,
+            'tipo' => TipoDocumentoEnum::CONSTANCIA_MATRICULA->value,
+        ]);
+    }
+
+    public function test_coordinador_puede_emitir_una_constancia_de_egresado_directamente(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $estudiante = Estudiante::factory()->create();
+
+        $this->actingAs($coordinador);
+
+        Volt::test('constancias.index')
+            ->set('tab', 'emitir')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->set('tipoDocumentoEmitir', TipoDocumentoEnum::CONSTANCIA_EGRESADO->value)
+            ->call('emitir')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('certificados', [
+            'estudiante_id' => $estudiante->id,
+            'tipo' => TipoDocumentoEnum::CONSTANCIA_EGRESADO->value,
+        ]);
     }
 
     public function test_coordinador_emite_una_constancia_desde_una_solicitud(): void
