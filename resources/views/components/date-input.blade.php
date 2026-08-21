@@ -75,23 +75,51 @@
             const m = formateado.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
             if (m) this.$wire.set('{{ $propiedad }}', `${m[3]}-${m[2]}-${m[1]}`, {{ $enVivo }});
         },
+        posicion: { top: 0, left: 0 },
+        // El calendario se teletransporta a <body> (ver x-teleport abajo) para
+        // no quedar recortado por contenedores con overflow propio (p. ej. el
+        // cuerpo con scroll de un modal) -- por eso se posiciona con
+        // coordenadas fijas calculadas del campo, no con 'absolute' relativo
+        // a este wrapper.
+        posicionarCalendario() {
+            const rect = this.$refs.campo.getBoundingClientRect();
+            const alturaCalendario = 300;
+            const abajoCabe = rect.bottom + 4 + alturaCalendario <= window.innerHeight;
+
+            this.posicion = {
+                top: abajoCabe ? rect.bottom + 4 : Math.max(4, rect.top - alturaCalendario - 4),
+                left: Math.min(rect.left, window.innerWidth - 260),
+            };
+        },
         abrir() {
             this.posicionarVista();
+            this.posicionarCalendario();
             this.abierto = true;
+        },
+        cerrarSiEsAfuera(event) {
+            if (! this.abierto) return;
+
+            const dentroDeControles = this.$refs.controles.contains(event.target);
+            const dentroDelCalendario = this.$refs.calendario && this.$refs.calendario.contains(event.target);
+
+            if (! dentroDeControles && ! dentroDelCalendario) this.abierto = false;
         },
     }"
     x-effect="texto = formatear($wire.get('{{ $propiedad }}'))"
-    @click.outside="abierto = false"
+    @click.window="cerrarSiEsAfuera($event)"
     @keydown.escape="abierto = false"
+    @scroll.window.capture="abierto && posicionarCalendario()"
+    @resize.window="abierto && posicionarCalendario()"
     class="relative"
 >
-    <div class="relative">
+    <div class="relative" x-ref="controles">
         <input
             type="text"
             inputmode="numeric"
             autocomplete="off"
             placeholder="dd/mm/aaaa"
             maxlength="10"
+            x-ref="campo"
             :value="texto"
             @input="alEscribir"
             @focus="abrir()"
@@ -108,41 +136,51 @@
         </button>
     </div>
 
-    <div
-        x-show="abierto"
-        x-cloak
-        x-transition.origin.top
-        @click.stop
-        class="absolute z-30 mt-1 w-64 rounded-lg border border-border bg-surface p-3 shadow-lg"
-    >
-        <div class="mb-2 flex items-center justify-between">
-            <button type="button" @click="mesAnterior()" class="rounded p-1 text-ink-faint transition hover:bg-surface-2 hover:text-ink">
-                <x-heroicon-o-chevron-left class="h-4 w-4" />
-            </button>
-            <p class="text-sm font-medium capitalize text-ink" x-text="`${meses[vistaMes]} ${vistaAnio}`"></p>
-            <button type="button" @click="mesSiguiente()" class="rounded p-1 text-ink-faint transition hover:bg-surface-2 hover:text-ink">
-                <x-heroicon-o-chevron-right class="h-4 w-4" />
-            </button>
-        </div>
+    {{--
+        Teletransportado a <body> para no quedar recortado por contenedores
+        con overflow propio (p. ej. el cuerpo con scroll de un x-modal) --
+        ver posicionarCalendario(), que calcula coordenadas fijas a partir
+        del campo en vez de depender de position:absolute relativo a este
+        wrapper.
+    --}}
+    <template x-teleport="body">
+        <div
+            x-ref="calendario"
+            x-show="abierto"
+            x-cloak
+            x-transition.origin.top
+            :style="`top: ${posicion.top}px; left: ${posicion.left}px;`"
+            class="fixed z-[60] w-64 rounded-lg border border-border bg-surface p-3 shadow-lg"
+        >
+            <div class="mb-2 flex items-center justify-between">
+                <button type="button" @click="mesAnterior()" class="rounded p-1 text-ink-faint transition hover:bg-surface-2 hover:text-ink">
+                    <x-heroicon-o-chevron-left class="h-4 w-4" />
+                </button>
+                <p class="text-sm font-medium capitalize text-ink" x-text="`${meses[vistaMes]} ${vistaAnio}`"></p>
+                <button type="button" @click="mesSiguiente()" class="rounded p-1 text-ink-faint transition hover:bg-surface-2 hover:text-ink">
+                    <x-heroicon-o-chevron-right class="h-4 w-4" />
+                </button>
+            </div>
 
-        <div class="grid grid-cols-7 gap-y-1 text-center">
-            <template x-for="d in diasSemana" :key="d">
-                <span class="text-[11px] font-medium uppercase text-ink-faint" x-text="d"></span>
-            </template>
+            <div class="grid grid-cols-7 gap-y-1 text-center">
+                <template x-for="d in diasSemana" :key="d">
+                    <span class="text-[11px] font-medium uppercase text-ink-faint" x-text="d"></span>
+                </template>
 
-            <template x-for="(dia, indice) in diasDelMes()" :key="indice">
-                <button
-                    type="button"
-                    :disabled="dia === null"
-                    @click="elegir(dia)"
-                    x-text="dia ?? ''"
-                    :class="dia === null ? 'invisible' :
-                        esSeleccionado(dia) ? 'bg-accent text-white' :
-                        esHoy(dia) ? 'font-semibold text-accent hover:bg-surface-2' :
-                        'text-ink hover:bg-surface-2'"
-                    class="mx-auto flex h-7 w-7 items-center justify-center rounded-md text-xs transition"
-                ></button>
-            </template>
+                <template x-for="(dia, indice) in diasDelMes()" :key="indice">
+                    <button
+                        type="button"
+                        :disabled="dia === null"
+                        @click="elegir(dia)"
+                        x-text="dia ?? ''"
+                        :class="dia === null ? 'invisible' :
+                            esSeleccionado(dia) ? 'bg-accent text-white' :
+                            esHoy(dia) ? 'font-semibold text-accent hover:bg-surface-2' :
+                            'text-ink hover:bg-surface-2'"
+                        class="mx-auto flex h-7 w-7 items-center justify-center rounded-md text-xs transition"
+                    ></button>
+                </template>
+            </div>
         </div>
-    </div>
+    </template>
 </div>
