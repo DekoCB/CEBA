@@ -83,44 +83,6 @@ class AulaVirtualPermisosTest extends TestCase
             ->assertOk();
     }
 
-    /**
-     * Un estudiante de la Sección A no debe poder entrar al aula virtual de
-     * la Sección B del mismo grado/ciclo solo por conocer su URL, aunque el
-     * listado nunca le muestre ese enlace -- antes de este fix, la policy
-     * solo comparaba grado_id/ciclo_id, sin mirar a qué sección pertenece
-     * la matrícula del estudiante.
-     */
-    public function test_un_estudiante_no_puede_ver_el_aula_virtual_de_la_otra_seccion(): void
-    {
-        $usuario = User::factory()->create();
-        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
-        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
-
-        $docente = User::factory()->create();
-        $docente->assignRole(RolEnum::DOCENTE->value);
-
-        $horarioA = Horario::factory()->create(['docente_id' => $docente->id, 'seccion' => 'A']);
-        $horarioB = Horario::factory()->create([
-            'docente_id' => $docente->id,
-            'grado_id' => $horarioA->grado_id,
-            'ciclo_id' => $horarioA->ciclo_id,
-            'seccion' => 'B',
-        ]);
-
-        $cursoB = CursoVirtual::factory()->create(['horario_id' => $horarioB->id]);
-
-        Matricula::factory()->create([
-            'estudiante_id' => $estudiante->id,
-            'ciclo_id' => $horarioA->ciclo_id,
-            'grado_id' => $horarioA->grado_id,
-            'seccion' => $horarioA->seccion,
-        ]);
-
-        $this->actingAs($usuario)
-            ->get(route('aula-virtual.show', $cursoB))
-            ->assertForbidden();
-    }
-
     public function test_un_estudiante_matriculado_puede_responder_en_un_foro(): void
     {
         $usuario = User::factory()->create();
@@ -378,17 +340,16 @@ class AulaVirtualPermisosTest extends TestCase
             ->assertSeeInOrder(['Bienvenida', 'Introduccion al curso']);
     }
 
-    public function test_coordinador_puede_replicar_una_tarea_a_otra_seccion_de_otro_docente(): void
+    public function test_coordinador_puede_replicar_una_tarea_a_otro_curso_virtual_de_otro_docente(): void
     {
         $coordinador = User::factory()->create();
         $coordinador->assignRole(RolEnum::COORDINADOR->value);
 
-        $horarioA = Horario::factory()->create(['seccion' => 'A']);
+        $horarioA = Horario::factory()->create();
         $horarioB = Horario::factory()->create([
             'curso_id' => $horarioA->curso_id,
             'grado_id' => $horarioA->grado_id,
             'ciclo_id' => $horarioA->ciclo_id,
-            'seccion' => 'B',
         ]);
         $cursoVirtualA = CursoVirtual::factory()->create(['horario_id' => $horarioA->id]);
         $cursoVirtualB = CursoVirtual::factory()->create(['horario_id' => $horarioB->id]);
@@ -407,7 +368,7 @@ class AulaVirtualPermisosTest extends TestCase
         $this->assertSame(1, $cursoVirtualB->tareas()->count());
     }
 
-    public function test_un_docente_no_puede_replicar_una_tarea_a_la_seccion_de_otro_docente_inyectando_el_id(): void
+    public function test_un_docente_no_puede_replicar_una_tarea_al_curso_de_otro_docente_inyectando_el_id(): void
     {
         $docente = User::factory()->create();
         $docente->assignRole(RolEnum::DOCENTE->value);
@@ -431,17 +392,16 @@ class AulaVirtualPermisosTest extends TestCase
         $this->assertSame(0, $cursoAjeno->tareas()->count());
     }
 
-    public function test_coordinador_puede_replicar_un_foro_a_otra_seccion_de_otro_docente(): void
+    public function test_coordinador_puede_replicar_un_foro_a_otro_curso_virtual_de_otro_docente(): void
     {
         $coordinador = User::factory()->create();
         $coordinador->assignRole(RolEnum::COORDINADOR->value);
 
-        $horarioA = Horario::factory()->create(['seccion' => 'A']);
+        $horarioA = Horario::factory()->create();
         $horarioB = Horario::factory()->create([
             'curso_id' => $horarioA->curso_id,
             'grado_id' => $horarioA->grado_id,
             'ciclo_id' => $horarioA->ciclo_id,
-            'seccion' => 'B',
         ]);
         $cursoVirtualA = CursoVirtual::factory()->create(['horario_id' => $horarioA->id]);
         $cursoVirtualB = CursoVirtual::factory()->create(['horario_id' => $horarioB->id]);

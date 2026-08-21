@@ -36,14 +36,10 @@ new #[Layout('layouts.app')] class extends Component
             $rol = 'supervisor';
         }
 
-        // Un mismo curso puede tener varias secciones (Grupo A/B), cada una
-        // con su propio Horario: se agrupan por curso para que, si quien
-        // mira tiene acceso a más de una sección del mismo curso, elija
-        // cuál quiere ver en vez de toparse con dos tarjetas casi
-        // idénticas. Un estudiante nunca ve más de una sección por curso
-        // (EvaluacionService::horariosDelEstudiante() ya filtra por su
-        // propia sección), así que para él el grupo siempre trae un solo
-        // horario.
+        // Un mismo curso+ciclo normalmente tiene un único Horario, pero se
+        // agrupan por curso+ciclo por si dos docentes llegaran a dictarlo
+        // en paralelo: quien mira elegiría cuál quiere ver en vez de
+        // toparse con dos tarjetas casi idénticas.
         $grupos = $horarios->groupBy(fn ($horario) => $horario->curso_id.'|'.$horario->ciclo_id);
 
         return ['grupos' => $grupos, 'rol' => $rol];
@@ -81,9 +77,6 @@ new #[Layout('layouts.app')] class extends Component
                             {{ $primero->docente->name }} ·
                         @endif
                         {{ $primero->diasResumen() }}
-                        @if ($primero->seccion)
-                            · Sección {{ $primero->seccion }}
-                        @endif
                     </p>
                 </a>
             @else
@@ -92,15 +85,15 @@ new #[Layout('layouts.app')] class extends Component
                     <p class="font-display text-lg text-ink">{{ $primero->curso->nombre }}</p>
                     <p class="mt-1 text-sm text-ink-dim">{{ $primero->grado->nombre }} · {{ $primero->ciclo->nombre }}</p>
 
-                    <p class="mt-3 text-xs text-ink-faint">Selecciona una sección</p>
+                    <p class="mt-3 text-xs text-ink-faint">Selecciona un horario</p>
                     <div class="mt-2 flex flex-wrap gap-2">
-                        @foreach ($grupo->sortBy('seccion') as $opcion)
+                        @foreach ($grupo->sortBy(fn ($opcion) => $opcion->docente->name) as $opcion)
                             <a
                                 href="{{ route('evaluaciones.show', $opcion) }}"
                                 wire:navigate
                                 class="rounded-full border border-border bg-surface-2 px-3 py-1 text-xs font-medium text-ink transition hover:border-accent hover:text-accent"
                             >
-                                Sección {{ $opcion->seccion }}
+                                {{ $opcion->docente->name }}
                             </a>
                         @endforeach
                     </div>

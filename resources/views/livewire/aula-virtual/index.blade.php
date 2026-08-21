@@ -36,14 +36,11 @@ new #[Layout('layouts.app')] class extends Component
             $rol = 'supervisor';
         }
 
-        // Un mismo curso puede tener varias secciones (Grupo A/B), cada una
-        // con su propio Horario y por lo tanto su propio CursoVirtual: se
-        // agrupan por curso para que, si quien mira tiene acceso a más de
-        // una sección del mismo curso, elija cuál quiere ver en vez de
-        // toparse con dos tarjetas casi idénticas sin ninguna pista de cuál
-        // es cuál. Un estudiante nunca ve más de una sección por curso (ya
-        // viene filtrado por CursoVirtualService::delEstudiante()), así que
-        // para él el grupo siempre trae un solo curso virtual.
+        // Un mismo curso+ciclo normalmente tiene un único Horario y por lo
+        // tanto un único CursoVirtual, pero se agrupan por curso+ciclo por
+        // si dos docentes llegaran a dictarlo en paralelo: quien mira
+        // elegiría cuál quiere ver en vez de toparse con dos tarjetas casi
+        // idénticas sin ninguna pista de cuál es cuál.
         $grupos = $cursos->groupBy(fn ($cursoVirtual) => $cursoVirtual->horario->curso_id.'|'.$cursoVirtual->horario->ciclo_id);
 
         return ['grupos' => $grupos, 'rol' => $rol];
@@ -81,9 +78,6 @@ new #[Layout('layouts.app')] class extends Component
                             {{ $primero->horario->docente->name }} ·
                         @endif
                         {{ $primero->horario->diasResumen() }}
-                        @if ($primero->horario->seccion)
-                            · Sección {{ $primero->horario->seccion }}
-                        @endif
                     </p>
                 </a>
             @else
@@ -92,15 +86,15 @@ new #[Layout('layouts.app')] class extends Component
                     <p class="font-display text-lg text-ink">{{ $primero->horario->curso->nombre }}</p>
                     <p class="mt-1 text-sm text-ink-dim">{{ $primero->horario->grado->nombre }} · {{ $primero->horario->ciclo->nombre }}</p>
 
-                    <p class="mt-3 text-xs text-ink-faint">Selecciona una sección</p>
+                    <p class="mt-3 text-xs text-ink-faint">Selecciona un curso virtual</p>
                     <div class="mt-2 flex flex-wrap gap-2">
-                        @foreach ($grupo->sortBy('horario.seccion') as $opcion)
+                        @foreach ($grupo->sortBy(fn ($opcion) => $opcion->horario->docente->name) as $opcion)
                             <a
                                 href="{{ route('aula-virtual.show', $opcion) }}"
                                 wire:navigate
                                 class="rounded-full border border-border bg-surface-2 px-3 py-1 text-xs font-medium text-ink transition hover:border-accent hover:text-accent"
                             >
-                                Sección {{ $opcion->horario->seccion }}
+                                {{ $opcion->horario->docente->name }}
                             </a>
                         @endforeach
                     </div>

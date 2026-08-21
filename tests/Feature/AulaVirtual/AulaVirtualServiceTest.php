@@ -42,14 +42,10 @@ class AulaVirtualServiceTest extends TestCase
         $this->assertSame(1, CursoVirtual::query()->count());
     }
 
-    public function test_del_estudiante_no_mezcla_secciones_distintas_del_mismo_grado(): void
+    public function test_del_estudiante_no_mezcla_otros_grados_o_ciclos(): void
     {
-        $horarioA = Horario::factory()->create(['seccion' => 'A']);
-        $horarioB = Horario::factory()->create([
-            'grado_id' => $horarioA->grado_id,
-            'ciclo_id' => $horarioA->ciclo_id,
-            'seccion' => 'B',
-        ]);
+        $horarioA = Horario::factory()->create();
+        $horarioB = Horario::factory()->create();
         $cursoA = $this->cursoVirtualService()->activarParaHorario($horarioA);
         $cursoB = $this->cursoVirtualService()->activarParaHorario($horarioB);
 
@@ -58,7 +54,6 @@ class AulaVirtualServiceTest extends TestCase
             'estudiante_id' => $estudianteA->id,
             'grado_id' => $horarioA->grado_id,
             'ciclo_id' => $horarioA->ciclo_id,
-            'seccion' => $horarioA->seccion,
         ]);
 
         $cursos = $this->cursoVirtualService()->delEstudiante($estudianteA);
@@ -67,32 +62,31 @@ class AulaVirtualServiceTest extends TestCase
         $this->assertFalse($cursos->contains('id', $cursoB->id));
     }
 
-    public function test_secciones_relacionadas_incluye_otros_grupos_del_mismo_curso_grado_y_ciclo(): void
+    public function test_cursos_virtuales_relacionados_incluye_otros_docentes_del_mismo_curso_grado_y_ciclo(): void
     {
-        $horarioA = Horario::factory()->create(['seccion' => 'A']);
+        $horarioA = Horario::factory()->create();
         $horarioB = Horario::factory()->create([
             'curso_id' => $horarioA->curso_id,
             'grado_id' => $horarioA->grado_id,
             'ciclo_id' => $horarioA->ciclo_id,
-            'seccion' => 'B',
         ]);
         $cursoVirtualA = $this->cursoVirtualService()->activarParaHorario($horarioA);
         $cursoVirtualB = $this->cursoVirtualService()->activarParaHorario($horarioB);
 
-        // Mismo grado y ciclo, pero otro curso académico: no es una sección
-        // relacionada, aunque coincidan grado/ciclo.
+        // Mismo grado y ciclo, pero otro curso académico: no está
+        // relacionado, aunque coincidan grado/ciclo.
         $otroHorario = Horario::factory()->create([
             'grado_id' => $horarioA->grado_id,
             'ciclo_id' => $horarioA->ciclo_id,
         ]);
         $cursoVirtualNoRelacionado = $this->cursoVirtualService()->activarParaHorario($otroHorario);
 
-        $relacionadas = $this->cursoVirtualService()->seccionesRelacionadas($cursoVirtualA);
+        $relacionados = $this->cursoVirtualService()->cursosVirtualesRelacionados($cursoVirtualA);
 
-        $this->assertCount(2, $relacionadas);
-        $this->assertTrue($relacionadas->contains('id', $cursoVirtualA->id));
-        $this->assertTrue($relacionadas->contains('id', $cursoVirtualB->id));
-        $this->assertFalse($relacionadas->contains('id', $cursoVirtualNoRelacionado->id));
+        $this->assertCount(2, $relacionados);
+        $this->assertTrue($relacionados->contains('id', $cursoVirtualA->id));
+        $this->assertTrue($relacionados->contains('id', $cursoVirtualB->id));
+        $this->assertFalse($relacionados->contains('id', $cursoVirtualNoRelacionado->id));
     }
 
     public function test_material_de_tipo_pdf_requiere_archivo(): void

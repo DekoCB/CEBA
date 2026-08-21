@@ -52,7 +52,7 @@ class TareaService
 
     /**
      * Crea la misma tarea en varios cursos virtuales a la vez (ej. las
-     * distintas secciones/grupos de un mismo curso).
+     * distintas aulas/grupos de un mismo curso).
      *
      * @param  Collection<int, CursoVirtual>  $cursos
      * @param  array{titulo: string, descripcion: ?string, fecha_limite: string, puntaje_max: int, semana?: ?int}  $datos

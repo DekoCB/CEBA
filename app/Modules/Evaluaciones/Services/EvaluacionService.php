@@ -58,7 +58,7 @@ class EvaluacionService
     {
         $matriculas = $estudiante->matriculas()
             ->where('estado', 'aprobada')
-            ->get(['id', 'grado_id', 'ciclo_id', 'seccion']);
+            ->get(['id', 'grado_id', 'ciclo_id']);
 
         if ($matriculas->isEmpty()) {
             return new Collection;

@@ -1,9 +1,7 @@
 <?php
 
-use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
-use App\Modules\Academico\Models\Horario;
 use App\Modules\Matricula\DTOs\RegistrarApoderadoData;
 use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
 use App\Modules\Matricula\DTOs\RegistrarMatriculaData;
@@ -16,7 +14,6 @@ use App\Modules\Pagos\Enums\NumeroCuotasEnum;
 use App\Modules\Pagos\Services\PlanPagoService;
 use App\Shared\ValueObjects\Dni;
 use App\Shared\ValueObjects\Telefono;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -95,8 +92,6 @@ new class extends Component
 
     public string $gradoId = '';
 
-    public string $seccionElegida = '';
-
     public string $observacionesMatricula = '';
 
     // Paso 6 — cronograma de pagos (opcional)
@@ -115,49 +110,6 @@ new class extends Component
     public function mount(): void
     {
         Gate::authorize('matricula.crear');
-    }
-
-    public function updatedGradoId(): void
-    {
-        $this->seccionElegida = '';
-    }
-
-    public function updatedCicloId(): void
-    {
-        $this->seccionElegida = '';
-    }
-
-    /**
-     * Solo las secciones (Grupo A/B) reales del grado, compatibles con la
-     * edad del estudiante: las letras que declara algún horario sin
-     * público (sin restricción) o que coincide con el suyo. Si el grado no
-     * está realmente dividido en secciones -- aunque tenga varios
-     * horarios, uno por cada curso -- no hay nada que elegir y se devuelve
-     * vacío, igual que MatriculaService::resolverHorarioParaValidacion()
-     * decide cuándo pedir sección. La sección elegida aquí es independiente
-     * del horario específico de la matrícula (ver
-     * Matricula::scopeDelHorario()): solo importa la letra.
-     *
-     * @return Collection<int, string>
-     */
-    #[Computed]
-    public function seccionesDelGrado()
-    {
-        if ($this->cicloId === '' || $this->gradoId === '') {
-            return collect();
-        }
-
-        $publicoEsperado = $this->esMenorDeEdad ? TipoPublicoEnum::MENOR : TipoPublicoEnum::MAYOR;
-
-        return Horario::query()
-            ->where('ciclo_id', (int) $this->cicloId)
-            ->where('grado_id', (int) $this->gradoId)
-            ->whereNotNull('seccion')
-            ->where(fn ($query) => $query->whereNull('tipo_publico')->orWhere('tipo_publico', $publicoEsperado))
-            ->pluck('seccion')
-            ->unique()
-            ->sort()
-            ->values();
     }
 
     #[Computed]
@@ -245,7 +197,6 @@ new class extends Component
             $this->validate([
                 'cicloId' => 'required|integer|exists:ciclos,id',
                 'gradoId' => 'required|integer|exists:grados,id',
-                'seccionElegida' => 'nullable|string|max:10',
             ]);
 
             $this->paso = 6;
@@ -395,7 +346,6 @@ new class extends Component
             $matricula = $matriculaService->matricular($estudiante, new RegistrarMatriculaData(
                 cicloId: (int) $this->cicloId,
                 gradoId: (int) $this->gradoId,
-                seccion: $this->seccionElegida !== '' ? $this->seccionElegida : null,
                 observaciones: $this->observacionesMatricula ?: null,
                 registradoPor: auth()->id(),
             ));
@@ -714,20 +664,6 @@ new class extends Component
                     />
                     <x-input-error :messages="$errors->get('gradoId')" class="mt-1" />
                 </div>
-                @if ($this->seccionesDelGrado->count() > 1)
-                    <div class="sm:col-span-2">
-                        <x-input-label for="seccionElegida" value="Sección" />
-                        <x-select-input
-                            wire:model="seccionElegida"
-                            id="seccionElegida"
-                            class="mt-1 block w-full"
-                            :options="collect($this->seccionesDelGrado)->mapWithKeys(fn ($seccion) => [$seccion => 'Sección '.$seccion])"
-                        />
-                        <p class="mt-1 text-xs text-ink-faint">Este grado tiene más de una sección en el ciclo elegido: selecciona a cuál se matricula el estudiante.</p>
-                        <x-input-error :messages="$errors->get('seccionElegida')" class="mt-1" />
-                        <x-input-error :messages="$errors->get('seccion')" class="mt-1" />
-                    </div>
-                @endif
                 <div class="sm:col-span-2">
                     <x-input-label for="observacionesMatricula" value="Observaciones (opcional)" />
                     <textarea wire:model="observacionesMatricula" id="observacionesMatricula" rows="2" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent"></textarea>

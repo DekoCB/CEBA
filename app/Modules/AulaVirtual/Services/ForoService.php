@@ -23,7 +23,7 @@ class ForoService
 
     /**
      * Crea el mismo foro en varios cursos virtuales a la vez (ej. las
-     * distintas secciones/grupos de un mismo curso).
+     * distintas aulas/grupos de un mismo curso).
      *
      * @param  Collection<int, CursoVirtual>  $cursos
      * @return Collection<int, Foro>

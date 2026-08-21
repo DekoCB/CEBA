@@ -47,4 +47,15 @@ class Grado extends Model
     {
         return $this->hasMany(Horario::class);
     }
+
+    /**
+     * A qué aula (Grupo A/B) corresponde este grado dentro de un mismo
+     * Grupo/Ciclo: los dos primeros grados (por orden) van al Aula A, los
+     * siguientes dos al Aula B. Ya no es una elección libre por curso --
+     * ver la migración 2027_01_07_090100 que retira Matricula.seccion.
+     */
+    public function letraAula(): string
+    {
+        return $this->orden <= 2 ? 'A' : 'B';
+    }
 }

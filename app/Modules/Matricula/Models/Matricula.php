@@ -26,8 +26,8 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property int $ciclo_id
  * @property int $grado_id
  * @property int|null $horario_id
- * @property string|null $seccion
  * @property Carbon $fecha_matricula
+ * @property Carbon|null $fecha_fin_estudio
  * @property EstadoMatriculaEnum $estado
  * @property-read Estudiante|null $estudiante
  * @property-read Ciclo $ciclo
@@ -44,8 +44,8 @@ class Matricula extends Model implements HasMedia
         'ciclo_id',
         'grado_id',
         'horario_id',
-        'seccion',
         'fecha_matricula',
+        'fecha_fin_estudio',
         'estado',
         'observaciones',
         'registrado_por',
@@ -55,6 +55,7 @@ class Matricula extends Model implements HasMedia
     {
         return [
             'fecha_matricula' => 'date',
+            'fecha_fin_estudio' => 'date',
             'estado' => EstadoMatriculaEnum::class,
         ];
     }
@@ -97,26 +98,15 @@ class Matricula extends Model implements HasMedia
 
     /**
      * Las matrículas que cuentan para un horario dado: mismo grado y
-     * ciclo, aprobadas, y -- si ese horario declara una sección propia
-     * (Grupo A/B) -- solo las que no eligieron ninguna sección (les
-     * aplica cualquier horario de su grado) o que eligieron esa misma
-     * sección; nunca las de la sección contraria. Si el horario consultado
-     * no tiene sección (un curso del grado sin dividir en grupos), no se
-     * filtra en absoluto: cualquier matrícula del grado y ciclo cuenta. La
-     * sección de la matrícula vive en su propia columna (seccion),
-     * independiente de horario_id -- ver la migración
-     * 2027_01_05_090000_add_seccion_to_matriculas_table.
+     * ciclo, aprobadas. El aula (Grupo A/B) ya no hace falta compararla
+     * aparte -- la determina el grado (ver Grado::letraAula()), siempre
+     * igual dentro de un mismo grado y ciclo, así que coincidir por
+     * grado_id ya basta.
      */
     public function scopeDelHorario(Builder $query, Horario $horario): Builder
     {
-        $query->where('grado_id', $horario->grado_id)
+        return $query->where('grado_id', $horario->grado_id)
             ->where('ciclo_id', $horario->ciclo_id)
             ->where('estado', 'aprobada');
-
-        if ($horario->seccion !== null) {
-            $query->where(fn (Builder $query) => $query->whereNull('seccion')->orWhere('seccion', $horario->seccion));
-        }
-
-        return $query;
     }
 }

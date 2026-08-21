@@ -1,8 +1,6 @@
 <?php
 
-use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
-use App\Modules\Academico\Models\Horario;
 use App\Modules\Academico\Services\GradoService;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
@@ -77,23 +75,8 @@ new #[Layout('layouts.app')] class extends Component
 
     public function with(GradoService $service): array
     {
-        $grados = $service->todos();
-        $ciclo = Ciclo::query()->where('estado', 'activo')->first();
-
-        $seccionesPorGrado = $ciclo
-            ? Horario::query()
-                ->where('ciclo_id', $ciclo->id)
-                ->whereIn('grado_id', $grados->pluck('id'))
-                ->whereNotNull('seccion')
-                ->get(['grado_id', 'seccion'])
-                ->groupBy('grado_id')
-                ->map(fn ($horarios) => $horarios->pluck('seccion')->unique()->sort()->values())
-            : collect();
-
         return [
-            'grados' => $grados,
-            'ciclo' => $ciclo,
-            'seccionesPorGrado' => $seccionesPorGrado,
+            'grados' => $service->todos(),
         ];
     }
 }; ?>
@@ -123,42 +106,23 @@ new #[Layout('layouts.app')] class extends Component
         <div class="mb-4 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">{{ session('status') }}</div>
     @endif
 
-    <p class="mb-4 text-xs text-ink-faint">
-        @if ($ciclo)
-            Secciones del ciclo activo: {{ $ciclo->nombre }}.
-        @else
-            No hay un ciclo activo: no se pueden mostrar secciones.
-        @endif
-    </p>
-
     <div class="overflow-hidden rounded-lg border border-border bg-surface">
         <table class="min-w-full divide-y divide-border text-sm">
             <thead class="bg-surface-2">
                 <tr>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Nombre</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Orden</th>
-                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Secciones</th>
+                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Aula</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Estado</th>
                     <th class="px-4 py-3"></th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-border">
                 @forelse ($grados as $grado)
-                    @php $secciones = $seccionesPorGrado[$grado->id] ?? collect(); @endphp
                     <tr wire:key="grado-{{ $grado->id }}">
                         <td class="px-4 py-3 font-medium text-ink">{{ $grado->nombre }}</td>
                         <td class="px-4 py-3 font-mono text-ink-dim">{{ $grado->orden }}</td>
-                        <td class="px-4 py-3">
-                            @if ($secciones->isNotEmpty())
-                                <div class="flex flex-wrap gap-1">
-                                    @foreach ($secciones as $seccion)
-                                        <span class="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">{{ $seccion }}</span>
-                                    @endforeach
-                                </div>
-                            @else
-                                <span class="text-ink-faint">Sin dividir</span>
-                            @endif
-                        </td>
+                        <td class="px-4 py-3 text-ink-dim">{{ $grado->letraAula() }}</td>
                         <td class="px-4 py-3">
                             <span @class(['rounded-full px-2 py-0.5 text-xs font-medium', 'bg-ok/10 text-ok' => $grado->activo, 'bg-ink-faint/10 text-ink-faint' => ! $grado->activo])>
                                 {{ $grado->activo ? 'Activo' : 'Inactivo' }}

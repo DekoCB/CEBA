@@ -65,21 +65,16 @@ class AsistenciaServiceTest extends TestCase
         $this->assertFalse($estudiantes->contains('id', $noMatriculado->id));
     }
 
-    public function test_estudiantes_del_horario_no_mezcla_secciones_distintas_del_mismo_grado(): void
+    public function test_estudiantes_del_horario_no_mezcla_otros_grados_o_ciclos(): void
     {
-        $horarioA = Horario::factory()->create(['seccion' => 'A']);
-        $horarioB = Horario::factory()->create([
-            'grado_id' => $horarioA->grado_id,
-            'ciclo_id' => $horarioA->ciclo_id,
-            'seccion' => 'B',
-        ]);
+        $horarioA = Horario::factory()->create();
+        $horarioB = Horario::factory()->create();
 
         $estudianteA = Estudiante::factory()->create();
         Matricula::factory()->create([
             'estudiante_id' => $estudianteA->id,
             'grado_id' => $horarioA->grado_id,
             'ciclo_id' => $horarioA->ciclo_id,
-            'seccion' => $horarioA->seccion,
         ]);
 
         $estudianteB = Estudiante::factory()->create();
@@ -87,7 +82,6 @@ class AsistenciaServiceTest extends TestCase
             'estudiante_id' => $estudianteB->id,
             'grado_id' => $horarioB->grado_id,
             'ciclo_id' => $horarioB->ciclo_id,
-            'seccion' => $horarioB->seccion,
         ]);
 
         $estudiantesDeA = $this->service()->estudiantesDelHorario($horarioA);
@@ -97,33 +91,30 @@ class AsistenciaServiceTest extends TestCase
     }
 
     /**
-     * Cuando un grado tiene varios cursos, cada uno con su propio par de
-     * horarios A/B, la matrícula de un estudiante guarda un horario_id de
-     * UNO solo de esos cursos (el que se usó para elegir su sección), pero
-     * eso lo hace pertenecer a la sección "A" de TODOS los cursos del
-     * grado, no solo al curso cuyo horario_id quedó guardado -- comparar
-     * por horario_id exacto (el bug original) lo excluía del roster de
-     * cualquier otro curso de su propia sección.
+     * Cuando un grado tiene varios cursos, la matrícula de un estudiante
+     * guarda un horario_id de UNO solo de esos cursos, pero eso lo hace
+     * pertenecer a TODOS los cursos del mismo grado y ciclo, no solo al
+     * curso cuyo horario_id quedó guardado -- comparar por horario_id
+     * exacto (el bug original) lo excluía del roster de cualquier otro
+     * curso de su propio grado.
      */
-    public function test_estudiantes_del_horario_incluye_a_quien_eligio_su_seccion_en_otro_curso_del_mismo_grado(): void
+    public function test_estudiantes_del_horario_incluye_al_matriculado_en_otro_curso_del_mismo_grado(): void
     {
         $grado = Grado::factory()->create();
         $ciclo = Ciclo::factory()->create();
 
-        $curso1SeccionA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
-        $curso2SeccionA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+        $curso1 = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        $curso2 = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
 
         $estudiante = Estudiante::factory()->create();
         Matricula::factory()->create([
             'estudiante_id' => $estudiante->id,
             'grado_id' => $grado->id,
             'ciclo_id' => $ciclo->id,
-            'seccion' => $curso1SeccionA->seccion,
+            'horario_id' => $curso1->id,
         ]);
 
-        $estudiantesDelOtroCurso = $this->service()->estudiantesDelHorario($curso2SeccionA);
+        $estudiantesDelOtroCurso = $this->service()->estudiantesDelHorario($curso2);
 
         $this->assertTrue($estudiantesDelOtroCurso->contains('id', $estudiante->id));
     }

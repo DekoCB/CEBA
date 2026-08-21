@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Modules\Academico\Services;
 
 use App\Modules\Academico\Enums\DiaSemanaEnum;
-use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Academico\Repositories\Contracts\HorarioRepositoryInterface;
 use App\Modules\AulaVirtual\Services\CursoVirtualService;
@@ -29,7 +28,7 @@ class HorarioService
     }
 
     /**
-     * @param  array{curso_id: int, docente_id: int, aula_id: int, ciclo_id: int, grado_id: int, seccion?: string|null, tipo_publico?: TipoPublicoEnum|null, dias: list<array{dia_semana: DiaSemanaEnum, hora_inicio: string, hora_fin: string}>}  $datos
+     * @param  array{curso_id: int, docente_id: int, aula_id: int, ciclo_id: int, grado_id: int, dias: list<array{dia_semana: DiaSemanaEnum, hora_inicio: string, hora_fin: string}>}  $datos
      */
     public function crear(array $datos): Horario
     {
@@ -42,8 +41,6 @@ class HorarioService
                 'aula_id' => $datos['aula_id'],
                 'ciclo_id' => $datos['ciclo_id'],
                 'grado_id' => $datos['grado_id'],
-                'seccion' => $datos['seccion'] ?? null,
-                'tipo_publico' => $datos['tipo_publico'] ?? null,
             ]);
 
             $horario->dias()->createMany($datos['dias']);
@@ -59,7 +56,7 @@ class HorarioService
     }
 
     /**
-     * @param  array{curso_id: int, docente_id: int, aula_id: int, ciclo_id: int, grado_id: int, seccion?: string|null, tipo_publico?: TipoPublicoEnum|null, dias: list<array{dia_semana: DiaSemanaEnum, hora_inicio: string, hora_fin: string}>}  $datos
+     * @param  array{curso_id: int, docente_id: int, aula_id: int, ciclo_id: int, grado_id: int, dias: list<array{dia_semana: DiaSemanaEnum, hora_inicio: string, hora_fin: string}>}  $datos
      */
     public function actualizar(Horario $horario, array $datos): Horario
     {
@@ -72,8 +69,6 @@ class HorarioService
                 'aula_id' => $datos['aula_id'],
                 'ciclo_id' => $datos['ciclo_id'],
                 'grado_id' => $datos['grado_id'],
-                'seccion' => $datos['seccion'] ?? null,
-                'tipo_publico' => $datos['tipo_publico'] ?? null,
             ]);
 
             $horario->dias()->delete();

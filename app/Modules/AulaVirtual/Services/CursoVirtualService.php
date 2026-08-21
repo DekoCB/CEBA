@@ -26,14 +26,14 @@ class CursoVirtualService
 
     /**
      * Los cursos virtuales que corresponden al mismo curso académico, grado
-     * y ciclo que $curso -- es decir, sus otras secciones/grupos (A, B...),
-     * aunque las dicte otro docente -- incluido $curso mismo. Es la lista
-     * para "subir también a": replicar un material a los demás grupos del
-     * mismo curso sin tener que repetirlo uno por uno.
+     * y ciclo que $curso -- incluido $curso mismo -- aunque los dicte otro
+     * docente. Es la lista para "subir también a": replicar un material a
+     * los demás cursos virtuales equivalentes sin tener que repetirlo uno
+     * por uno.
      *
      * @return Collection<int, CursoVirtual>
      */
-    public function seccionesRelacionadas(CursoVirtual $curso): Collection
+    public function cursosVirtualesRelacionados(CursoVirtual $curso): Collection
     {
         $horario = $curso->horario;
 
@@ -45,7 +45,7 @@ class CursoVirtualService
             })
             ->with(['horario.curso', 'horario.grado', 'horario.ciclo', 'horario.docente'])
             ->get()
-            ->sortBy(fn (CursoVirtual $cursoVirtual) => $cursoVirtual->horario->seccion ?? '');
+            ->sortBy(fn (CursoVirtual $cursoVirtual) => $cursoVirtual->horario->docente->name ?? '');
     }
 
     /**

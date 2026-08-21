@@ -7,7 +7,6 @@ namespace App\Modules\Academico\Models;
 use App\Models\User;
 use App\Modules\Academico\Database\Factories\HorarioFactory;
 use App\Modules\Academico\Enums\FranjaHorarioEnum;
-use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Identidad\Support\Auditable;
 use App\Modules\Matricula\Models\Matricula;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,8 +24,6 @@ use Illuminate\Support\Carbon;
  * @property int $aula_id
  * @property int $ciclo_id
  * @property int $grado_id
- * @property string|null $seccion
- * @property TipoPublicoEnum|null $tipo_publico
  * @property-read Curso $curso
  * @property-read User $docente
  * @property-read Aula $aula
@@ -44,16 +41,7 @@ class Horario extends Model
         'aula_id',
         'ciclo_id',
         'grado_id',
-        'seccion',
-        'tipo_publico',
     ];
-
-    protected function casts(): array
-    {
-        return [
-            'tipo_publico' => TipoPublicoEnum::class,
-        ];
-    }
 
     protected static function newFactory(): HorarioFactory
     {
@@ -107,24 +95,13 @@ class Horario extends Model
     }
 
     /**
-     * Los horarios que corresponden a una matrícula: mismo grado y ciclo,
-     * y -- si esa matrícula ya eligió una sección específica (Grupo A/B) --
-     * solo los que no tienen sección propia (le aplican a todo el grado,
-     * como cualquier curso sin dividir en grupos) o los que comparten esa
-     * misma sección; nunca los de la sección contraria. Complementa a
-     * Matricula::scopeDelHorario(), la misma regla vista desde el otro
-     * lado. La sección de la matrícula vive en su propia columna
-     * (seccion), independiente de a qué horario apunte horario_id.
+     * Los horarios que corresponden a una matrícula: mismo grado y ciclo.
+     * Complementa a Matricula::scopeDelHorario(), la misma regla vista
+     * desde el otro lado.
      */
     public function scopeDeLaMatricula(Builder $query, Matricula $matricula): Builder
     {
-        $query->where('grado_id', $matricula->grado_id)->where('ciclo_id', $matricula->ciclo_id);
-
-        if ($matricula->seccion !== null) {
-            $query->where(fn (Builder $query) => $query->whereNull('seccion')->orWhere('seccion', $matricula->seccion));
-        }
-
-        return $query;
+        return $query->where('grado_id', $matricula->grado_id)->where('ciclo_id', $matricula->ciclo_id);
     }
 
     /**

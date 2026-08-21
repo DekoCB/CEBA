@@ -137,7 +137,6 @@ class HorarioFormTest extends TestCase
             'aula_id' => Aula::factory()->create()->id,
             'ciclo_id' => $ciclo->id,
             'grado_id' => $gradoA->id,
-            'seccion' => 'A',
             'dias' => [
                 ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
                 ['dia_semana' => DiaSemanaEnum::MIERCOLES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],

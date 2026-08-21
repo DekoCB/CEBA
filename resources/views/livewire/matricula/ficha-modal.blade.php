@@ -1,6 +1,5 @@
 <?php
 
-use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Matricula\Models\DocumentoEstudiante;
 use App\Modules\Matricula\Models\Estudiante;
@@ -27,9 +26,9 @@ new class extends Component
 
     public string $observacionesTexto = '';
 
-    public ?int $editandoSeccionMatriculaId = null;
+    public ?int $editandoFechaFinMatriculaId = null;
 
-    public string $seccionSeleccionada = '';
+    public string $fechaFinEstudioNueva = '';
 
     public ?int $editandoHorarioMatriculaId = null;
 
@@ -46,8 +45,8 @@ new class extends Component
 
         $this->estudianteId = $estudianteId;
         $this->observacionesTexto = Estudiante::query()->find($estudianteId)?->observaciones ?? '';
-        $this->editandoSeccionMatriculaId = null;
-        $this->seccionSeleccionada = '';
+        $this->editandoFechaFinMatriculaId = null;
+        $this->fechaFinEstudioNueva = '';
         $this->editandoHorarioMatriculaId = null;
         $this->horarioSeleccionado = '';
         $this->editandoMontoPlanId = null;
@@ -69,36 +68,38 @@ new class extends Component
         Estudiante::query()->findOrFail($this->estudianteId)->update(['observaciones' => $this->observacionesTexto ?: null]);
     }
 
-    public function editarSeccion(int $matriculaId): void
+    public function editarFechaFinEstudio(int $matriculaId): void
     {
         Gate::authorize('matricula.editar');
 
         $matricula = Matricula::query()->findOrFail($matriculaId);
 
-        $this->editandoSeccionMatriculaId = $matriculaId;
-        $this->seccionSeleccionada = $matricula->seccion ?? '';
+        $this->editandoFechaFinMatriculaId = $matriculaId;
+        $this->fechaFinEstudioNueva = $matricula->fecha_fin_estudio?->format('Y-m-d') ?? '';
     }
 
-    public function cancelarEdicionSeccion(): void
+    public function cancelarEdicionFechaFinEstudio(): void
     {
-        $this->editandoSeccionMatriculaId = null;
-        $this->seccionSeleccionada = '';
+        $this->editandoFechaFinMatriculaId = null;
+        $this->fechaFinEstudioNueva = '';
     }
 
-    public function guardarSeccion(MatriculaService $service): void
+    public function guardarFechaFinEstudio(MatriculaService $service): void
     {
         Gate::authorize('matricula.editar');
 
-        if ($this->editandoSeccionMatriculaId === null) {
+        if ($this->editandoFechaFinMatriculaId === null) {
             return;
         }
 
-        $matricula = Matricula::query()->findOrFail($this->editandoSeccionMatriculaId);
+        $this->validate(['fechaFinEstudioNueva' => 'required|date']);
 
-        $service->reasignarSeccion($matricula, $this->seccionSeleccionada !== '' ? $this->seccionSeleccionada : null);
+        $matricula = Matricula::query()->findOrFail($this->editandoFechaFinMatriculaId);
 
-        $this->editandoSeccionMatriculaId = null;
-        $this->seccionSeleccionada = '';
+        $service->reasignarFechaFinEstudio($matricula, $this->fechaFinEstudioNueva);
+
+        $this->editandoFechaFinMatriculaId = null;
+        $this->fechaFinEstudioNueva = '';
     }
 
     public function editarHorario(int $matriculaId): void
@@ -168,24 +169,6 @@ new class extends Component
     }
 
     /**
-     * @return Collection<int, string>
-     */
-    private function seccionesParaMatricula(Matricula $matricula, Estudiante $estudiante): Collection
-    {
-        $publicoEsperado = $estudiante->es_menor_edad ? TipoPublicoEnum::MENOR : TipoPublicoEnum::MAYOR;
-
-        return Horario::query()
-            ->where('ciclo_id', $matricula->ciclo_id)
-            ->where('grado_id', $matricula->grado_id)
-            ->whereNotNull('seccion')
-            ->where(fn ($query) => $query->whereNull('tipo_publico')->orWhere('tipo_publico', $publicoEsperado))
-            ->pluck('seccion')
-            ->unique()
-            ->sort()
-            ->values();
-    }
-
-    /**
      * @return Collection<int, Horario>
      */
     private function horariosParaMatricula(Matricula $matricula): Collection
@@ -195,7 +178,7 @@ new class extends Component
             ->where('grado_id', $matricula->grado_id)
             ->with(['curso', 'docente', 'dias'])
             ->get()
-            ->sortBy(fn (Horario $horario) => ($horario->seccion ?? '').'|'.$horario->curso->nombre)
+            ->sortBy(fn (Horario $horario) => $horario->curso->nombre)
             ->values();
     }
 
@@ -210,7 +193,6 @@ new class extends Component
             'documentos' => $estudiante?->documentos()->with('media')->get(),
             'examenes' => $estudiante?->examenesUbicacion()->with('gradoAsignado')->latest('fecha')->get(),
             'matriculas' => $matriculas,
-            'seccionesPorMatricula' => $matriculas?->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $this->seccionesParaMatricula($matricula, $estudiante)]) ?? collect(),
             'horariosPorMatricula' => $matriculas?->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $this->horariosParaMatricula($matricula)]) ?? collect(),
             'planesPorMatricula' => $matriculas !== null && Auth::user()->hasPermissionTo('pagos.ver')
                 ? $matriculas->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $planes->planDe($matricula)])
@@ -240,12 +222,11 @@ new class extends Component
                     :documentos="$documentos"
                     :examenes="$examenes"
                     :matriculas="$matriculas"
-                    :secciones-por-matricula="$seccionesPorMatricula"
-                    :editando-seccion-matricula-id="$editandoSeccionMatriculaId"
-                    :seccion-seleccionada="$seccionSeleccionada"
                     :horarios-por-matricula="$horariosPorMatricula"
                     :editando-horario-matricula-id="$editandoHorarioMatriculaId"
                     :horario-seleccionado="$horarioSeleccionado"
+                    :editando-fecha-fin-matricula-id="$editandoFechaFinMatriculaId"
+                    :fecha-fin-estudio-nueva="$fechaFinEstudioNueva"
                     :planes-por-matricula="$planesPorMatricula"
                     :editando-monto-plan-id="$editandoMontoPlanId"
                     :monto-total-nuevo="$montoTotalNuevo"

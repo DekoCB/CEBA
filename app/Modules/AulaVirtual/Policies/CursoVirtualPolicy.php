@@ -42,11 +42,9 @@ class CursoVirtualPolicy
     }
 
     /**
-     * Si el horario pertenece a una sección (Grupo A/B) real, solo cuenta
-     * como matriculado el estudiante de esa misma sección -- sin este
-     * chequeo, cualquier estudiante del grado/ciclo podía entrar al aula
-     * virtual de la OTRA sección con solo conocer su URL, aunque nunca se
-     * le mostrara el enlace (ver Matricula::scopeDelHorario()).
+     * Solo cuenta como matriculado el estudiante con una matrícula
+     * aprobada en el mismo grado y ciclo del horario (ver
+     * Matricula::scopeDelHorario()).
      */
     private function estudianteMatriculado(User $user, CursoVirtual $curso): bool
     {

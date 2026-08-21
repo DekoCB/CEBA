@@ -2,10 +2,8 @@
 
 namespace Tests\Feature\Matricula;
 
-use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
-use App\Modules\Academico\Models\Horario;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Services\MatriculaService;
@@ -153,25 +151,5 @@ class MatriculaMasivaServiceTest extends TestCase
 
         $this->assertSame(0, $resultado['exitosos']);
         $this->assertStringContainsString('00000000', $resultado['errores'][0]['mensaje']);
-    }
-
-    public function test_matricula_masiva_reporta_grado_incoherente_con_la_edad_como_error_de_fila(): void
-    {
-        $ciclo = $this->cicloConPeriodoAbierto();
-        $gradoDeMenores = Grado::factory()->create(['nombre' => 'Grado de menores']);
-        Horario::factory()->create([
-            'grado_id' => $gradoDeMenores->id,
-            'ciclo_id' => $ciclo->id,
-            'tipo_publico' => TipoPublicoEnum::MENOR,
-        ]);
-        Estudiante::factory()->create(['dni' => '33445566', 'es_menor_edad' => false]);
-
-        $resultado = $this->service()->matricularDesdeFilas($ciclo->id, $this->filas([
-            ['dni' => '33445566', 'grado' => 'Grado de menores'],
-        ]), null);
-
-        $this->assertSame(0, $resultado['exitosos']);
-        $this->assertCount(1, $resultado['errores']);
-        $this->assertDatabaseMissing('matriculas', ['grado_id' => $gradoDeMenores->id]);
     }
 }

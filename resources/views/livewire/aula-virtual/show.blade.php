@@ -403,7 +403,7 @@ new #[Layout('layouts.app')] class extends Component
             'tiposMaterial' => TipoMaterialEnum::cases(),
             'tiposClaseGrabada' => TipoClaseGrabadaEnum::cases(),
             'tiposPublicacion' => TipoPublicacionEnum::cases(),
-            'seccionesRelacionadas' => $cursos->seccionesRelacionadas($this->curso),
+            'cursosRelacionados' => $cursos->cursosVirtualesRelacionados($this->curso),
             'plantillasDisponibles' => $plantillas->listarPorCurso($this->curso->horario->curso),
         ];
     }
@@ -414,9 +414,6 @@ new #[Layout('layouts.app')] class extends Component
         <a href="{{ route('aula-virtual.index') }}" wire:navigate class="text-sm text-ink-faint hover:text-ink">← Aula Virtual</a>
         <div class="mt-1 flex items-center gap-2">
             <h1 class="font-display text-2xl text-ink">{{ $curso->horario->curso->nombre }}</h1>
-            @if ($curso->horario->seccion)
-                <span class="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">Sección {{ $curso->horario->seccion }}</span>
-            @endif
         </div>
         <p class="mt-1 text-sm text-ink-dim">{{ $curso->horario->grado->nombre }} · {{ $curso->horario->ciclo->nombre }} · {{ $curso->horario->docente->name }}</p>
     </x-slot>
@@ -526,7 +523,7 @@ new #[Layout('layouts.app')] class extends Component
                         </div>
                     @endif
 
-                    <x-aula-virtual.checklist-secciones :secciones="$seccionesRelacionadas" campo="materialCursosSeleccionados" />
+                    <x-aula-virtual.checklist-secciones :secciones="$cursosRelacionados" campo="materialCursosSeleccionados" />
 
                     <div class="flex justify-end gap-2">
                         <x-secondary-button type="button" wire:click="$set('mostrarFormMaterial', false)">Cancelar</x-secondary-button>
@@ -615,7 +612,7 @@ new #[Layout('layouts.app')] class extends Component
                         </div>
                     @endif
 
-                    <x-aula-virtual.checklist-secciones :secciones="$seccionesRelacionadas" campo="grabacionCursosSeleccionados" />
+                    <x-aula-virtual.checklist-secciones :secciones="$cursosRelacionados" campo="grabacionCursosSeleccionados" />
 
                     <div class="flex justify-end gap-2">
                         <x-secondary-button type="button" wire:click="$set('mostrarFormGrabacion', false)">Cancelar</x-secondary-button>
@@ -694,7 +691,7 @@ new #[Layout('layouts.app')] class extends Component
                         <x-input-error :messages="$errors->get('tareaSemana')" class="mt-1" />
                     </div>
 
-                    <x-aula-virtual.checklist-secciones :secciones="$seccionesRelacionadas" campo="tareaCursosSeleccionados" />
+                    <x-aula-virtual.checklist-secciones :secciones="$cursosRelacionados" campo="tareaCursosSeleccionados" />
 
                     <div class="flex justify-end gap-2">
                         <x-secondary-button type="button" wire:click="$set('mostrarFormTarea', false)">Cancelar</x-secondary-button>
@@ -823,7 +820,7 @@ new #[Layout('layouts.app')] class extends Component
                         <x-input-error :messages="$errors->get('foroSemana')" class="mt-1" />
                     </div>
 
-                    <x-aula-virtual.checklist-secciones :secciones="$seccionesRelacionadas" campo="foroCursosSeleccionados" />
+                    <x-aula-virtual.checklist-secciones :secciones="$cursosRelacionados" campo="foroCursosSeleccionados" />
 
                     <div class="flex justify-end gap-2">
                         <x-secondary-button type="button" wire:click="$set('mostrarFormForo', false)">Cancelar</x-secondary-button>

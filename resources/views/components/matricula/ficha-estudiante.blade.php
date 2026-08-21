@@ -3,12 +3,11 @@
     'documentos',
     'examenes',
     'matriculas',
-    'seccionesPorMatricula' => [],
-    'editandoSeccionMatriculaId' => null,
-    'seccionSeleccionada' => '',
     'horariosPorMatricula' => [],
     'editandoHorarioMatriculaId' => null,
     'horarioSeleccionado' => '',
+    'editandoFechaFinMatriculaId' => null,
+    'fechaFinEstudioNueva' => '',
     'planesPorMatricula' => [],
     'editandoMontoPlanId' => null,
     'montoTotalNuevo' => '',
@@ -142,31 +141,27 @@
                         </span>
                     </div>
                     <p class="mt-1 text-ink-faint">Matriculado el {{ $matricula->fecha_matricula->format('d/m/Y') }}</p>
+                    <p class="mt-1 text-ink-faint">Aula: {{ $matricula->grado->letraAula() }}</p>
 
                     <div class="mt-2 flex items-center gap-2">
-                        <p class="text-ink-faint">Sección: {{ $matricula->seccion ? "Sección {$matricula->seccion}" : 'Sin dividir' }}</p>
+                        <p class="text-ink-faint">Fin de estudios: {{ $matricula->fecha_fin_estudio?->format('d/m/Y') ?? '—' }}</p>
 
                         @can('matricula.editar')
-                            @if ((($seccionesPorMatricula[$matricula->id] ?? collect())->count() > 1) && $editandoSeccionMatriculaId !== $matricula->id)
-                                <button type="button" wire:click="editarSeccion({{ $matricula->id }})" class="text-xs font-medium text-accent hover:underline">Editar sección</button>
+                            @if ($editandoFechaFinMatriculaId !== $matricula->id)
+                                <button type="button" wire:click="editarFechaFinEstudio({{ $matricula->id }})" class="text-xs font-medium text-accent hover:underline">Editar</button>
                             @endif
                         @endcan
                     </div>
 
                     @can('matricula.editar')
-                        @if ($editandoSeccionMatriculaId === $matricula->id)
-                            <form wire:submit="guardarSeccion" class="mt-2 flex flex-wrap items-center gap-2">
-                                <x-select-input
-                                    wire:model="seccionSeleccionada"
-                                    class="w-40 text-xs"
-                                    placeholder="Selecciona una sección"
-                                    :options="collect($seccionesPorMatricula[$matricula->id] ?? [])->mapWithKeys(fn ($seccion) => [$seccion => 'Sección '.$seccion])"
-                                />
+                        @if ($editandoFechaFinMatriculaId === $matricula->id)
+                            <form wire:submit="guardarFechaFinEstudio" class="mt-2 flex flex-wrap items-center gap-2">
+                                <x-date-input wire:model="fechaFinEstudioNueva" class="w-40 text-xs" />
                                 <x-secondary-button type="submit">Guardar</x-secondary-button>
-                                <button type="button" wire:click="cancelarEdicionSeccion" class="text-xs text-ink-faint hover:text-ink">Cancelar</button>
+                                <button type="button" wire:click="cancelarEdicionFechaFinEstudio" class="text-xs text-ink-faint hover:text-ink">Cancelar</button>
                             </form>
-                            <x-input-error :messages="$errors->get('seccionSeleccionada')" class="mt-1" />
-                            <x-input-error :messages="$errors->get('seccion')" class="mt-1" />
+                            <x-input-error :messages="$errors->get('fechaFinEstudioNueva')" class="mt-1" />
+                            <x-input-error :messages="$errors->get('fecha')" class="mt-1" />
                         @endif
                     @endcan
 

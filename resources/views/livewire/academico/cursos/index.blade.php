@@ -135,9 +135,9 @@ new #[Layout('layouts.app')] class extends Component
         $cursos = $service->listar();
         $ciclo = Ciclo::query()->where('estado', 'activo')->first();
 
-        // Secciones y docentes se muestran para el ciclo activo: un curso
-        // puede tener horarios distintos (o ninguno) según el ciclo, así
-        // que no tiene sentido mezclarlos todos en una sola columna.
+        // El docente se muestra para el ciclo activo: un curso puede tener
+        // horarios distintos (o ninguno) según el ciclo, así que no tiene
+        // sentido mezclarlos todos en una sola columna.
         $horariosPorCurso = $ciclo
             ? Horario::query()
                 ->where('ciclo_id', $ciclo->id)
@@ -178,9 +178,9 @@ new #[Layout('layouts.app')] class extends Component
 
     <p class="mb-4 text-xs text-ink-faint">
         @if ($ciclo)
-            Secciones y docente del ciclo activo: {{ $ciclo->nombre }}.
+            Docente del ciclo activo: {{ $ciclo->nombre }}.
         @else
-            No hay un ciclo activo: no se pueden mostrar secciones ni docente.
+            No hay un ciclo activo: no se puede mostrar el docente.
         @endif
     </p>
 
@@ -191,7 +191,6 @@ new #[Layout('layouts.app')] class extends Component
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Código</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Nombre</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Grado</th>
-                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Secciones</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Docente</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Horas</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Estado</th>
@@ -202,24 +201,12 @@ new #[Layout('layouts.app')] class extends Component
                 @forelse ($cursos as $curso)
                     @php
                         $horariosDelCurso = $horariosPorCurso[$curso->id] ?? collect();
-                        $secciones = $horariosDelCurso->pluck('seccion')->filter()->unique()->sort()->values();
                         $docentes = $horariosDelCurso->pluck('docente.name')->filter()->unique()->values();
                     @endphp
                     <tr wire:key="curso-{{ $curso->id }}">
                         <td class="px-4 py-3 font-mono text-ink-dim">{{ $curso->codigo }}</td>
                         <td class="px-4 py-3 font-medium text-ink">{{ $curso->nombre }}</td>
                         <td class="px-4 py-3 text-ink-dim">{{ $curso->grado?->nombre }}</td>
-                        <td class="px-4 py-3 text-ink-dim">
-                            @if ($secciones->isNotEmpty())
-                                <div class="flex flex-wrap gap-1">
-                                    @foreach ($secciones as $seccion)
-                                        <span class="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">{{ $seccion }}</span>
-                                    @endforeach
-                                </div>
-                            @else
-                                <span class="text-ink-faint">—</span>
-                            @endif
-                        </td>
                         <td class="px-4 py-3 text-ink-dim">{{ $docentes->isNotEmpty() ? $docentes->implode(', ') : '—' }}</td>
                         <td class="px-4 py-3 text-ink-dim">{{ $curso->horas }}</td>
                         <td class="px-4 py-3">
@@ -234,7 +221,7 @@ new #[Layout('layouts.app')] class extends Component
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="px-4 py-8 text-center text-sm text-ink-faint">No hay cursos registrados.</td></tr>
+                    <tr><td colspan="7" class="px-4 py-8 text-center text-sm text-ink-faint">No hay cursos registrados.</td></tr>
                 @endforelse
             </tbody>
         </table>

@@ -8,7 +8,6 @@ use App\Models\User;
 use App\Modules\Academico\Enums\DiaSemanaEnum;
 use App\Modules\Academico\Enums\EstadoCicloEnum;
 use App\Modules\Academico\Enums\TipoCicloEnum;
-use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Aula;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Curso;
@@ -92,7 +91,6 @@ class AcademicoDemoSeeder extends Seeder
 
         $ciclo = $grupos[$tipoActivo->value]['ciclo'];
         $aulaA = $grupos[$tipoActivo->value]['aulaA'];
-        $aulaB = $grupos[$tipoActivo->value]['aulaB'];
 
         // Centrado en "hoy" (no en el inicio del ciclo) para que el periodo
         // quede abierto sin importar en qué punto del ciclo se corra el seeder.
@@ -104,38 +102,19 @@ class AcademicoDemoSeeder extends Seeder
         $docente = User::query()->where('email', 'docente@ceba.test')->first();
 
         if ($docente) {
-            // Grupo A (mayores de edad) y Grupo B (menores) del mismo curso,
-            // grado y ciclo: la pareja de secciones que demuestra el flujo
-            // de "subir también a" del Aula Virtual (ver
-            // checklist-secciones.blade.php) y el candado de edad por grupo.
-            $horarioA = Horario::query()->create([
+            // El Grado 1 (orden 1) siempre corresponde al Aula A dentro de
+            // su Grupo/Ciclo -- ver Grado::letraAula().
+            $horario = Horario::query()->create([
                 'curso_id' => $cursoComunicacion->id,
                 'docente_id' => $docente->id,
                 'aula_id' => $aulaA->id,
                 'ciclo_id' => $ciclo->id,
                 'grado_id' => $grados[0]->id,
-                'seccion' => 'A',
-                'tipo_publico' => TipoPublicoEnum::MAYOR,
             ]);
 
-            $horarioA->dias()->createMany([
+            $horario->dias()->createMany([
                 ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
                 ['dia_semana' => DiaSemanaEnum::MIERCOLES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
-            ]);
-
-            $horarioB = Horario::query()->create([
-                'curso_id' => $cursoComunicacion->id,
-                'docente_id' => $docente->id,
-                'aula_id' => $aulaB->id,
-                'ciclo_id' => $ciclo->id,
-                'grado_id' => $grados[0]->id,
-                'seccion' => 'B',
-                'tipo_publico' => TipoPublicoEnum::MENOR,
-            ]);
-
-            $horarioB->dias()->createMany([
-                ['dia_semana' => DiaSemanaEnum::MARTES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
-                ['dia_semana' => DiaSemanaEnum::JUEVES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
             ]);
         }
     }

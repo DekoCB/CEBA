@@ -81,45 +81,43 @@ class EvaluacionServiceTest extends TestCase
         $this->assertFalse($estudiantes->contains('id', $noMatriculado->id));
     }
 
-    public function test_estudiantes_del_horario_no_mezcla_secciones_distintas_del_mismo_grado(): void
+    public function test_estudiantes_del_horario_incluye_a_todos_los_matriculados_del_mismo_grado_y_ciclo(): void
     {
         $grado = Grado::factory()->create();
         $ciclo = Ciclo::factory()->create();
-        $horarioA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
-        $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+        $horarioA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        $otroGrado = Grado::factory()->create();
+        Horario::factory()->create(['grado_id' => $otroGrado->id, 'ciclo_id' => $ciclo->id]);
 
-        $estudianteA = Estudiante::factory()->create();
+        $estudianteDelGrado = Estudiante::factory()->create();
         Matricula::factory()->create([
-            'estudiante_id' => $estudianteA->id,
+            'estudiante_id' => $estudianteDelGrado->id,
             'grado_id' => $grado->id,
             'ciclo_id' => $ciclo->id,
-            'seccion' => $horarioA->seccion,
         ]);
 
-        $estudianteB = Estudiante::factory()->create();
+        $estudianteDeOtroGrado = Estudiante::factory()->create();
         Matricula::factory()->create([
-            'estudiante_id' => $estudianteB->id,
-            'grado_id' => $grado->id,
+            'estudiante_id' => $estudianteDeOtroGrado->id,
+            'grado_id' => $otroGrado->id,
             'ciclo_id' => $ciclo->id,
-            'seccion' => $horarioB->seccion,
         ]);
 
         $estudiantesDeA = $this->service()->estudiantesDelHorario($horarioA);
 
-        $this->assertTrue($estudiantesDeA->contains('id', $estudianteA->id));
-        $this->assertFalse($estudiantesDeA->contains('id', $estudianteB->id));
+        $this->assertTrue($estudiantesDeA->contains('id', $estudianteDelGrado->id));
+        $this->assertFalse($estudiantesDeA->contains('id', $estudianteDeOtroGrado->id));
     }
 
     public function test_estudiantes_del_horario_incluye_matriculas_sin_horario_id_asignado(): void
     {
         $grado = Grado::factory()->create();
         $ciclo = Ciclo::factory()->create();
-        $horarioA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+        $horarioA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
 
-        $estudianteSinSeccion = Estudiante::factory()->create();
+        $estudianteSinHorario = Estudiante::factory()->create();
         Matricula::factory()->create([
-            'estudiante_id' => $estudianteSinSeccion->id,
+            'estudiante_id' => $estudianteSinHorario->id,
             'grado_id' => $grado->id,
             'ciclo_id' => $ciclo->id,
             'horario_id' => null,
@@ -127,51 +125,30 @@ class EvaluacionServiceTest extends TestCase
 
         $estudiantesDeA = $this->service()->estudiantesDelHorario($horarioA);
 
-        $this->assertTrue($estudiantesDeA->contains('id', $estudianteSinSeccion->id));
+        $this->assertTrue($estudiantesDeA->contains('id', $estudianteSinHorario->id));
     }
 
-    public function test_un_estudiante_de_seccion_a_tambien_aparece_en_un_curso_sin_dividir_del_mismo_grado(): void
+    public function test_horarios_del_estudiante_incluye_todos_los_horarios_de_su_grado_y_ciclo(): void
     {
         $grado = Grado::factory()->create();
         $ciclo = Ciclo::factory()->create();
-        $horarioComunicacionA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
-        $horarioMatematicaSinDividir = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => null]);
+        $horarioComunicacion = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        $horarioMatematica = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        $otroGrado = Grado::factory()->create();
+        $horarioDeOtroGrado = Horario::factory()->create(['grado_id' => $otroGrado->id, 'ciclo_id' => $ciclo->id]);
 
-        $estudianteA = Estudiante::factory()->create();
+        $estudiante = Estudiante::factory()->create();
         Matricula::factory()->create([
-            'estudiante_id' => $estudianteA->id,
+            'estudiante_id' => $estudiante->id,
             'grado_id' => $grado->id,
             'ciclo_id' => $ciclo->id,
-            'seccion' => $horarioComunicacionA->seccion,
         ]);
 
-        $estudiantesDeMatematica = $this->service()->estudiantesDelHorario($horarioMatematicaSinDividir);
+        $horarios = $this->service()->horariosDelEstudiante($estudiante);
 
-        $this->assertTrue($estudiantesDeMatematica->contains('id', $estudianteA->id));
-    }
-
-    public function test_horarios_del_estudiante_incluye_su_curso_dividido_y_los_no_divididos_del_grado(): void
-    {
-        $grado = Grado::factory()->create();
-        $ciclo = Ciclo::factory()->create();
-        $horarioComunicacionA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
-        $horarioComunicacionB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
-        $horarioMatematicaSinDividir = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => null]);
-
-        $estudianteA = Estudiante::factory()->create();
-        Matricula::factory()->create([
-            'estudiante_id' => $estudianteA->id,
-            'grado_id' => $grado->id,
-            'ciclo_id' => $ciclo->id,
-            'seccion' => $horarioComunicacionA->seccion,
-        ]);
-
-        $horarios = $this->service()->horariosDelEstudiante($estudianteA);
-
-        $this->assertTrue($horarios->contains('id', $horarioComunicacionA->id));
-        $this->assertTrue($horarios->contains('id', $horarioMatematicaSinDividir->id));
-        $this->assertFalse($horarios->contains('id', $horarioComunicacionB->id));
+        $this->assertTrue($horarios->contains('id', $horarioComunicacion->id));
+        $this->assertTrue($horarios->contains('id', $horarioMatematica->id));
+        $this->assertFalse($horarios->contains('id', $horarioDeOtroGrado->id));
     }
 
     public function test_calificar_dos_veces_al_mismo_estudiante_actualiza_en_vez_de_duplicar(): void
@@ -261,33 +238,12 @@ class EvaluacionServiceTest extends TestCase
         $this->assertSame(0, Notificacion::query()->count());
     }
 
-    public function test_horarios_del_estudiante_solo_incluye_la_seccion_asignada(): void
+    public function test_horarios_del_estudiante_sin_horario_id_incluye_todos_los_horarios_del_grado(): void
     {
         $grado = Grado::factory()->create();
         $ciclo = Ciclo::factory()->create();
-        $horarioA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
-        $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
-
-        $estudiante = Estudiante::factory()->create();
-        Matricula::factory()->create([
-            'estudiante_id' => $estudiante->id,
-            'grado_id' => $grado->id,
-            'ciclo_id' => $ciclo->id,
-            'seccion' => $horarioA->seccion,
-        ]);
-
-        $horarios = $this->service()->horariosDelEstudiante($estudiante);
-
-        $this->assertTrue($horarios->contains('id', $horarioA->id));
-        $this->assertFalse($horarios->contains('id', $horarioB->id));
-    }
-
-    public function test_horarios_del_estudiante_sin_horario_id_incluye_todas_las_secciones_del_grado(): void
-    {
-        $grado = Grado::factory()->create();
-        $ciclo = Ciclo::factory()->create();
-        $horarioA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
-        $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+        $horarioA = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
 
         $estudiante = Estudiante::factory()->create();
         Matricula::factory()->create([

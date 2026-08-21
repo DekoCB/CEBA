@@ -38,7 +38,7 @@ class ClaseGrabadaService
 
     /**
      * Crea la misma clase grabada en varios cursos virtuales a la vez (ej.
-     * un docente que dicta la misma materia en distintas secciones/horarios),
+     * un docente que dicta la misma materia en distintas aulas/horarios),
      * reutilizando el mismo archivo/URL en cada uno.
      *
      * @param  Collection<int, CursoVirtual>  $cursos

@@ -36,14 +36,14 @@ class EloquentCursoVirtualRepository extends BaseRepository implements CursoVirt
     {
         $matriculas = $estudiante->matriculas()
             ->where('estado', 'aprobada')
-            ->get(['id', 'grado_id', 'ciclo_id', 'seccion']);
+            ->get(['id', 'grado_id', 'ciclo_id']);
 
         if ($matriculas->isEmpty()) {
             return new Collection;
         }
 
         /** @param Builder<Horario> $query */
-        $filtroPorSeccion = function (Builder $query) use ($matriculas) {
+        $filtroPorMatriculas = function (Builder $query) use ($matriculas) {
             foreach ($matriculas as $matricula) {
                 $condicion = function (Builder $query) use ($matricula) {
                     /** @var Builder<Horario> $query */
@@ -56,7 +56,7 @@ class EloquentCursoVirtualRepository extends BaseRepository implements CursoVirt
 
         return $this->query()
             ->where('activo', true)
-            ->whereHas('horario', fn (Builder $query) => $query->where($filtroPorSeccion))
+            ->whereHas('horario', fn (Builder $query) => $query->where($filtroPorMatriculas))
             ->get();
     }
 

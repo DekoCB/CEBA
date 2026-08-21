@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Modules\Matricula\Services;
 
 use App\Models\User;
-use App\Modules\Academico\Enums\TipoPublicoEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
@@ -146,17 +145,16 @@ class MatriculaService
             ]);
         }
 
-        $horario = $this->resolverHorarioParaValidacion($grado, $ciclo, $data->seccion);
+        $fechaMatricula = now();
+        $fechaFinEstudio = $fechaMatricula->clone()->addMonths($estudiante->es_menor_edad ? 8 : 6);
 
-        $this->validarHorarioCoherenteConEdad($estudiante, $horario);
-
-        return DB::transaction(function () use ($estudiante, $ciclo, $grado, $horario, $data) {
+        return DB::transaction(function () use ($estudiante, $ciclo, $grado, $data, $fechaMatricula, $fechaFinEstudio) {
             $matricula = $this->matriculas->create([
                 'estudiante_id' => $estudiante->id,
                 'ciclo_id' => $ciclo->id,
                 'grado_id' => $grado->id,
-                'seccion' => $horario?->seccion,
-                'fecha_matricula' => now(),
+                'fecha_matricula' => $fechaMatricula,
+                'fecha_fin_estudio' => $fechaFinEstudio,
                 'estado' => EstadoMatriculaEnum::APROBADA,
                 'observaciones' => $data->observaciones,
                 'registrado_por' => $data->registradoPor,
@@ -171,21 +169,15 @@ class MatriculaService
     }
 
     /**
-     * Reasigna la sección (Grupo A/B) de una matrícula ya existente, por
-     * ejemplo desde la ficha del estudiante. Reutiliza las mismas
-     * validaciones que matricular() (coherencia con la edad, pertenencia
-     * al grado/ciclo de la matrícula) para que un cambio manual no pueda
-     * dejar al estudiante en un grupo inválido. Es independiente de
-     * horario_id: cambiar de sección no toca a qué horario específico
-     * apunta la matrícula (ver reasignarHorario()).
+     * Reasigna la fecha en que culmina el periodo de estudio de esta
+     * matrícula, por ejemplo desde la ficha del estudiante cuando se
+     * necesita ajustarla manualmente (p. ej. un grado doble). Es
+     * independiente del ciclo/horario: no afecta a qué grupo ni horario
+     * pertenece el estudiante.
      */
-    public function reasignarSeccion(Matricula $matricula, ?string $seccion): Matricula
+    public function reasignarFechaFinEstudio(Matricula $matricula, string $fecha): Matricula
     {
-        $horario = $this->resolverHorarioParaValidacion($matricula->grado, $matricula->ciclo, $seccion);
-
-        $this->validarHorarioCoherenteConEdad($matricula->estudiante, $horario);
-
-        $matricula->update(['seccion' => $horario?->seccion]);
+        $matricula->update(['fecha_fin_estudio' => $fecha]);
 
         return $matricula;
     }
@@ -193,11 +185,8 @@ class MatriculaService
     /**
      * Reasigna a qué horario específico (curso + docente + día/hora)
      * apunta la matrícula, por ejemplo desde la ficha del estudiante. Es
-     * puramente informativo/de referencia: independiente de la sección
-     * (Grupo A/B) del estudiante -- ver reasignarSeccion() -- así que no
-     * exige que el horario elegido comparta la sección de la matrícula, ni
-     * valida coherencia de edad. Solo exige que el horario pertenezca al
-     * mismo grado y ciclo de la matrícula.
+     * puramente informativo/de referencia -- solo exige que el horario
+     * pertenezca al mismo grado y ciclo de la matrícula.
      */
     public function reasignarHorario(Matricula $matricula, ?int $horarioId): Matricula
     {
@@ -221,74 +210,6 @@ class MatriculaService
         $matricula->update(['horario_id' => $horario->id]);
 
         return $matricula;
-    }
-
-    /**
-     * Si el grado está realmente dividido en secciones (Grupo A/B: al
-     * menos un horario del grado declara una sección propia), exige
-     * elegir a cuál se matricula el estudiante y devuelve un horario
-     * representante de esa sección (de cualquiera de sus cursos -- cuál
-     * quede como representante no importa, solo sirve para leer su
-     * sección y su tipo_publico). Un grado con varios horarios que
-     * corresponden a distintos cursos pero SIN sección propia (lo normal:
-     * cada curso del grado tiene su propio horario, sin que eso implique
-     * grupos) no cuenta como "varias secciones" y no pide nada -- la
-     * matrícula queda sin sección. Si el grado no tiene ningún horario
-     * todavía, o tiene uno solo, también queda sin exigir nada: ese único
-     * horario (con o sin sección) se usa tal cual para validar edad.
-     */
-    private function resolverHorarioParaValidacion(Grado $grado, Ciclo $ciclo, ?string $seccionElegida): ?Horario
-    {
-        $horariosDelGrado = Horario::query()
-            ->where('grado_id', $grado->id)
-            ->where('ciclo_id', $ciclo->id)
-            ->get();
-
-        if ($horariosDelGrado->count() <= 1) {
-            return $horariosDelGrado->first();
-        }
-
-        if ($horariosDelGrado->pluck('seccion')->filter()->isEmpty()) {
-            return null;
-        }
-
-        if ($seccionElegida === null) {
-            throw ValidationException::withMessages([
-                'seccion' => "El grado «{$grado->nombre}» tiene varias secciones en este ciclo: selecciona a cuál se matricula el estudiante.",
-            ]);
-        }
-
-        $horario = $horariosDelGrado->firstWhere('seccion', $seccionElegida);
-
-        if ($horario === null) {
-            throw ValidationException::withMessages([
-                'seccion' => 'La sección seleccionada no pertenece a este grado y ciclo.',
-            ]);
-        }
-
-        return $horario;
-    }
-
-    /**
-     * El público (mayores/menores) ya no es una propiedad del grado sino de
-     * la sección/horario elegido (Grupo A/B). Si el horario no declara un
-     * público (o no hay horario todavía), no hay nada que validar.
-     */
-    private function validarHorarioCoherenteConEdad(Estudiante $estudiante, ?Horario $horario): void
-    {
-        if ($horario === null || $horario->tipo_publico === null) {
-            return;
-        }
-
-        $publicoEsperado = $estudiante->es_menor_edad ? TipoPublicoEnum::MENOR : TipoPublicoEnum::MAYOR;
-
-        if ($horario->tipo_publico !== $publicoEsperado) {
-            $seccion = $horario->seccion ? "«{$horario->seccion}»" : 'seleccionado';
-
-            throw ValidationException::withMessages([
-                'seccion' => "El grupo {$seccion} es para {$horario->tipo_publico->label()}, pero el estudiante es {$publicoEsperado->label()}.",
-            ]);
-        }
     }
 
     private function validarPeriodoDeMatriculaAbierto(Ciclo $ciclo): void
@@ -412,13 +333,9 @@ class MatriculaService
                     throw new InvalidArgumentException("No existe el grado «{$nombreGrado}».");
                 }
 
-                // La carga masiva no pide sección por fila: si el grado
-                // tiene una sola, se asigna sola; si tiene varias, esa fila
-                // falla con un mensaje claro y se registra individualmente.
                 $this->matricular($estudiante, new RegistrarMatriculaData(
                     cicloId: $cicloId,
                     gradoId: $grado->id,
-                    seccion: null,
                     observaciones: $this->celdaOpcional($fila, 'observaciones'),
                     registradoPor: $registradoPor,
                 ));

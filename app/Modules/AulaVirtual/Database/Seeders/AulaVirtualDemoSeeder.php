@@ -25,7 +25,7 @@ class AulaVirtualDemoSeeder extends Seeder
             return;
         }
 
-        $horario = Horario::query()->where('docente_id', $docente->id)->orderBy('seccion')->first();
+        $horario = Horario::query()->where('docente_id', $docente->id)->orderBy('id')->first();
 
         if (! $horario) {
             return;
@@ -34,10 +34,10 @@ class AulaVirtualDemoSeeder extends Seeder
         $cursoVirtualService = app(CursoVirtualService::class);
         $curso = $cursoVirtualService->activarParaHorario($horario);
 
-        // Activa también las demás secciones/grupos (ej. Grupo A y Grupo B)
-        // del mismo curso, grado y ciclo -- así el checklist "subir también
-        // a" tiene con qué poblarse en la demo, en vez de quedar oculto por
-        // no encontrar más de una sección activa.
+        // Activa también los demás horarios del mismo curso, grado y ciclo
+        // (si los hay) -- así el checklist "subir también a" tiene con qué
+        // poblarse en la demo, en vez de quedar oculto por no encontrar
+        // más de un curso virtual relacionado.
         Horario::query()
             ->where('curso_id', $horario->curso_id)
             ->where('grado_id', $horario->grado_id)

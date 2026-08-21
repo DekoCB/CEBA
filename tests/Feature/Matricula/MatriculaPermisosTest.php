@@ -205,7 +205,7 @@ class MatriculaPermisosTest extends TestCase
 
     /**
      * Avanza el wizard hasta el paso 5 (Matrícula) para un estudiante mayor
-     * de edad recién creado, listo para setear cicloId/gradoId/seccionElegida.
+     * de edad recién creado, listo para setear cicloId/gradoId.
      */
     private function wizardEnPasoDeMatricula(string $dni): Testable
     {
@@ -223,157 +223,16 @@ class MatriculaPermisosTest extends TestCase
             ->assertSet('paso', 5);
     }
 
-    public function test_el_wizard_no_exige_elegir_seccion_para_un_grado_con_un_solo_horario(): void
+    public function test_reintentar_confirmar_tras_error_de_matricula_no_duplica_al_estudiante(): void
     {
         Storage::fake('public');
 
         $usuario = User::factory()->create();
         $usuario->assignRole(RolEnum::COORDINADOR->value);
 
-        $ciclo = Ciclo::factory()->activo()->create([
-            'fecha_inicio' => now()->subDays(20),
-            'fecha_fin' => now()->addMonths(5),
-        ]);
-        $ciclo->periodosMatricula()->create([
-            'fecha_inicio' => now()->subDays(10),
-            'fecha_fin' => now()->addDays(10),
-        ]);
+        // Ciclo sin periodo de matrícula abierto: matricular() falla.
+        $ciclo = Ciclo::factory()->activo()->create();
         $grado = Grado::factory()->create();
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
-
-        $this->actingAs($usuario);
-
-        $this->wizardEnPasoDeMatricula('55667799')
-            ->set('cicloId', (string) $ciclo->id)
-            ->set('gradoId', (string) $grado->id)
-            ->assertDontSee('Sección')
-            ->call('confirmar')
-            ->assertHasNoErrors();
-
-        $estudiante = Estudiante::query()->where('dni', '55667799')->firstOrFail();
-        $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'seccion' => null]);
-    }
-
-    public function test_el_wizard_no_pide_seccion_para_un_grado_con_varios_cursos_sin_dividir(): void
-    {
-        Storage::fake('public');
-
-        $usuario = User::factory()->create();
-        $usuario->assignRole(RolEnum::COORDINADOR->value);
-
-        $ciclo = Ciclo::factory()->activo()->create([
-            'fecha_inicio' => now()->subDays(20),
-            'fecha_fin' => now()->addMonths(5),
-        ]);
-        $ciclo->periodosMatricula()->create([
-            'fecha_inicio' => now()->subDays(10),
-            'fecha_fin' => now()->addDays(10),
-        ]);
-        $grado = Grado::factory()->create();
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
-
-        $this->actingAs($usuario);
-
-        $this->wizardEnPasoDeMatricula('55667788')
-            ->set('cicloId', (string) $ciclo->id)
-            ->set('gradoId', (string) $grado->id)
-            ->assertDontSee('Sección')
-            ->call('confirmar')
-            ->assertHasNoErrors();
-
-        $estudiante = Estudiante::query()->where('dni', '55667788')->firstOrFail();
-        $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'seccion' => null]);
-    }
-
-    public function test_el_wizard_exige_elegir_seccion_cuando_el_grado_tiene_varias(): void
-    {
-        Storage::fake('public');
-
-        $usuario = User::factory()->create();
-        $usuario->assignRole(RolEnum::COORDINADOR->value);
-
-        $ciclo = Ciclo::factory()->activo()->create([
-            'fecha_inicio' => now()->subDays(20),
-            'fecha_fin' => now()->addMonths(5),
-        ]);
-        $ciclo->periodosMatricula()->create([
-            'fecha_inicio' => now()->subDays(10),
-            'fecha_fin' => now()->addDays(10),
-        ]);
-        $grado = Grado::factory()->create();
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
-
-        $this->actingAs($usuario);
-
-        $this->wizardEnPasoDeMatricula('55667800')
-            ->set('cicloId', (string) $ciclo->id)
-            ->set('gradoId', (string) $grado->id)
-            ->assertSee('Sección')
-            ->set('seccionElegida', 'B')
-            ->call('confirmar')
-            ->assertHasNoErrors();
-
-        $estudiante = Estudiante::query()->where('dni', '55667800')->firstOrFail();
-        $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'seccion' => 'B']);
-    }
-
-    public function test_el_wizard_muestra_error_si_no_se_elige_seccion_habiendo_varias(): void
-    {
-        Storage::fake('public');
-
-        $usuario = User::factory()->create();
-        $usuario->assignRole(RolEnum::COORDINADOR->value);
-
-        $ciclo = Ciclo::factory()->activo()->create([
-            'fecha_inicio' => now()->subDays(20),
-            'fecha_fin' => now()->addMonths(5),
-        ]);
-        $ciclo->periodosMatricula()->create([
-            'fecha_inicio' => now()->subDays(10),
-            'fecha_fin' => now()->addDays(10),
-        ]);
-        $grado = Grado::factory()->create();
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
-
-        $this->actingAs($usuario);
-
-        $this->wizardEnPasoDeMatricula('55667801')
-            ->set('cicloId', (string) $ciclo->id)
-            ->set('gradoId', (string) $grado->id)
-            ->call('confirmar')
-            ->assertHasErrors();
-
-        $this->assertDatabaseCount('matriculas', 0);
-
-        // El estudiante tampoco debe quedar creado a medias: confirmar()
-        // registra estudiante y matricula en una sola transacción, así que
-        // si matricular() falla (aquí, por falta de sección), todo se
-        // revierte -- incluido el estudiante recién creado.
-        $this->assertDatabaseCount('estudiantes', 0);
-    }
-
-    public function test_reintentar_confirmar_tras_error_de_seccion_no_duplica_al_estudiante(): void
-    {
-        Storage::fake('public');
-
-        $usuario = User::factory()->create();
-        $usuario->assignRole(RolEnum::COORDINADOR->value);
-
-        $ciclo = Ciclo::factory()->activo()->create([
-            'fecha_inicio' => now()->subDays(20),
-            'fecha_fin' => now()->addMonths(5),
-        ]);
-        $ciclo->periodosMatricula()->create([
-            'fecha_inicio' => now()->subDays(10),
-            'fecha_fin' => now()->addDays(10),
-        ]);
-        $grado = Grado::factory()->create();
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
 
         $this->actingAs($usuario);
 
@@ -385,17 +244,22 @@ class MatriculaPermisosTest extends TestCase
 
         $this->assertDatabaseCount('estudiantes', 0);
 
-        // El coordinador corrige el dato sin volver al paso 1 y reintenta
-        // en el mismo componente: antes de la corrección, esto duplicaba
-        // al estudiante (mismo DNI) y rompía con un error sin manejar.
+        // El coordinador abre el periodo de matrícula y reintenta en el
+        // mismo componente sin volver al paso 1: antes de la corrección de
+        // este bug, esto duplicaba al estudiante (mismo DNI) y rompía con
+        // un error sin manejar.
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+
         $component
-            ->set('seccionElegida', 'B')
             ->call('confirmar')
             ->assertHasNoErrors();
 
         $this->assertDatabaseCount('estudiantes', 1);
         $estudiante = Estudiante::query()->where('dni', '55667802')->firstOrFail();
-        $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'seccion' => 'B']);
+        $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'ciclo_id' => $ciclo->id]);
     }
 
     public function test_cancelar_el_wizard_dispara_el_evento_que_cierra_el_modal(): void
@@ -464,107 +328,76 @@ class MatriculaPermisosTest extends TestCase
         );
     }
 
-    public function test_editar_seccion_desde_la_pagina_completa_de_la_ficha(): void
+    public function test_editar_fecha_fin_estudio_desde_la_pagina_completa_de_la_ficha(): void
     {
         $usuario = User::factory()->create();
         $usuario->assignRole(RolEnum::COORDINADOR->value);
 
-        $ciclo = Ciclo::factory()->activo()->create();
-        $grado = Grado::factory()->create();
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
         $estudiante = Estudiante::factory()->create();
-        $matricula = Matricula::factory()->create([
-            'estudiante_id' => $estudiante->id,
-            'ciclo_id' => $ciclo->id,
-            'grado_id' => $grado->id,
-            'seccion' => 'A',
-        ]);
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
+        $nuevaFecha = now()->addMonths(6)->format('Y-m-d');
 
         $this->actingAs($usuario);
 
         Volt::test('matricula.show', ['estudiante' => $estudiante])
-            ->call('editarSeccion', $matricula->id)
-            ->set('seccionSeleccionada', 'B')
-            ->call('guardarSeccion')
+            ->call('editarFechaFinEstudio', $matricula->id)
+            ->set('fechaFinEstudioNueva', $nuevaFecha)
+            ->call('guardarFechaFinEstudio')
             ->assertHasNoErrors();
 
-        $this->assertSame('B', $matricula->fresh()->seccion);
+        $this->assertSame($nuevaFecha, $matricula->fresh()->fecha_fin_estudio->format('Y-m-d'));
     }
 
-    public function test_editar_seccion_desde_el_modal_de_ficha(): void
+    public function test_editar_fecha_fin_estudio_desde_el_modal_de_ficha(): void
     {
         $usuario = User::factory()->create();
         $usuario->assignRole(RolEnum::COORDINADOR->value);
 
-        $ciclo = Ciclo::factory()->activo()->create();
-        $grado = Grado::factory()->create();
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
         $estudiante = Estudiante::factory()->create();
-        $matricula = Matricula::factory()->create([
-            'estudiante_id' => $estudiante->id,
-            'ciclo_id' => $ciclo->id,
-            'grado_id' => $grado->id,
-            'seccion' => 'A',
-        ]);
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
+        $nuevaFecha = now()->addMonths(6)->format('Y-m-d');
 
         $this->actingAs($usuario);
 
         Volt::test('matricula.ficha-modal')
             ->call('abrir', $estudiante->id)
-            ->call('editarSeccion', $matricula->id)
-            ->set('seccionSeleccionada', 'B')
-            ->call('guardarSeccion')
+            ->call('editarFechaFinEstudio', $matricula->id)
+            ->set('fechaFinEstudioNueva', $nuevaFecha)
+            ->call('guardarFechaFinEstudio')
             ->assertHasNoErrors();
 
-        $this->assertSame('B', $matricula->fresh()->seccion);
+        $this->assertSame($nuevaFecha, $matricula->fresh()->fecha_fin_estudio->format('Y-m-d'));
     }
 
-    public function test_no_se_puede_editar_seccion_sin_el_permiso_de_editar_matricula(): void
+    public function test_no_se_puede_editar_fecha_fin_estudio_sin_el_permiso_de_editar_matricula(): void
     {
         $usuario = User::factory()->create();
         $usuario->assignRole(RolEnum::ADMINISTRATIVO->value);
 
-        $ciclo = Ciclo::factory()->activo()->create();
-        $grado = Grado::factory()->create();
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
         $estudiante = Estudiante::factory()->create();
-        $matricula = Matricula::factory()->create([
-            'estudiante_id' => $estudiante->id,
-            'ciclo_id' => $ciclo->id,
-            'grado_id' => $grado->id,
-            'seccion' => 'A',
-        ]);
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
 
         $this->actingAs($usuario);
 
         Volt::test('matricula.show', ['estudiante' => $estudiante])
-            ->call('editarSeccion', $matricula->id)
+            ->call('editarFechaFinEstudio', $matricula->id)
             ->assertForbidden();
     }
 
-    /**
-     * "Editar horario" en la ficha es independiente de la sección: permite
-     * apuntar la matrícula a cualquier horario del grado/ciclo, aunque su
-     * sección sea distinta a la del estudiante, sin tocar matricula.seccion.
-     */
-    public function test_editar_horario_desde_la_ficha_no_exige_que_coincida_con_la_seccion(): void
+    public function test_editar_horario_desde_la_ficha_actualiza_el_horario_de_referencia(): void
     {
         $usuario = User::factory()->create();
         $usuario->assignRole(RolEnum::COORDINADOR->value);
 
         $ciclo = Ciclo::factory()->activo()->create();
         $grado = Grado::factory()->create();
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
-        $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
         $estudiante = Estudiante::factory()->create();
         $matricula = Matricula::factory()->create([
             'estudiante_id' => $estudiante->id,
             'ciclo_id' => $ciclo->id,
             'grado_id' => $grado->id,
-            'seccion' => 'A',
         ]);
 
         $this->actingAs($usuario);
@@ -576,7 +409,6 @@ class MatriculaPermisosTest extends TestCase
             ->assertHasNoErrors();
 
         $this->assertSame($horarioB->id, $matricula->fresh()->horario_id);
-        $this->assertSame('A', $matricula->fresh()->seccion);
     }
 
     public function test_no_se_puede_editar_horario_sin_el_permiso_de_editar_matricula(): void
@@ -586,14 +418,12 @@ class MatriculaPermisosTest extends TestCase
 
         $ciclo = Ciclo::factory()->activo()->create();
         $grado = Grado::factory()->create();
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'A']);
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id, 'seccion' => 'B']);
+        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
         $estudiante = Estudiante::factory()->create();
         $matricula = Matricula::factory()->create([
             'estudiante_id' => $estudiante->id,
             'ciclo_id' => $ciclo->id,
             'grado_id' => $grado->id,
-            'seccion' => 'A',
         ]);
 
         $this->actingAs($usuario);
