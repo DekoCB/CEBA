@@ -26,8 +26,7 @@ class EvaluacionService
 
     /**
      * Estudiantes matriculados (aprobados) en el grado y ciclo de un
-     * horario. Ver Matricula::scopeDelHorario() para la regla exacta de
-     * sección (Grupo A/B).
+     * horario -- ver Matricula::scopeDelHorario().
      *
      * @return Collection<int, Estudiante>
      */

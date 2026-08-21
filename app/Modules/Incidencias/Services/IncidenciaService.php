@@ -122,9 +122,7 @@ class IncidenciaService
 
     /**
      * Estudiantes matriculados (aprobados) en cualquiera de los horarios
-     * que dicta este docente, sin duplicados. Mismo criterio de sección
-     * (Grupo A/B) que EvaluacionService::estudiantesDelHorario, agregado
-     * sobre todos sus horarios.
+     * que dicta este docente, sin duplicados.
      *
      * @return Collection<int, Estudiante>
      */

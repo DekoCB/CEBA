@@ -71,12 +71,7 @@ class AsistenciaService
 
     /**
      * Estudiantes matriculados (aprobados) en el grado y ciclo de un
-     * horario. Si el horario pertenece a una sección (Grupo A/B) real, solo
-     * cuentan los estudiantes de esa misma sección -- ver
-     * Matricula::scopeDelHorario() para el criterio exacto (compara por
-     * letra de sección, no por horario_id exacto, porque un mismo
-     * estudiante tiene un horario_id fijo pero el grado puede tener varios
-     * cursos, cada uno con su propio par de filas A/B).
+     * horario -- ver Matricula::scopeDelHorario().
      *
      * @return Collection<int, Estudiante>
      */

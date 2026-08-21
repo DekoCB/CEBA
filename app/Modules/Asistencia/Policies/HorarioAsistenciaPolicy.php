@@ -40,9 +40,9 @@ class HorarioAsistenciaPolicy
     }
 
     /**
-     * Si el horario pertenece a una sección (Grupo A/B) real, solo cuenta
-     * como matriculado el estudiante de esa misma sección (ver
-     * Matricula::scopeDelHorario()), no cualquiera del grado/ciclo.
+     * Solo cuenta como matriculado el estudiante con una matrícula
+     * aprobada en el mismo grado y ciclo del horario (ver
+     * Matricula::scopeDelHorario()).
      */
     private function estudianteMatriculado(User $user, Horario $horario): bool
     {
