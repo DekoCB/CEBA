@@ -159,6 +159,7 @@ new #[Layout('layouts.app')] class extends Component
             'tiposDisponibles' => $tiposDisponibles,
             'reporte' => $reporte,
             'puedeExportar' => $user->hasPermissionTo('reportes.exportar'),
+            'puedeVerHistorial' => $user->hasPermissionTo('reportes.historial_estudiante'),
             'franjasDisponibles' => $this->franjasDisponibles(),
         ];
     }
@@ -166,8 +167,17 @@ new #[Layout('layouts.app')] class extends Component
 
 <div>
     <x-slot name="header">
-        <h1 class="font-display text-2xl text-ink">Reportes</h1>
-        <p class="mt-1 text-sm text-ink-dim">Construye un reporte, revisa la vista previa y expórtalo a Excel, CSV o PDF.</p>
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <h1 class="font-display text-2xl text-ink">Reportes</h1>
+                <p class="mt-1 text-sm text-ink-dim">Construye un reporte, revisa la vista previa y expórtalo a Excel, CSV o PDF.</p>
+            </div>
+            @if ($puedeVerHistorial)
+                <a href="{{ route('reportes.historial') }}" wire:navigate class="shrink-0 text-sm font-medium text-accent hover:underline">
+                    Historial de estudiante →
+                </a>
+            @endif
+        </div>
     </x-slot>
 
     <div class="space-y-4">

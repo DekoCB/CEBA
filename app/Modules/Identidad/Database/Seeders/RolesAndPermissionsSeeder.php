@@ -37,7 +37,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'incidencias.ver', 'incidencias.crear',
             'pagos.ver', 'pagos.gestionar',
             'certificados.ver', 'certificados.emitir', 'certificados.duplicar', 'certificados.gestionar_plantilla',
-            'reportes.academicos', 'reportes.matricula', 'reportes.financieros', 'reportes.morosos', 'reportes.certificados', 'reportes.exportar',
+            'reportes.academicos', 'reportes.matricula', 'reportes.financieros', 'reportes.morosos', 'reportes.certificados', 'reportes.historial_estudiante', 'reportes.exportar',
             'whatsapp.ver', 'whatsapp.enviar',
         ],
 
@@ -92,7 +92,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'tesoreria.gestionar',
         'certificados.emitir', 'certificados.duplicar', 'certificados.ver', 'certificados.solicitar', 'certificados.gestionar_plantilla',
         'reportes.academicos', 'reportes.operativos', 'reportes.financieros', 'reportes.morosos',
-        'reportes.matricula', 'reportes.certificados', 'reportes.propios', 'reportes.exportar',
+        'reportes.matricula', 'reportes.certificados', 'reportes.propios', 'reportes.historial_estudiante', 'reportes.exportar',
         'whatsapp.enviar', 'whatsapp.ver', 'notificaciones.ver_propio',
         'roles.gestionar', 'auditoria.ver',
         'usuarios.ver', 'usuarios.crear', 'usuarios.editar', 'usuarios.gestionar_sesiones',
