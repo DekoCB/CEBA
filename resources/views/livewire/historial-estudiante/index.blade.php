@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Reportes\Services\HistorialEstudianteService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Auth;
@@ -8,27 +9,29 @@ use Livewire\Volt\Component;
 
 new #[Layout('layouts.app')] class extends Component
 {
-    public string $dni = '';
+    public string $terminoBusqueda = '';
 
-    public ?string $dniBuscado = null;
+    public ?int $estudianteSeleccionadoId = null;
+
+    public string $estudianteSeleccionadoNombre = '';
 
     public function mount(): void
     {
         abort_unless(Auth::user()->hasPermissionTo('reportes.historial_estudiante'), 403);
     }
 
-    public function buscar(): void
+    public function seleccionarEstudiante(int $estudianteId, string $nombre): void
     {
-        $this->validate(['dni' => 'required|string|min:8|max:12']);
-
-        $this->dniBuscado = $this->dni;
+        $this->estudianteSeleccionadoId = $estudianteId;
+        $this->estudianteSeleccionadoNombre = $nombre;
+        $this->terminoBusqueda = '';
     }
 
     public function exportarPdf(HistorialEstudianteService $servicio)
     {
         abort_unless(Auth::user()->hasPermissionTo('reportes.exportar'), 403);
 
-        $historial = $this->dniBuscado !== null ? $servicio->porDni($this->dniBuscado) : null;
+        $historial = $this->estudianteSeleccionadoId !== null ? $servicio->porId($this->estudianteSeleccionadoId) : null;
 
         abort_if($historial === null, 404);
 
@@ -44,8 +47,24 @@ new #[Layout('layouts.app')] class extends Component
 
     public function with(HistorialEstudianteService $servicio): array
     {
+        $resultadosBusqueda = collect();
+
+        if ($this->terminoBusqueda !== '' && $this->estudianteSeleccionadoId === null) {
+            $termino = $this->terminoBusqueda;
+
+            $resultadosBusqueda = Estudiante::query()
+                ->where(function ($query) use ($termino) {
+                    $query->where('nombres', 'like', "%{$termino}%")
+                        ->orWhere('apellidos', 'like', "%{$termino}%")
+                        ->orWhere('dni', 'like', "%{$termino}%");
+                })
+                ->limit(8)
+                ->get();
+        }
+
         return [
-            'historial' => $this->dniBuscado !== null ? $servicio->porDni($this->dniBuscado) : null,
+            'resultadosBusqueda' => $resultadosBusqueda,
+            'historial' => $this->estudianteSeleccionadoId !== null ? $servicio->porId($this->estudianteSeleccionadoId) : null,
             'puedeExportar' => Auth::user()->hasPermissionTo('reportes.exportar'),
         ];
     }
@@ -53,32 +72,59 @@ new #[Layout('layouts.app')] class extends Component
 
 <div>
     <x-slot name="header">
-        <a href="{{ route('reportes.index') }}" wire:navigate class="text-sm text-ink-faint hover:text-ink">← Reportes</a>
-        <h1 class="mt-1 font-display text-2xl text-ink">Historial del estudiante</h1>
-        <p class="mt-1 text-sm text-ink-dim">Busca por DNI para ver grados cursados, pagos, documentos y notas en un solo lugar.</p>
+        <h1 class="font-display text-2xl text-ink">Historial del estudiante</h1>
+        <p class="mt-1 text-sm text-ink-dim">Busca por nombre o DNI para ver grados cursados, pagos, documentos y notas en un solo lugar.</p>
     </x-slot>
 
     <div class="space-y-6">
-        <form wire:submit="buscar" class="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4">
-            <div>
-                <x-input-label for="dni" value="DNI del estudiante" />
-                <x-text-input wire:model="dni" id="dni" class="mt-1 block w-48" placeholder="12345678" />
-                <x-input-error :messages="$errors->get('dni')" class="mt-1" />
-            </div>
-            <x-primary-button type="submit">Buscar</x-primary-button>
+        <div class="rounded-lg border border-border bg-surface p-4">
+            <x-input-label for="terminoBusqueda" value="Buscar estudiante" />
+
+            @if ($estudianteSeleccionadoId)
+                <div class="mt-1 flex items-center justify-between rounded-md bg-accent-soft px-3 py-2 text-sm text-accent sm:max-w-sm">
+                    {{ $estudianteSeleccionadoNombre }}
+                    <button type="button" wire:click="$set('estudianteSeleccionadoId', null)" class="text-xs underline">Cambiar</button>
+                </div>
+            @else
+                <x-text-input
+                    wire:model.live.debounce.300ms="terminoBusqueda"
+                    id="terminoBusqueda"
+                    class="mt-1 block w-full sm:max-w-sm"
+                    placeholder="Nombre, apellido o DNI…"
+                    autocomplete="off"
+                />
+
+                @if ($resultadosBusqueda->isNotEmpty())
+                    <div class="mt-1 divide-y divide-border rounded-md border border-border bg-surface sm:max-w-sm">
+                        @foreach ($resultadosBusqueda as $estudiante)
+                            <button
+                                type="button"
+                                wire:click="seleccionarEstudiante({{ $estudiante->id }}, '{{ addslashes($estudiante->nombreCompleto()) }}')"
+                                class="block w-full px-3 py-2 text-left text-sm hover:bg-surface-2"
+                            >
+                                {{ $estudiante->nombreCompleto() }} <span class="text-ink-faint">· {{ $estudiante->dni }}</span>
+                            </button>
+                        @endforeach
+                    </div>
+                @elseif ($terminoBusqueda !== '')
+                    <p class="mt-1 text-sm text-ink-faint">No se encontraron estudiantes.</p>
+                @endif
+            @endif
 
             @if ($historial && $puedeExportar)
-                <x-secondary-button type="button" wire:click="exportarPdf" class="ml-auto">Exportar PDF</x-secondary-button>
+                <div class="mt-4">
+                    <x-secondary-button type="button" wire:click="exportarPdf">Exportar PDF</x-secondary-button>
+                </div>
             @endif
-        </form>
+        </div>
 
-        @if ($dniBuscado === null)
+        @if ($estudianteSeleccionadoId === null)
             <p class="rounded-lg border border-border bg-surface px-4 py-8 text-center text-sm text-ink-faint">
-                Ingresa un DNI para ver el historial del estudiante.
+                Busca un estudiante por nombre o DNI para ver su historial.
             </p>
         @elseif (! $historial)
             <p class="rounded-lg border border-border bg-surface px-4 py-8 text-center text-sm text-ink-faint">
-                No se encontró ningún estudiante con el DNI «{{ $dniBuscado }}».
+                No se encontró el estudiante seleccionado.
             </p>
         @else
             @php $estudiante = $historial['estudiante']; @endphp

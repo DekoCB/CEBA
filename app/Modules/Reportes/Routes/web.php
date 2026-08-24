@@ -7,5 +7,8 @@ use Livewire\Volt\Volt;
 
 Route::middleware(['auth'])->prefix('reportes')->name('reportes.')->group(function () {
     Volt::route('/', 'reportes.index')->name('index');
-    Volt::route('/historial', 'reportes.historial-estudiante')->name('historial');
+});
+
+Route::middleware(['auth'])->prefix('historial-estudiante')->name('historial-estudiante.')->group(function () {
+    Volt::route('/', 'historial-estudiante.index')->name('index');
 });

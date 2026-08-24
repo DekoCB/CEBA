@@ -30,6 +30,16 @@ class HistorialEstudianteService
         private readonly LibretaService $libretas,
     ) {}
 
+    public function porDni(string $dni): ?array
+    {
+        return $this->porEstudiante(Estudiante::query()->where('dni', $dni)->first());
+    }
+
+    public function porId(int $estudianteId): ?array
+    {
+        return $this->porEstudiante(Estudiante::query()->find($estudianteId));
+    }
+
     /**
      * @return array{
      *     estudiante: Estudiante,
@@ -42,10 +52,8 @@ class HistorialEstudianteService
      *     examenesUbicacion: Collection<int, ExamenUbicacion>,
      * }|null
      */
-    public function porDni(string $dni): ?array
+    private function porEstudiante(?Estudiante $estudiante): ?array
     {
-        $estudiante = Estudiante::query()->where('dni', $dni)->first();
-
         if ($estudiante === null) {
             return null;
         }

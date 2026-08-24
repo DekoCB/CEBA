@@ -297,6 +297,21 @@
         </div>
     @endcanany
 
+    @can('reportes.historial_estudiante')
+        <a
+            href="{{ route('historial-estudiante.index') }}"
+            wire:navigate
+            @class([
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('historial-estudiante.*'),
+                'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('historial-estudiante.*'),
+            ])
+        >
+            <x-heroicon-o-document-magnifying-glass class="h-5 w-5 shrink-0" />
+            <span class="sidebar-label">Historial de estudiante</span>
+        </a>
+    @endcan
+
     @canany(['whatsapp.ver', 'whatsapp.enviar'])
         <div class="mt-4 border-t border-border pt-4">
             <a

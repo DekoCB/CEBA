@@ -27,7 +27,7 @@ class HistorialEstudiantePermisosTest extends TestCase
         $coordinador->assignRole(RolEnum::COORDINADOR->value);
 
         $this->actingAs($coordinador)
-            ->get(route('reportes.historial'))
+            ->get(route('historial-estudiante.index'))
             ->assertOk();
     }
 
@@ -37,7 +37,7 @@ class HistorialEstudiantePermisosTest extends TestCase
         $direccion->assignRole(RolEnum::DIRECCION->value);
 
         $this->actingAs($direccion)
-            ->get(route('reportes.historial'))
+            ->get(route('historial-estudiante.index'))
             ->assertOk();
     }
 
@@ -47,7 +47,7 @@ class HistorialEstudiantePermisosTest extends TestCase
         $docente->assignRole(RolEnum::DOCENTE->value);
 
         $this->actingAs($docente)
-            ->get(route('reportes.historial'))
+            ->get(route('historial-estudiante.index'))
             ->assertForbidden();
     }
 
@@ -57,7 +57,7 @@ class HistorialEstudiantePermisosTest extends TestCase
         $tesoreria->assignRole(RolEnum::TESORERIA->value);
 
         $this->actingAs($tesoreria)
-            ->get(route('reportes.historial'))
+            ->get(route('historial-estudiante.index'))
             ->assertForbidden();
     }
 
@@ -67,7 +67,7 @@ class HistorialEstudiantePermisosTest extends TestCase
         $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
 
         $this->actingAs($administrativo)
-            ->get(route('reportes.historial'))
+            ->get(route('historial-estudiante.index'))
             ->assertForbidden();
     }
 
@@ -77,25 +77,11 @@ class HistorialEstudiantePermisosTest extends TestCase
         $usuario->assignRole(RolEnum::ESTUDIANTE->value);
 
         $this->actingAs($usuario)
-            ->get(route('reportes.historial'))
+            ->get(route('historial-estudiante.index'))
             ->assertForbidden();
     }
 
-    public function test_buscar_con_un_dni_inexistente_muestra_un_mensaje_claro(): void
-    {
-        $coordinador = User::factory()->create();
-        $coordinador->assignRole(RolEnum::COORDINADOR->value);
-
-        $this->actingAs($coordinador);
-
-        Volt::test('reportes.historial-estudiante')
-            ->set('dni', '99999999')
-            ->call('buscar')
-            ->assertHasNoErrors()
-            ->assertSee('No se encontró ningún estudiante');
-    }
-
-    public function test_buscar_con_un_dni_existente_muestra_su_nombre(): void
+    public function test_buscar_por_dni_muestra_al_estudiante_en_la_lista_de_resultados(): void
     {
         $coordinador = User::factory()->create();
         $coordinador->assignRole(RolEnum::COORDINADOR->value);
@@ -103,31 +89,70 @@ class HistorialEstudiantePermisosTest extends TestCase
 
         $this->actingAs($coordinador);
 
-        Volt::test('reportes.historial-estudiante')
-            ->set('dni', '55667788')
-            ->call('buscar')
-            ->assertHasNoErrors()
+        Volt::test('historial-estudiante.index')
+            ->set('terminoBusqueda', '55667788')
             ->assertSee('Carla Robles Díaz');
     }
 
-    public function test_el_enlace_de_historial_aparece_en_reportes_para_coordinador(): void
+    public function test_buscar_por_nombre_muestra_al_estudiante_en_la_lista_de_resultados(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        Estudiante::factory()->create(['dni' => '55667788', 'nombres' => 'Carla', 'apellidos' => 'Robles Díaz']);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('historial-estudiante.index')
+            ->set('terminoBusqueda', 'Robles')
+            ->assertSee('Carla Robles Díaz')
+            ->assertSee('55667788');
+    }
+
+    public function test_buscar_un_termino_sin_coincidencias_muestra_un_mensaje_claro(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('historial-estudiante.index')
+            ->set('terminoBusqueda', 'Nadie Existe')
+            ->assertSee('No se encontraron estudiantes');
+    }
+
+    public function test_elegir_un_resultado_muestra_el_historial_del_estudiante(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $estudiante = Estudiante::factory()->create(['dni' => '55667788', 'nombres' => 'Carla', 'apellidos' => 'Robles Díaz']);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('historial-estudiante.index')
+            ->set('terminoBusqueda', 'Robles')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->assertHasNoErrors()
+            ->assertSee('DNI 55667788');
+    }
+
+    public function test_el_enlace_de_historial_aparece_en_el_menu_para_coordinador(): void
     {
         $coordinador = User::factory()->create();
         $coordinador->assignRole(RolEnum::COORDINADOR->value);
 
         $this->actingAs($coordinador)
-            ->get(route('reportes.index'))
+            ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Historial de estudiante');
     }
 
-    public function test_el_enlace_de_historial_no_aparece_en_reportes_para_docente(): void
+    public function test_el_enlace_de_historial_no_aparece_en_el_menu_para_docente(): void
     {
         $docente = User::factory()->create();
         $docente->assignRole(RolEnum::DOCENTE->value);
 
         $this->actingAs($docente)
-            ->get(route('reportes.index'))
+            ->get(route('dashboard'))
             ->assertOk()
             ->assertDontSee('Historial de estudiante');
     }

@@ -57,6 +57,7 @@ class ModuleRoutesHaveWebMiddlewareTest extends TestCase
             'constancias.index' => ['constancias.index'],
             'constancias.mis-constancias' => ['constancias.mis-constancias'],
             'reportes.index' => ['reportes.index'],
+            'historial-estudiante.index' => ['historial-estudiante.index'],
             'notificaciones.index' => ['notificaciones.index'],
             'notificaciones.mis-mensajes' => ['notificaciones.mis-mensajes'],
             'notificaciones.plantillas' => ['notificaciones.plantillas'],
