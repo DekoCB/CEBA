@@ -4,6 +4,7 @@ use App\Modules\Academico\Models\Aula;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Services\AulaService;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 
@@ -115,6 +116,18 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('status', 'Aula guardada correctamente.');
     }
 
+    public function eliminar(AulaService $service, int $aulaId): void
+    {
+        Gate::authorize('academico.gestionar');
+
+        try {
+            $service->eliminar(Aula::query()->findOrFail($aulaId));
+            session()->flash('status', 'Aula eliminada correctamente.');
+        } catch (ValidationException $e) {
+            session()->flash('error', $e->validator->errors()->first());
+        }
+    }
+
     public function with(AulaService $service): array
     {
         return [
@@ -143,6 +156,10 @@ new #[Layout('layouts.app')] class extends Component
 
     @if (session('status'))
         <div class="mb-4 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">{{ session('status') }}</div>
+    @endif
+
+    @if (session('error'))
+        <div class="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{{ session('error') }}</div>
     @endif
 
     <div class="mb-8">
@@ -218,7 +235,17 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
                 <p class="mt-3 text-sm text-ink-faint">Capacidad: <span class="text-ink">{{ $aula->capacidad }}</span> estudiantes</p>
                 @can('academico.gestionar')
-                    <button wire:click="abrirModal({{ $aula->id }})" class="mt-3 text-sm font-medium text-accent hover:underline">Editar</button>
+                    <div class="mt-3 flex items-center gap-3">
+                        <button wire:click="abrirModal({{ $aula->id }})" class="text-sm font-medium text-accent hover:underline">Editar</button>
+                        <button
+                            type="button"
+                            wire:click="eliminar({{ $aula->id }})"
+                            wire:confirm="¿Eliminar «{{ $aula->nombre }}»? Esta acción no se puede deshacer."
+                            class="text-sm font-medium text-danger hover:underline"
+                        >
+                            Eliminar
+                        </button>
+                    </div>
                 @endcan
             </div>
         @empty

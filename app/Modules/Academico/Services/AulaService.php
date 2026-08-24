@@ -10,6 +10,7 @@ use App\Modules\Academico\Models\Horario;
 use App\Modules\Matricula\Models\Matricula;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
+use Illuminate\Validation\ValidationException;
 
 class AulaService
 {
@@ -37,6 +38,23 @@ class AulaService
         $aula->update($datos);
 
         return $aula;
+    }
+
+    /**
+     * No se puede borrar un aula que ya tiene horarios dictándose ahí --
+     * borrarla dejaría esos horarios sin aula (la FK restrictOnDelete de
+     * horarios.aula_id lo impediría a nivel de base de datos de todos
+     * modos, pero conviene un mensaje claro en vez de un error SQL crudo).
+     */
+    public function eliminar(Aula $aula): void
+    {
+        if ($aula->horarios()->exists()) {
+            throw ValidationException::withMessages([
+                'aula' => "No se puede eliminar «{$aula->nombre}»: tiene horarios asignados. Desactívala si ya no se usa.",
+            ]);
+        }
+
+        $aula->delete();
     }
 
     /**
