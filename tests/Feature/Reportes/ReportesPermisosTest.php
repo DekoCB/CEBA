@@ -3,8 +3,11 @@
 namespace Tests\Feature\Reportes;
 
 use App\Models\User;
+use App\Modules\Academico\Enums\FranjaHorarioEnum;
 use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Horario;
+use App\Modules\Evaluaciones\Models\Calificacion;
+use App\Modules\Evaluaciones\Models\Evaluacion;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -14,6 +17,25 @@ use Tests\TestCase;
 class ReportesPermisosTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * @param  array<string, mixed>  $atributos
+     */
+    private function horarioConFranja(FranjaHorarioEnum $franja, array $atributos = []): Horario
+    {
+        $horario = Horario::factory()->create($atributos);
+        $horario->dias()->delete();
+
+        foreach ($franja->dias() as $dia) {
+            $horario->dias()->create([
+                'dia_semana' => $dia,
+                'hora_inicio' => '18:00:00',
+                'hora_fin' => '20:00:00',
+            ]);
+        }
+
+        return $horario->fresh(['dias']);
+    }
 
     protected function setUp(): void
     {
@@ -79,17 +101,35 @@ class ReportesPermisosTest extends TestCase
         $this->assertSame('application/pdf', $testable->effects['download']['contentType']);
     }
 
-    public function test_coordinador_ve_todos_los_horarios_en_el_filtro_y_docente_solo_los_suyos(): void
+    public function test_el_filtro_de_horario_muestra_las_3_franjas_institucionales(): void
     {
-        $docente = User::factory()->create();
-        $docente->assignRole(RolEnum::DOCENTE->value);
-        Horario::factory()->create([
-            'docente_id' => $docente->id,
-            'curso_id' => Curso::factory()->create(['nombre' => 'Curso Del Docente']),
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $this->actingAs($coordinador);
+
+        // x-select-input embebe sus opciones como JSON con unicode escapado
+        // (Miércoles -> Miércoles), así que se verifica el HTML crudo
+        // en vez de assertSee con texto acentuado.
+        $html = Volt::test('reportes.index')
+            ->set('tipo', 'academico')
+            ->html();
+
+        $this->assertStringContainsString('lun_mie', $html);
+        $this->assertStringContainsString('mar_jue', $html);
+        $this->assertStringContainsString('domingo', $html);
+    }
+
+    public function test_filtrar_el_reporte_academico_por_franja_solo_trae_esa_franja(): void
+    {
+        $horarioLunes = $this->horarioConFranja(FranjaHorarioEnum::LUN_MIE, [
+            'curso_id' => Curso::factory()->create(['nombre' => 'Curso Lunes']),
         ]);
-        Horario::factory()->create([
-            'curso_id' => Curso::factory()->create(['nombre' => 'Curso Ajeno']),
+        $horarioMartes = $this->horarioConFranja(FranjaHorarioEnum::MAR_JUE, [
+            'curso_id' => Curso::factory()->create(['nombre' => 'Curso Martes']),
         ]);
+        Calificacion::factory()->create(['evaluacion_id' => Evaluacion::factory()->create(['horario_id' => $horarioLunes->id])->id]);
+        Calificacion::factory()->create(['evaluacion_id' => Evaluacion::factory()->create(['horario_id' => $horarioMartes->id])->id]);
 
         $coordinador = User::factory()->create();
         $coordinador->assignRole(RolEnum::COORDINADOR->value);
@@ -97,8 +137,26 @@ class ReportesPermisosTest extends TestCase
         $this->actingAs($coordinador);
         Volt::test('reportes.index')
             ->set('tipo', 'academico')
-            ->assertSee('Curso Del Docente')
-            ->assertSee('Curso Ajeno');
+            ->assertSee('Curso Lunes')
+            ->assertSee('Curso Martes')
+            ->set('franja', FranjaHorarioEnum::LUN_MIE->value)
+            ->assertSee('Curso Lunes')
+            ->assertDontSee('Curso Martes');
+    }
+
+    public function test_docente_solo_ve_sus_propios_horarios_en_mis_evaluaciones(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $horarioPropio = Horario::factory()->create([
+            'docente_id' => $docente->id,
+            'curso_id' => Curso::factory()->create(['nombre' => 'Curso Del Docente']),
+        ]);
+        $horarioAjeno = Horario::factory()->create([
+            'curso_id' => Curso::factory()->create(['nombre' => 'Curso Ajeno']),
+        ]);
+        Evaluacion::factory()->create(['horario_id' => $horarioPropio->id]);
+        Evaluacion::factory()->create(['horario_id' => $horarioAjeno->id]);
 
         $this->actingAs($docente);
         Volt::test('reportes.index')
@@ -111,15 +169,14 @@ class ReportesPermisosTest extends TestCase
     {
         $coordinador = User::factory()->create();
         $coordinador->assignRole(RolEnum::COORDINADOR->value);
-        $horario = Horario::factory()->create();
 
         $this->actingAs($coordinador);
 
         Volt::test('reportes.index')
             ->set('tipo', 'academico')
-            ->set('horarioId', (string) $horario->id)
-            ->assertSet('horarioId', (string) $horario->id)
+            ->set('franja', FranjaHorarioEnum::LUN_MIE->value)
+            ->assertSet('franja', FranjaHorarioEnum::LUN_MIE->value)
             ->set('tipo', 'financiero')
-            ->assertSet('horarioId', '');
+            ->assertSet('franja', '');
     }
 }

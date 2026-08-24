@@ -1,6 +1,6 @@
 <?php
 
-use App\Modules\Academico\Models\Horario;
+use App\Modules\Academico\Enums\FranjaHorarioEnum;
 use App\Modules\Reportes\Exports\ReporteExport;
 use App\Modules\Reportes\Services\ReporteService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -29,7 +29,7 @@ new #[Layout('layouts.app')] class extends Component
     /**
      * Tipos de reporte cuyos datos se originan en un Horario (clase
      * recurrente: curso + docente + día + hora) y por lo tanto admiten
-     * filtrarse por uno en concreto, además del rango de fechas.
+     * filtrarse por franja institucional, además del rango de fechas.
      *
      * @var list<string>
      */
@@ -41,7 +41,7 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $hasta = '';
 
-    public string $horarioId = '';
+    public string $franja = '';
 
     public function mount(): void
     {
@@ -56,7 +56,7 @@ new #[Layout('layouts.app')] class extends Component
 
     public function updatingTipo(): void
     {
-        $this->horarioId = '';
+        $this->franja = '';
     }
 
     public function exportarExcel(ReporteService $reportes)
@@ -110,51 +110,36 @@ new #[Layout('layouts.app')] class extends Component
     {
         $desde = $this->desde ?: null;
         $hasta = $this->hasta ?: null;
-        $horarioId = $this->horarioId !== '' ? (int) $this->horarioId : null;
+        $franja = $this->franja !== '' ? $this->franja : null;
 
         return match ($this->tipo) {
-            'matricula' => $reportes->matricula($desde, $hasta, $horarioId),
-            'academico' => $reportes->academico($desde, $hasta, $horarioId),
-            'financiero' => $reportes->financiero($desde, $hasta, $horarioId),
-            'morosos' => $reportes->morosos($desde, $hasta, $horarioId),
-            'certificados' => $reportes->certificados($desde, $hasta, $horarioId),
-            'operativo' => $reportes->operativo($desde, $hasta, $horarioId),
-            'propio' => $reportes->propio(Auth::user(), $desde, $hasta, $horarioId),
+            'matricula' => $reportes->matricula($desde, $hasta, $franja),
+            'academico' => $reportes->academico($desde, $hasta, $franja),
+            'financiero' => $reportes->financiero($desde, $hasta, $franja),
+            'morosos' => $reportes->morosos($desde, $hasta, $franja),
+            'certificados' => $reportes->certificados($desde, $hasta, $franja),
+            'operativo' => $reportes->operativo($desde, $hasta, $franja),
+            'propio' => $reportes->propio(Auth::user(), $desde, $hasta, $franja),
             default => ['columnas' => [], 'filas' => []],
         };
     }
 
     /**
-     * Horarios que puede elegir en el filtro: un docente (reporte "propio")
-     * solo ve los suyos; coordinación/dirección (reportes académico y
-     * operativo) ven todos.
+     * Las 3 franjas institucionales fijas (ver FranjaHorarioEnum): un curso
+     * puede dictarse en cualquiera de ellas, así que filtrar por franja
+     * -- no por un horario puntual -- trae todos los cursos que caen ahí,
+     * sin importar grado ni docente.
      *
-     * @return Collection<int, array{value: int, label: string}>
+     * @return Collection<int, array{value: string, label: string}>
      */
-    private function horariosDisponibles(): Collection
+    private function franjasDisponibles(): Collection
     {
         if (! in_array($this->tipo, self::TIPOS_CON_HORARIO, true)) {
             return collect();
         }
 
-        return Horario::query()
-            ->with(['curso', 'grado', 'docente', 'dias'])
-            ->when(
-                $this->tipo === 'propio',
-                fn ($query) => $query->where('docente_id', Auth::id()),
-            )
-            ->get()
-            ->map(fn (Horario $horario) => [
-                'value' => $horario->id,
-                'label' => trim(sprintf(
-                    '%s · %s · %s%s',
-                    $horario->curso->nombre,
-                    $horario->grado->nombre,
-                    $horario->diasResumen(),
-                    $this->tipo === 'propio' ? '' : " · {$horario->docente->name}",
-                )),
-            ])
-            ->values();
+        return collect(FranjaHorarioEnum::cases())
+            ->map(fn (FranjaHorarioEnum $franja) => ['value' => $franja->value, 'label' => $franja->label()]);
     }
 
     public function with(ReporteService $reportes): array
@@ -174,7 +159,7 @@ new #[Layout('layouts.app')] class extends Component
             'tiposDisponibles' => $tiposDisponibles,
             'reporte' => $reporte,
             'puedeExportar' => $user->hasPermissionTo('reportes.exportar'),
-            'horariosDisponibles' => $this->horariosDisponibles(),
+            'franjasDisponibles' => $this->franjasDisponibles(),
         ];
     }
 }; ?>
@@ -205,14 +190,14 @@ new #[Layout('layouts.app')] class extends Component
                 <x-date-input wire:model.live="hasta" id="hasta" class="mt-1 block" />
             </div>
 
-            @if ($horariosDisponibles->isNotEmpty())
+            @if ($franjasDisponibles->isNotEmpty())
                 <div>
-                    <x-input-label for="horarioId" value="Horario (opcional)" />
+                    <x-input-label for="franja" value="Horario (opcional)" />
                     <x-select-input
-                        wire:model.live="horarioId"
-                        id="horarioId"
+                        wire:model.live="franja"
+                        id="franja"
                         class="mt-1 block w-64"
-                        :options="collect($horariosDisponibles)->mapWithKeys(fn ($opcion) => [$opcion['value'] => $opcion['label']])->prepend('Todos los horarios', '')"
+                        :options="collect($franjasDisponibles)->mapWithKeys(fn ($opcion) => [$opcion['value'] => $opcion['label']])->prepend('Todos los horarios', '')"
                     />
                 </div>
             @endif
