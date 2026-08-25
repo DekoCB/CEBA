@@ -90,8 +90,7 @@
                         </div>
                         @unless ($sesion->esActual)
                             <button
-                                wire:click="revocarSesion('{{ $sesion->id }}')"
-                                wire:confirm="¿Cerrar esta sesión?"
+                                x-on:click="$store.confirm.preguntar('¿Cerrar esta sesión?', () => $wire.revocarSesion(@js($sesion->id)), { peligro: true, etiquetaConfirmar: 'Cerrar sesión' })"
                                 class="text-sm font-medium text-danger hover:underline"
                             >
                                 Cerrar sesión

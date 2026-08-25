@@ -241,7 +241,7 @@ new #[Layout('layouts.app')] class extends Component
                             @endif
                         </div>
                         <div class="flex shrink-0 gap-3">
-                            <button type="button" wire:click="rechazarSolicitud({{ $solicitud->id }})" wire:confirm="¿Rechazar esta solicitud? La falta seguirá marcada como falta." class="text-xs font-medium text-danger hover:underline">
+                            <button type="button" x-on:click="$store.confirm.preguntar('¿Rechazar esta solicitud? La falta seguirá marcada como falta.', () => $wire.rechazarSolicitud({{ $solicitud->id }}), { peligro: true, etiquetaConfirmar: 'Rechazar' })" class="text-xs font-medium text-danger hover:underline">
                                 Rechazar
                             </button>
                             <button type="button" wire:click="aprobarSolicitud({{ $solicitud->id }})" class="text-xs font-medium text-ok hover:underline">

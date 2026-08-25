@@ -188,7 +188,7 @@ new #[Layout('layouts.app')] class extends Component
             </div>
 
             <div class="flex justify-end">
-                <x-primary-button type="button" wire:click="enviarCampania" wire:confirm="¿Enviar esta campaña a {{ $destinatariosPrevistos }} destinatarios?">
+                <x-primary-button type="button" x-on:click="$store.confirm.preguntar('¿Enviar esta campaña a {{ $destinatariosPrevistos }} destinatarios?', () => $wire.enviarCampania(), { etiquetaConfirmar: 'Enviar' })">
                     Enviar campaña
                 </x-primary-button>
             </div>

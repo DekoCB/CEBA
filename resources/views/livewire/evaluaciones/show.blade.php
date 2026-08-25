@@ -383,7 +383,7 @@ new #[Layout('layouts.app')] class extends Component
                             <p class="text-xs text-ink-faint">{{ $evaluacionSeleccionada->fecha->format('d/m/Y') }}</p>
                         </div>
                         @if ($puedePublicar && ! $evaluacionSeleccionada->estaPublicada())
-                            <x-secondary-button type="button" wire:click="publicar" wire:confirm="¿Publicar esta evaluación? Los estudiantes podrán ver sus notas{{ $evaluacionSeleccionada->enlace_externo ? ' y acceder al enlace para rendirla' : '' }}.">
+                            <x-secondary-button type="button" x-on:click="$store.confirm.preguntar('¿Publicar esta evaluación? Los estudiantes podrán ver sus notas{{ $evaluacionSeleccionada->enlace_externo ? ' y acceder al enlace para rendirla' : '' }}.', () => $wire.publicar(), { etiquetaConfirmar: 'Publicar' })">
                                 Publicar
                             </x-secondary-button>
                         @endif

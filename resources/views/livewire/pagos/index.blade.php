@@ -266,7 +266,7 @@ new #[Layout('layouts.app')] class extends Component
                     </div>
 
                     <div class="mt-3 flex flex-wrap items-center gap-2">
-                        <x-secondary-button type="button" wire:click="aprobar({{ $pago->id }})" wire:confirm="¿Aprobar este pago? Se generará el recibo automáticamente.">
+                        <x-secondary-button type="button" x-on:click="$store.confirm.preguntar('¿Aprobar este pago? Se generará el recibo automáticamente.', () => $wire.aprobar({{ $pago->id }}), { etiquetaConfirmar: 'Aprobar' })">
                             Aprobar
                         </x-secondary-button>
                         <input

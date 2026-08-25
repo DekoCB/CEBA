@@ -239,8 +239,7 @@ new #[Layout('layouts.app')] class extends Component
                         <button wire:click="abrirModal({{ $aula->id }})" class="text-sm font-medium text-accent hover:underline">Editar</button>
                         <button
                             type="button"
-                            wire:click="eliminar({{ $aula->id }})"
-                            wire:confirm="¿Eliminar «{{ $aula->nombre }}»? Esta acción no se puede deshacer."
+                            x-on:click="$store.confirm.preguntar(@js('¿Eliminar «'.$aula->nombre.'»? Esta acción no se puede deshacer.'), () => $wire.eliminar({{ $aula->id }}), { peligro: true, etiquetaConfirmar: 'Eliminar' })"
                             class="text-sm font-medium text-danger hover:underline"
                         >
                             Eliminar

@@ -106,7 +106,7 @@ new class extends Component
                 </div>
             @endif
 
-            <x-secondary-button type="button" wire:click="regenerarCodigos" wire:confirm="Esto invalida tus códigos de recuperación actuales. ¿Continuar?">
+            <x-secondary-button type="button" x-on:click="$store.confirm.preguntar('Esto invalida tus códigos de recuperación actuales. ¿Continuar?', () => $wire.regenerarCodigos(), { peligro: true, etiquetaConfirmar: 'Regenerar' })">
                 Regenerar códigos de recuperación
             </x-secondary-button>
 
@@ -114,7 +114,7 @@ new class extends Component
                 <x-input-label for="two_factor_password" value="Contraseña actual" />
                 <x-text-input wire:model="passwordActual" id="two_factor_password" type="password" class="mt-1 block w-full" autocomplete="current-password" />
                 <x-input-error :messages="$errors->get('passwordActual')" class="mt-2" />
-                <x-danger-button type="button" wire:click="deshabilitar" wire:confirm="¿Desactivar la autenticación de dos factores?" class="mt-3">
+                <x-danger-button type="button" x-on:click="$store.confirm.preguntar('¿Desactivar la autenticación de dos factores?', () => $wire.deshabilitar(), { peligro: true, etiquetaConfirmar: 'Desactivar' })" class="mt-3">
                     Desactivar
                 </x-danger-button>
             </div>

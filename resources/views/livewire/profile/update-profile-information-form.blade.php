@@ -109,7 +109,7 @@ new class extends Component
                 <span wire:loading wire:target="foto" class="ms-2 text-xs text-ink-faint">{{ __('Subiendo…') }}</span>
 
                 @if ($avatarUrl && ! $foto)
-                    <button type="button" wire:click="quitarFoto" wire:confirm="{{ __('¿Quitar tu foto de perfil?') }}" class="ms-2 text-xs text-danger hover:underline">
+                    <button type="button" x-on:click="$store.confirm.preguntar(@js(__('¿Quitar tu foto de perfil?')), () => $wire.quitarFoto(), { peligro: true, etiquetaConfirmar: @js(__('Quitar foto')) })" class="ms-2 text-xs text-danger hover:underline">
                         {{ __('Quitar foto') }}
                     </button>
                 @endif

@@ -550,7 +550,7 @@ new #[Layout('layouts.app')] class extends Component
                                             <a href="{{ $material->url }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Abrir enlace</a>
                                         @endif
                                         @can('manage', $curso)
-                                            <button wire:click="eliminarMaterial({{ $material->id }})" wire:confirm="¿Eliminar este material?" class="text-xs font-medium text-danger hover:underline">Eliminar</button>
+                                            <button x-on:click="$store.confirm.preguntar('¿Eliminar este material?', () => $wire.eliminarMaterial({{ $material->id }}), { peligro: true, etiquetaConfirmar: 'Eliminar' })" class="text-xs font-medium text-danger hover:underline">Eliminar</button>
                                         @endcan
                                     </div>
                                 </div>
@@ -639,7 +639,7 @@ new #[Layout('layouts.app')] class extends Component
                                             <a href="{{ $claseGrabada->url }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Abrir enlace</a>
                                         @endif
                                         @can('manage', $curso)
-                                            <button wire:click="eliminarGrabacion({{ $claseGrabada->id }})" wire:confirm="¿Eliminar esta clase grabada?" class="text-xs font-medium text-danger hover:underline">Eliminar</button>
+                                            <button x-on:click="$store.confirm.preguntar('¿Eliminar esta clase grabada?', () => $wire.eliminarGrabacion({{ $claseGrabada->id }}), { peligro: true, etiquetaConfirmar: 'Eliminar' })" class="text-xs font-medium text-danger hover:underline">Eliminar</button>
                                         @endcan
                                     </div>
                                 </div>
@@ -908,10 +908,10 @@ new #[Layout('layouts.app')] class extends Component
                                 <p class="text-xs text-ink-faint">{{ $plantilla->creador?->name ?? 'Usuario eliminado' }} · {{ $plantilla->created_at->format('d/m/Y') }}</p>
                             </div>
                             <div class="flex items-center gap-3">
-                                <button type="button" wire:click="aplicarPlantilla({{ $plantilla->id }})" wire:confirm="¿Aplicar «{{ $plantilla->nombre }}» a este curso?" class="text-xs font-medium text-accent hover:underline">
+                                <button type="button" x-on:click="$store.confirm.preguntar(@js('¿Aplicar «'.$plantilla->nombre.'» a este curso?'), () => $wire.aplicarPlantilla({{ $plantilla->id }}), { etiquetaConfirmar: 'Aplicar' })" class="text-xs font-medium text-accent hover:underline">
                                     Aplicar
                                 </button>
-                                <button type="button" wire:click="eliminarPlantilla({{ $plantilla->id }})" wire:confirm="¿Eliminar la plantilla «{{ $plantilla->nombre }}»?" class="text-xs font-medium text-danger hover:underline">
+                                <button type="button" x-on:click="$store.confirm.preguntar(@js('¿Eliminar la plantilla «'.$plantilla->nombre.'»?'), () => $wire.eliminarPlantilla({{ $plantilla->id }}), { peligro: true, etiquetaConfirmar: 'Eliminar' })" class="text-xs font-medium text-danger hover:underline">
                                     Eliminar
                                 </button>
                             </div>

@@ -35,7 +35,7 @@ new class extends Component
                 Los dispositivos donde tu cuenta ha iniciado sesión actualmente.
             </p>
         </div>
-        <button wire:click="revocarTodas" wire:confirm="¿Cerrar todas las demás sesiones?" class="text-sm font-medium text-danger hover:underline">
+        <button x-on:click="$store.confirm.preguntar('¿Cerrar todas las demás sesiones?', () => $wire.revocarTodas(), { peligro: true, etiquetaConfirmar: 'Cerrar sesiones' })" class="text-sm font-medium text-danger hover:underline">
             Cerrar las demás
         </button>
     </header>
@@ -60,7 +60,7 @@ new class extends Component
                     </p>
                 </div>
                 @unless ($sesion->esActual)
-                    <button wire:click="revocar('{{ $sesion->id }}')" wire:confirm="¿Cerrar esta sesión?" class="text-sm font-medium text-danger hover:underline">
+                    <button x-on:click="$store.confirm.preguntar('¿Cerrar esta sesión?', () => $wire.revocar(@js($sesion->id)), { peligro: true, etiquetaConfirmar: 'Cerrar sesión' })" class="text-sm font-medium text-danger hover:underline">
                         Cerrar
                     </button>
                 @endunless

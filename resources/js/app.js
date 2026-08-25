@@ -37,6 +37,40 @@ function aplicarColoresDeTema(config) {
 }
 
 document.addEventListener('alpine:init', () => {
+    /**
+     * Reemplaza el confirm() nativo del navegador (wire:confirm) por un
+     * diálogo propio (ver x-confirm-dialog): un solo store global en vez de
+     * un modal por cada botón, porque la pregunta/acción cambian en cada
+     * clic pero el diálogo en sí es siempre el mismo.
+     */
+    Alpine.store('confirm', {
+        open: false,
+        mensaje: '',
+        etiquetaConfirmar: 'Confirmar',
+        peligro: false,
+        _accion: null,
+
+        preguntar(mensaje, accion, { peligro = false, etiquetaConfirmar = 'Confirmar' } = {}) {
+            this.mensaje = mensaje;
+            this.etiquetaConfirmar = etiquetaConfirmar;
+            this.peligro = peligro;
+            this._accion = accion;
+            this.open = true;
+        },
+
+        confirmar() {
+            const accion = this._accion;
+            this.open = false;
+            this._accion = null;
+            accion?.();
+        },
+
+        cancelar() {
+            this.open = false;
+            this._accion = null;
+        },
+    });
+
     Alpine.data('chartCanvas', (config) => ({
         chart: null,
         init() {

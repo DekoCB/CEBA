@@ -363,7 +363,7 @@ new #[Layout('layouts.app')] class extends Component
                     </div>
 
                     <div class="mt-3 flex flex-wrap items-center gap-2">
-                        <x-secondary-button type="button" wire:click="emitirDeSolicitud({{ $solicitud->id }})" wire:confirm="¿Emitir «{{ $solicitud->tipo->label() }}» para esta solicitud?">
+                        <x-secondary-button type="button" x-on:click="$store.confirm.preguntar('¿Emitir «{{ $solicitud->tipo->label() }}» para esta solicitud?', () => $wire.emitirDeSolicitud({{ $solicitud->id }}), { etiquetaConfirmar: 'Emitir' })">
                             Emitir {{ $solicitud->tipo->label() }}
                         </x-secondary-button>
                         <input
@@ -503,7 +503,7 @@ new #[Layout('layouts.app')] class extends Component
                                 </button>
                             @endif
                             @if ($puedeDuplicar)
-                                <button type="button" wire:click="duplicar({{ $certificado->id }})" wire:confirm="¿Emitir un duplicado de esta constancia?" class="text-xs font-medium text-ink-dim hover:underline">
+                                <button type="button" x-on:click="$store.confirm.preguntar('¿Emitir un duplicado de esta constancia?', () => $wire.duplicar({{ $certificado->id }}), { etiquetaConfirmar: 'Duplicar' })" class="text-xs font-medium text-ink-dim hover:underline">
                                     Duplicar
                                 </button>
                             @endif
