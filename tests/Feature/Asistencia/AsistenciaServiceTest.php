@@ -4,6 +4,7 @@ namespace Tests\Feature\Asistencia;
 
 use App\Modules\Academico\Enums\DiaSemanaEnum;
 use App\Modules\Academico\Models\Ciclo;
+use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Asistencia\Enums\EstadoAsistenciaEnum;
@@ -91,12 +92,12 @@ class AsistenciaServiceTest extends TestCase
     }
 
     /**
-     * Cuando un grado tiene varios cursos, la matrícula de un estudiante
-     * guarda un horario_id de UNO solo de esos cursos, pero eso lo hace
-     * pertenecer a TODOS los cursos del mismo grado y ciclo, no solo al
-     * curso cuyo horario_id quedó guardado -- comparar por horario_id
-     * exacto (el bug original) lo excluía del roster de cualquier otro
-     * curso de su propio grado.
+     * Cuando un grado tiene varios cursos (cada uno con un solo horario,
+     * sin secciones paralelas), un estudiante matriculado en el grado
+     * pertenece a TODOS esos cursos automáticamente -- no hace falta
+     * asignarle explícitamente el horario de cada uno. Solo cuando un
+     * MISMO curso tiene varias secciones (ver el siguiente test) hace
+     * falta la asignación explícita.
      */
     public function test_estudiantes_del_horario_incluye_al_matriculado_en_otro_curso_del_mismo_grado(): void
     {
@@ -111,12 +112,40 @@ class AsistenciaServiceTest extends TestCase
             'estudiante_id' => $estudiante->id,
             'grado_id' => $grado->id,
             'ciclo_id' => $ciclo->id,
-            'horario_id' => $curso1->id,
         ]);
 
         $estudiantesDelOtroCurso = $this->service()->estudiantesDelHorario($curso2);
 
         $this->assertTrue($estudiantesDelOtroCurso->contains('id', $estudiante->id));
+    }
+
+    /**
+     * Cuando el MISMO curso tiene dos secciones (dos Horario con igual
+     * curso_id+grado_id+ciclo_id), ya no basta con estar matriculado en el
+     * grado: cada estudiante debe aparecer solo en la sección que se le
+     * asignó explícitamente, no en ambas.
+     */
+    public function test_estudiantes_del_horario_con_secciones_paralelas_solo_incluye_a_quien_fue_asignado_a_esa_seccion(): void
+    {
+        $grado = Grado::factory()->create();
+        $ciclo = Ciclo::factory()->create();
+        $curso = Curso::factory()->create(['grado_id' => $grado->id]);
+
+        $seccionA = Horario::factory()->create(['curso_id' => $curso->id, 'grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        $seccionB = Horario::factory()->create(['curso_id' => $curso->id, 'grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+
+        $estudianteA = Estudiante::factory()->create();
+        $matriculaA = Matricula::factory()->create(['estudiante_id' => $estudianteA->id, 'grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        $matriculaA->horarios()->attach($seccionA->id);
+
+        $estudianteB = Estudiante::factory()->create();
+        $matriculaB = Matricula::factory()->create(['estudiante_id' => $estudianteB->id, 'grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        $matriculaB->horarios()->attach($seccionB->id);
+
+        $rosterSeccionA = $this->service()->estudiantesDelHorario($seccionA);
+
+        $this->assertTrue($rosterSeccionA->contains('id', $estudianteA->id));
+        $this->assertFalse($rosterSeccionA->contains('id', $estudianteB->id));
     }
 
     public function test_registrar_crea_un_registro_de_asistencia_por_estudiante(): void

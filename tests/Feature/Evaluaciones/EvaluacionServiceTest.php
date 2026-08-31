@@ -4,6 +4,7 @@ namespace Tests\Feature\Evaluaciones;
 
 use App\Models\User;
 use App\Modules\Academico\Models\Ciclo;
+use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Evaluaciones\Enums\EstadoEvaluacionEnum;
@@ -109,7 +110,7 @@ class EvaluacionServiceTest extends TestCase
         $this->assertFalse($estudiantesDeA->contains('id', $estudianteDeOtroGrado->id));
     }
 
-    public function test_estudiantes_del_horario_incluye_matriculas_sin_horario_id_asignado(): void
+    public function test_estudiantes_del_horario_incluye_matriculas_sin_horario_asignado_explicitamente(): void
     {
         $grado = Grado::factory()->create();
         $ciclo = Ciclo::factory()->create();
@@ -120,7 +121,6 @@ class EvaluacionServiceTest extends TestCase
             'estudiante_id' => $estudianteSinHorario->id,
             'grado_id' => $grado->id,
             'ciclo_id' => $ciclo->id,
-            'horario_id' => null,
         ]);
 
         $estudiantesDeA = $this->service()->estudiantesDelHorario($horarioA);
@@ -238,7 +238,7 @@ class EvaluacionServiceTest extends TestCase
         $this->assertSame(0, Notificacion::query()->count());
     }
 
-    public function test_horarios_del_estudiante_sin_horario_id_incluye_todos_los_horarios_del_grado(): void
+    public function test_horarios_del_estudiante_sin_asignacion_explicita_incluye_todos_los_horarios_del_grado(): void
     {
         $grado = Grado::factory()->create();
         $ciclo = Ciclo::factory()->create();
@@ -250,13 +250,40 @@ class EvaluacionServiceTest extends TestCase
             'estudiante_id' => $estudiante->id,
             'grado_id' => $grado->id,
             'ciclo_id' => $ciclo->id,
-            'horario_id' => null,
         ]);
 
         $horarios = $this->service()->horariosDelEstudiante($estudiante);
 
         $this->assertTrue($horarios->contains('id', $horarioA->id));
         $this->assertTrue($horarios->contains('id', $horarioB->id));
+    }
+
+    /**
+     * Cuando el MISMO curso tiene dos secciones (dos Horario con igual
+     * curso_id+grado_id+ciclo_id), cada estudiante debe aparecer solo en
+     * la sección que se le asignó explícitamente, no en ambas.
+     */
+    public function test_estudiantes_del_horario_con_secciones_paralelas_solo_incluye_a_quien_fue_asignado_a_esa_seccion(): void
+    {
+        $grado = Grado::factory()->create();
+        $ciclo = Ciclo::factory()->create();
+        $curso = Curso::factory()->create(['grado_id' => $grado->id]);
+
+        $seccionA = Horario::factory()->create(['curso_id' => $curso->id, 'grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        $seccionB = Horario::factory()->create(['curso_id' => $curso->id, 'grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+
+        $estudianteA = Estudiante::factory()->create();
+        $matriculaA = Matricula::factory()->create(['estudiante_id' => $estudianteA->id, 'grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        $matriculaA->horarios()->attach($seccionA->id);
+
+        $estudianteB = Estudiante::factory()->create();
+        $matriculaB = Matricula::factory()->create(['estudiante_id' => $estudianteB->id, 'grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        $matriculaB->horarios()->attach($seccionB->id);
+
+        $rosterSeccionA = $this->service()->estudiantesDelHorario($seccionA);
+
+        $this->assertTrue($rosterSeccionA->contains('id', $estudianteA->id));
+        $this->assertFalse($rosterSeccionA->contains('id', $estudianteB->id));
     }
 
     public function test_promedio_es_null_sin_calificaciones_publicadas(): void

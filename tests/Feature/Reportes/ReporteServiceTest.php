@@ -101,8 +101,8 @@ class ReporteServiceTest extends TestCase
     {
         $horarioA = $this->horarioConFranja(FranjaHorarioEnum::LUN_MIE);
         $horarioB = $this->horarioConFranja(FranjaHorarioEnum::MAR_JUE);
-        Matricula::factory()->create(['horario_id' => $horarioA->id, 'fecha_matricula' => now()]);
-        Matricula::factory()->create(['horario_id' => $horarioB->id, 'fecha_matricula' => now()]);
+        Matricula::factory()->create(['grado_id' => $horarioA->grado_id, 'ciclo_id' => $horarioA->ciclo_id, 'fecha_matricula' => now()]);
+        Matricula::factory()->create(['grado_id' => $horarioB->grado_id, 'ciclo_id' => $horarioB->ciclo_id, 'fecha_matricula' => now()]);
 
         $reporte = app(ReporteService::class)->matricula(null, null, FranjaHorarioEnum::LUN_MIE->value);
 
@@ -115,8 +115,8 @@ class ReporteServiceTest extends TestCase
         $horarioB = $this->horarioConFranja(FranjaHorarioEnum::MAR_JUE);
         $estudianteA = Estudiante::factory()->create();
         $estudianteB = Estudiante::factory()->create();
-        Matricula::factory()->create(['estudiante_id' => $estudianteA->id, 'horario_id' => $horarioA->id]);
-        Matricula::factory()->create(['estudiante_id' => $estudianteB->id, 'horario_id' => $horarioB->id]);
+        Matricula::factory()->create(['estudiante_id' => $estudianteA->id, 'grado_id' => $horarioA->grado_id, 'ciclo_id' => $horarioA->ciclo_id]);
+        Matricula::factory()->create(['estudiante_id' => $estudianteB->id, 'grado_id' => $horarioB->grado_id, 'ciclo_id' => $horarioB->ciclo_id]);
         Pago::factory()->aprobado()->create(['estudiante_id' => $estudianteA->id, 'fecha_pago' => now()]);
         Pago::factory()->aprobado()->create(['estudiante_id' => $estudianteB->id, 'fecha_pago' => now()]);
 
@@ -129,8 +129,8 @@ class ReporteServiceTest extends TestCase
     {
         $horarioA = $this->horarioConFranja(FranjaHorarioEnum::LUN_MIE);
         $horarioB = $this->horarioConFranja(FranjaHorarioEnum::MAR_JUE);
-        $matriculaA = Matricula::factory()->create(['horario_id' => $horarioA->id]);
-        $matriculaB = Matricula::factory()->create(['horario_id' => $horarioB->id]);
+        $matriculaA = Matricula::factory()->create(['grado_id' => $horarioA->grado_id, 'ciclo_id' => $horarioA->ciclo_id]);
+        $matriculaB = Matricula::factory()->create(['grado_id' => $horarioB->grado_id, 'ciclo_id' => $horarioB->ciclo_id]);
         Certificado::factory()->create(['matricula_id' => $matriculaA->id, 'fecha_emision' => now()]);
         Certificado::factory()->create(['matricula_id' => $matriculaB->id, 'fecha_emision' => now()]);
 
@@ -143,8 +143,8 @@ class ReporteServiceTest extends TestCase
     {
         $horarioA = $this->horarioConFranja(FranjaHorarioEnum::LUN_MIE);
         $horarioB = $this->horarioConFranja(FranjaHorarioEnum::MAR_JUE);
-        $matriculaA = Matricula::factory()->create(['horario_id' => $horarioA->id]);
-        $matriculaB = Matricula::factory()->create(['horario_id' => $horarioB->id]);
+        $matriculaA = Matricula::factory()->create(['grado_id' => $horarioA->grado_id, 'ciclo_id' => $horarioA->ciclo_id]);
+        $matriculaB = Matricula::factory()->create(['grado_id' => $horarioB->grado_id, 'ciclo_id' => $horarioB->ciclo_id]);
         $planA = PlanPago::factory()->create(['matricula_id' => $matriculaA->id]);
         $planB = PlanPago::factory()->create(['matricula_id' => $matriculaB->id]);
         Cuota::factory()->vencida()->create(['plan_pago_id' => $planA->id, 'numero' => 1]);

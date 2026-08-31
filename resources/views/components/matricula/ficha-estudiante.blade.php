@@ -3,8 +3,9 @@
     'documentos',
     'examenes',
     'matriculas',
-    'horariosPorMatricula' => [],
+    'cursosConHorarios' => [],
     'editandoHorarioMatriculaId' => null,
+    'editandoHorarioCursoId' => null,
     'horarioSeleccionado' => '',
     'editandoFechaFinMatriculaId' => null,
     'fechaFinEstudioNueva' => '',
@@ -165,40 +166,52 @@
                         @endif
                     @endcan
 
-                    <div class="mt-2 flex items-center gap-2">
-                        <p class="text-ink-faint">
-                            Horario:
-                            @if ($matricula->horario)
-                                {{ $matricula->horario->curso->nombre }}
-                                @if ($matricula->horario->docente) · {{ $matricula->horario->docente->name }} @endif
-                                · {{ $matricula->horario->diasResumen() }}
-                            @else
-                                Sin asignar
-                            @endif
-                        </p>
+                    <div class="mt-2">
+                        <p class="text-ink-faint">Horarios:</p>
+                        <div class="mt-1 space-y-1">
+                            @forelse ($cursosConHorarios[$matricula->id] ?? [] as $entrada)
+                                @php $editandoEsteCurso = $editandoHorarioMatriculaId === $matricula->id && $editandoHorarioCursoId === $entrada['curso']->id; @endphp
+                                <div class="flex items-center justify-between gap-2">
+                                    <p>
+                                        <span class="text-ink">{{ $entrada['curso']->nombre }}:</span>
+                                        @if ($entrada['asignado'])
+                                            <span class="text-ink-faint">{{ $entrada['asignado']->docente?->name }} · {{ $entrada['asignado']->diasResumen() }}</span>
+                                        @elseif ($entrada['ambiguo'])
+                                            <span class="font-medium text-warn">Sin asignar — elige sección</span>
+                                        @elseif ($entrada['opciones']->isNotEmpty())
+                                            <span class="text-ink-faint">{{ $entrada['opciones']->first()->docente?->name }} · {{ $entrada['opciones']->first()->diasResumen() }} (automático)</span>
+                                        @else
+                                            <span class="text-ink-faint">Sin horario creado en este ciclo todavía.</span>
+                                        @endif
+                                    </p>
 
-                        @can('matricula.editar')
-                            @if (($horariosPorMatricula[$matricula->id] ?? collect())->isNotEmpty() && $editandoHorarioMatriculaId !== $matricula->id)
-                                <button type="button" wire:click="editarHorario({{ $matricula->id }})" class="text-xs font-medium text-accent hover:underline">Editar horario</button>
-                            @endif
-                        @endcan
+                                    @can('matricula.editar')
+                                        @if ($entrada['opciones']->isNotEmpty() && ! $editandoEsteCurso)
+                                            <button type="button" wire:click="editarHorario({{ $matricula->id }}, {{ $entrada['curso']->id }})" class="shrink-0 text-xs font-medium text-accent hover:underline">Editar</button>
+                                        @endif
+                                    @endcan
+                                </div>
+
+                                @can('matricula.editar')
+                                    @if ($editandoEsteCurso)
+                                        <form wire:submit="guardarHorario" class="flex flex-wrap items-center gap-2">
+                                            <x-select-input
+                                                wire:model="horarioSeleccionado"
+                                                class="w-72 text-xs"
+                                                placeholder="Sin horario asignado"
+                                                :options="$entrada['opciones']->mapWithKeys(fn ($horario) => [$horario->id => ($horario->docente?->name ?? 'Sin docente').' · '.$horario->diasResumen()])"
+                                            />
+                                            <x-secondary-button type="submit">Guardar</x-secondary-button>
+                                            <button type="button" wire:click="cancelarEdicionHorario" class="text-xs text-ink-faint hover:text-ink">Cancelar</button>
+                                        </form>
+                                        <x-input-error :messages="$errors->get('horario')" class="mt-1" />
+                                    @endif
+                                @endcan
+                            @empty
+                                <p class="text-xs text-ink-faint">Este grado no tiene cursos con horario en este ciclo todavía.</p>
+                            @endforelse
+                        </div>
                     </div>
-
-                    @can('matricula.editar')
-                        @if ($editandoHorarioMatriculaId === $matricula->id)
-                            <form wire:submit="guardarHorario" class="mt-2 flex flex-wrap items-center gap-2">
-                                <x-select-input
-                                    wire:model="horarioSeleccionado"
-                                    class="w-72 text-xs"
-                                    placeholder="Sin horario asignado"
-                                    :options="collect($horariosPorMatricula[$matricula->id] ?? [])->mapWithKeys(fn ($horario) => [$horario->id => $horario->curso->nombre.' · '.$horario->docente?->name.' · '.$horario->diasResumen()])"
-                                />
-                                <x-secondary-button type="submit">Guardar</x-secondary-button>
-                                <button type="button" wire:click="cancelarEdicionHorario" class="text-xs text-ink-faint hover:text-ink">Cancelar</button>
-                            </form>
-                            <x-input-error :messages="$errors->get('horario')" class="mt-1" />
-                        @endif
-                    @endcan
 
                     <div class="mt-2 flex gap-4">
                         @if ($matricula->getFirstMedia('ficha'))

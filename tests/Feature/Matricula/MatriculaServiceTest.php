@@ -4,6 +4,7 @@ namespace Tests\Feature\Matricula;
 
 use App\Models\User;
 use App\Modules\Academico\Models\Ciclo;
+use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
@@ -189,7 +190,7 @@ class MatriculaServiceTest extends TestCase
         $this->assertSame($grado->id, $estudiante->fresh()->grado_actual_id);
     }
 
-    public function test_matricular_en_un_grado_sin_horarios_deja_la_matricula_sin_horario_id(): void
+    public function test_matricular_en_un_grado_sin_horarios_deja_la_matricula_sin_horarios_asignados(): void
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
         $ciclo = $this->cicloConPeriodoAbierto();
@@ -197,7 +198,7 @@ class MatriculaServiceTest extends TestCase
 
         $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
 
-        $this->assertNull($matricula->horario_id);
+        $this->assertTrue($matricula->horarios->isEmpty());
     }
 
     public function test_matricular_calcula_fecha_fin_estudio_a_seis_meses_para_mayor_de_edad(): void
@@ -237,7 +238,7 @@ class MatriculaServiceTest extends TestCase
         $this->assertSame($nuevaFecha, $matricula->fresh()->fecha_fin_estudio->format('Y-m-d'));
     }
 
-    public function test_reasignar_horario_cambia_el_horario_de_referencia_de_la_matricula(): void
+    public function test_asignar_horario_de_curso_agrega_el_horario_a_la_matricula(): void
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
         $ciclo = $this->cicloConPeriodoAbierto();
@@ -247,13 +248,30 @@ class MatriculaServiceTest extends TestCase
 
         $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
 
-        $matricula = $this->service()->reasignarHorario($matricula, $horarioDos->id);
+        $matricula = $this->service()->asignarHorarioDeCurso($matricula, $horarioDos->curso_id, $horarioDos->id);
 
-        $this->assertSame($horarioDos->id, $matricula->horario_id);
-        $this->assertSame($horarioDos->id, $matricula->fresh()->horario_id);
+        $this->assertTrue($matricula->horarios->pluck('id')->contains($horarioDos->id));
+        $this->assertTrue($matricula->fresh()->horarios->pluck('id')->contains($horarioDos->id));
     }
 
-    public function test_reasignar_horario_a_null_lo_deja_sin_asignar(): void
+    public function test_asignar_horario_de_curso_reemplaza_la_asignacion_previa_del_mismo_curso(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $ciclo = $this->cicloConPeriodoAbierto();
+        $grado = Grado::factory()->create();
+        $curso = Curso::factory()->create(['grado_id' => $grado->id]);
+        $seccionUno = Horario::factory()->create(['curso_id' => $curso->id, 'grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        $seccionDos = Horario::factory()->create(['curso_id' => $curso->id, 'grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+
+        $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
+        $this->service()->asignarHorarioDeCurso($matricula, $curso->id, $seccionUno->id);
+
+        $matricula = $this->service()->asignarHorarioDeCurso($matricula, $curso->id, $seccionDos->id);
+
+        $this->assertSame([$seccionDos->id], $matricula->fresh()->horarios->pluck('id')->all());
+    }
+
+    public function test_asignar_horario_de_curso_a_null_lo_deja_sin_asignar(): void
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
         $ciclo = $this->cicloConPeriodoAbierto();
@@ -261,25 +279,24 @@ class MatriculaServiceTest extends TestCase
         $horario = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
 
         $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
-        $matricula = $this->service()->reasignarHorario($matricula, $horario->id);
+        $matricula = $this->service()->asignarHorarioDeCurso($matricula, $horario->curso_id, $horario->id);
 
-        $matricula = $this->service()->reasignarHorario($matricula, null);
+        $matricula = $this->service()->asignarHorarioDeCurso($matricula, $horario->curso_id, null);
 
-        $this->assertNull($matricula->fresh()->horario_id);
+        $this->assertTrue($matricula->fresh()->horarios->isEmpty());
     }
 
-    public function test_reasignar_horario_con_uno_ajeno_al_grado_lanza_excepcion(): void
+    public function test_asignar_horario_de_curso_con_uno_ajeno_al_grado_lanza_excepcion(): void
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
         $ciclo = $this->cicloConPeriodoAbierto();
         $grado = Grado::factory()->create();
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
         $horarioAjeno = Horario::factory()->create();
 
         $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
 
         $this->expectException(ValidationException::class);
 
-        $this->service()->reasignarHorario($matricula, $horarioAjeno->id);
+        $this->service()->asignarHorarioDeCurso($matricula, $horarioAjeno->curso_id, $horarioAjeno->id);
     }
 }

@@ -183,33 +183,42 @@ class MatriculaService
     }
 
     /**
-     * Reasigna a qué horario específico (curso + docente + día/hora)
-     * apunta la matrícula, por ejemplo desde la ficha del estudiante. Es
-     * puramente informativo/de referencia -- solo exige que el horario
-     * pertenezca al mismo grado y ciclo de la matrícula.
+     * Asigna a la matrícula el horario específico de UN curso -- por
+     * ejemplo cuando ese curso tiene varias secciones/paralelos y hace
+     * falta decidir a cuál pertenece el estudiante (ver
+     * Matricula::scopeDelHorario()). Reemplaza cualquier asignación previa
+     * para el MISMO curso -- un estudiante no puede estar en dos secciones
+     * de un mismo curso a la vez -- pero no toca las asignaciones de los
+     * demás cursos del estudiante.
      */
-    public function reasignarHorario(Matricula $matricula, ?int $horarioId): Matricula
+    public function asignarHorarioDeCurso(Matricula $matricula, int $cursoId, ?int $horarioId): Matricula
     {
-        if ($horarioId === null) {
-            $matricula->update(['horario_id' => null]);
+        $previo = $matricula->horarios()->where('curso_id', $cursoId)->first();
 
-            return $matricula;
+        if ($previo) {
+            $matricula->horarios()->detach($previo->id);
+        }
+
+        if ($horarioId === null) {
+            return $matricula->fresh();
         }
 
         $horario = Horario::query()
+            ->where('id', $horarioId)
+            ->where('curso_id', $cursoId)
             ->where('grado_id', $matricula->grado_id)
             ->where('ciclo_id', $matricula->ciclo_id)
-            ->find($horarioId);
+            ->first();
 
         if ($horario === null) {
             throw ValidationException::withMessages([
-                'horario' => 'El horario seleccionado no pertenece al grado y ciclo de esta matrícula.',
+                'horario' => 'El horario seleccionado no pertenece a ese curso, grado y ciclo.',
             ]);
         }
 
-        $matricula->update(['horario_id' => $horario->id]);
+        $matricula->horarios()->attach($horario->id);
 
-        return $matricula;
+        return $matricula->fresh();
     }
 
     private function validarPeriodoDeMatriculaAbierto(Ciclo $ciclo): void

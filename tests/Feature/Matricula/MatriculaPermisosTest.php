@@ -4,6 +4,7 @@ namespace Tests\Feature\Matricula;
 
 use App\Models\User;
 use App\Modules\Academico\Models\Ciclo;
+use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
@@ -93,6 +94,67 @@ class MatriculaPermisosTest extends TestCase
         $estudiante = Estudiante::query()->where('dni', '55667788')->firstOrFail();
         $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'ciclo_id' => $ciclo->id]);
         $this->assertSame('Pendiente entregar certificado de estudios del colegio anterior.', $estudiante->observaciones);
+    }
+
+    public function test_el_wizard_detecta_un_dni_existente_y_permite_rematricular_sin_repetir_los_datos(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+
+        $estudiante = Estudiante::factory()->create(['dni' => '55667890']);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('dni', '55667890')
+            ->assertSet('estudianteEncontradoId', $estudiante->id)
+            ->call('continuarComoRematricula')
+            ->assertSet('esRematricula', true)
+            ->assertSet('paso', 5)
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        // No se crea una ficha nueva: sigue siendo el mismo estudiante, solo se le agrega la matrícula.
+        $this->assertDatabaseCount('estudiantes', 1);
+        $this->assertDatabaseHas('matriculas', [
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => $grado->id,
+        ]);
+    }
+
+    public function test_el_wizard_sigue_bloqueando_avanzar_con_un_dni_ya_registrado_si_no_se_elige_rematricular(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        Estudiante::factory()->create(['dni' => '55667891']);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Otro')
+            ->set('apellidos', 'Nombre')
+            ->set('dni', '55667891')
+            ->set('fechaNacimiento', now()->subYears(25)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertSet('paso', 1)
+            ->assertHasErrors('dni');
+
+        $this->assertDatabaseCount('estudiantes', 1);
     }
 
     public function test_el_wizard_configura_un_cronograma_de_pagos_personalizado_al_matricular(): void
@@ -384,15 +446,16 @@ class MatriculaPermisosTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_editar_horario_desde_la_ficha_actualiza_el_horario_de_referencia(): void
+    public function test_editar_horario_desde_la_ficha_asigna_el_horario_de_ese_curso(): void
     {
         $usuario = User::factory()->create();
         $usuario->assignRole(RolEnum::COORDINADOR->value);
 
         $ciclo = Ciclo::factory()->activo()->create();
         $grado = Grado::factory()->create();
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
-        $horarioB = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        $curso = Curso::factory()->create(['grado_id' => $grado->id]);
+        $seccionA = Horario::factory()->create(['curso_id' => $curso->id, 'grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        $seccionB = Horario::factory()->create(['curso_id' => $curso->id, 'grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
         $estudiante = Estudiante::factory()->create();
         $matricula = Matricula::factory()->create([
             'estudiante_id' => $estudiante->id,
@@ -403,12 +466,13 @@ class MatriculaPermisosTest extends TestCase
         $this->actingAs($usuario);
 
         Volt::test('matricula.show', ['estudiante' => $estudiante])
-            ->call('editarHorario', $matricula->id)
-            ->set('horarioSeleccionado', (string) $horarioB->id)
+            ->call('editarHorario', $matricula->id, $curso->id)
+            ->set('horarioSeleccionado', (string) $seccionB->id)
             ->call('guardarHorario')
             ->assertHasNoErrors();
 
-        $this->assertSame($horarioB->id, $matricula->fresh()->horario_id);
+        $this->assertSame([$seccionB->id], $matricula->fresh()->horarios->pluck('id')->all());
+        $this->assertFalse($matricula->fresh()->horarios->pluck('id')->contains($seccionA->id));
     }
 
     public function test_no_se_puede_editar_horario_sin_el_permiso_de_editar_matricula(): void
@@ -418,7 +482,7 @@ class MatriculaPermisosTest extends TestCase
 
         $ciclo = Ciclo::factory()->activo()->create();
         $grado = Grado::factory()->create();
-        Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
+        $horario = Horario::factory()->create(['grado_id' => $grado->id, 'ciclo_id' => $ciclo->id]);
         $estudiante = Estudiante::factory()->create();
         $matricula = Matricula::factory()->create([
             'estudiante_id' => $estudiante->id,
@@ -429,7 +493,7 @@ class MatriculaPermisosTest extends TestCase
         $this->actingAs($usuario);
 
         Volt::test('matricula.show', ['estudiante' => $estudiante])
-            ->call('editarHorario', $matricula->id)
+            ->call('editarHorario', $matricula->id, $horario->curso_id)
             ->assertForbidden();
     }
 

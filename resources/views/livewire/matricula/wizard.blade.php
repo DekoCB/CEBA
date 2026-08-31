@@ -7,6 +7,8 @@ use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
 use App\Modules\Matricula\DTOs\RegistrarMatriculaData;
 use App\Modules\Matricula\Enums\EstadoCivilEnum;
 use App\Modules\Matricula\Enums\TipoDocumentoEnum;
+use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Services\DocumentoEstudianteService;
 use App\Modules\Matricula\Services\ExamenUbicacionService;
 use App\Modules\Matricula\Services\MatriculaService;
@@ -45,6 +47,13 @@ new class extends Component
     public string $observacionesEstudiante = '';
 
     public $foto = null;
+
+    // Rematrícula — cuando el DNI tecleado en el paso 1 ya pertenece a un
+    // estudiante existente, en vez de rechazarlo se ofrece continuar con su
+    // ficha ya creada, saltando directo a elegir ciclo/grado.
+    public ?int $estudianteEncontradoId = null;
+
+    public bool $esRematricula = false;
 
     // Paso 2 — apoderado (condicional)
     public string $apoderadoNombres = '';
@@ -122,6 +131,41 @@ new class extends Component
         return MatriculaService::esMenorDeEdad($this->fechaNacimiento);
     }
 
+    /**
+     * Se dispara en cada cambio del DNI (wire:model.live) para avisar de
+     * inmediato si ya pertenece a un estudiante existente, en vez de
+     * esperar a que se intente avanzar de paso.
+     */
+    public function updatedDni(): void
+    {
+        $dni = trim($this->dni);
+        $this->estudianteEncontradoId = $dni !== '' ? Estudiante::query()->where('dni', $dni)->value('id') : null;
+    }
+
+    #[Computed]
+    public function estudianteEncontrado(): ?Estudiante
+    {
+        return $this->estudianteEncontradoId
+            ? Estudiante::query()->with('gradoActual')->find($this->estudianteEncontradoId)
+            : null;
+    }
+
+    /**
+     * El estudiante ya tiene ficha (datos, apoderado, documentos, examen de
+     * ubicación): no hace falta volver a pedir nada de eso, solo el
+     * ciclo/grado de la nueva matrícula.
+     */
+    public function continuarComoRematricula(): void
+    {
+        if (! $this->estudianteEncontradoId) {
+            return;
+        }
+
+        $this->esRematricula = true;
+        $this->resetValidation();
+        $this->paso = 5;
+    }
+
     public function avanzar(MatriculaService $service): void
     {
         if ($this->paso === 1) {
@@ -136,7 +180,7 @@ new class extends Component
             ]);
 
             if (! $service->dniDisponible($this->dni)) {
-                $this->addError('dni', 'Ya existe un estudiante registrado con este DNI.');
+                $this->addError('dni', 'Ya existe un estudiante registrado con este DNI. Usa el botón de rematrícula de abajo para continuar con su ficha.');
 
                 return;
             }
@@ -237,6 +281,13 @@ new class extends Component
 
     public function retroceder(): void
     {
+        if ($this->esRematricula && $this->paso === 5) {
+            $this->esRematricula = false;
+            $this->paso = 1;
+
+            return;
+        }
+
         if ($this->paso === 3 && ! $this->esMenorDeEdad) {
             $this->paso = 1;
 
@@ -273,6 +324,31 @@ new class extends Component
 
                 return;
             }
+        }
+
+        // Rematrícula: la ficha (datos, apoderado, documentos, examen de
+        // ubicación) ya existe -- solo hace falta la nueva matrícula (y su
+        // cronograma opcional), reutilizando matricular() tal cual la usa
+        // matricularDesdeFilas() para la carga masiva.
+        if ($this->esRematricula) {
+            $estudiante = DB::transaction(function () use ($matriculaService, $planPagoService) {
+                $estudiante = Estudiante::query()->findOrFail($this->estudianteEncontradoId);
+
+                $matricula = $matriculaService->matricular($estudiante, new RegistrarMatriculaData(
+                    cicloId: (int) $this->cicloId,
+                    gradoId: (int) $this->gradoId,
+                    observaciones: $this->observacionesMatricula ?: null,
+                    registradoPor: auth()->id(),
+                ));
+
+                $this->crearCronogramaSiCorresponde($matricula, $planPagoService);
+
+                return $estudiante;
+            });
+
+            $this->dispatch('matricula-registrada', estudianteId: $estudiante->id, nombre: $estudiante->nombreCompleto());
+
+            return;
         }
 
         // Todo el registro (estudiante, apoderado, documentos, examen y
@@ -350,27 +426,34 @@ new class extends Component
                 registradoPor: auth()->id(),
             ));
 
-            if ($this->configurarCronograma) {
-                $cuotas = collect($this->cuotaMontos)
-                    ->map(fn ($monto, $numero) => [
-                        'monto' => (float) $monto,
-                        'fecha_vencimiento' => $this->cuotaFechas[$numero],
-                    ])
-                    ->values()
-                    ->all();
-
-                $planPagoService->crear(
-                    $matricula,
-                    NumeroCuotasEnum::from((int) $this->numeroCuotasCronograma),
-                    array_sum(array_column($cuotas, 'monto')),
-                    $cuotas,
-                );
-            }
+            $this->crearCronogramaSiCorresponde($matricula, $planPagoService);
 
             return $estudiante;
         });
 
         $this->dispatch('matricula-registrada', estudianteId: $estudiante->id, nombre: $estudiante->nombreCompleto());
+    }
+
+    private function crearCronogramaSiCorresponde(Matricula $matricula, PlanPagoService $planPagoService): void
+    {
+        if (! $this->configurarCronograma) {
+            return;
+        }
+
+        $cuotas = collect($this->cuotaMontos)
+            ->map(fn ($monto, $numero) => [
+                'monto' => (float) $monto,
+                'fecha_vencimiento' => $this->cuotaFechas[$numero],
+            ])
+            ->values()
+            ->all();
+
+        $planPagoService->crear(
+            $matricula,
+            NumeroCuotasEnum::from((int) $this->numeroCuotasCronograma),
+            array_sum(array_column($cuotas, 'monto')),
+            $cuotas,
+        );
     }
 
     public function with(): array
@@ -401,7 +484,11 @@ new class extends Component
     x-init="$nextTick(() => mostrar = true)"
     x-show="mostrar"
     x-cloak
-    class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/40 px-4 py-8"
+    @class([
+        'fixed inset-0 z-50 flex justify-center overflow-y-auto bg-ink/40 px-4 py-8',
+        'items-center' => $esRematricula,
+        'items-start' => ! $esRematricula,
+    ])
     x-on:click.self="mostrar = false; setTimeout(() => $wire.cancelar(), 200)"
     x-transition:enter="ease-out duration-300"
     x-transition:enter-start="opacity-0"
@@ -422,8 +509,14 @@ new class extends Component
     >
         <div class="flex items-start justify-between gap-4">
             <div>
-                <h1 class="font-display text-2xl text-ink">Nueva matrícula</h1>
-                <p class="mt-1 text-sm text-ink-dim">Paso {{ $paso }} de 6</p>
+                <h1 class="font-display text-2xl text-ink">{{ $esRematricula ? 'Rematrícula' : 'Nueva matrícula' }}</h1>
+                <p class="mt-1 text-sm text-ink-dim">
+                    @if ($esRematricula)
+                        Elige ciclo y grado para continuar.
+                    @else
+                        Paso {{ $paso }} de 6
+                    @endif
+                </p>
             </div>
             <button
                 type="button"
@@ -435,11 +528,13 @@ new class extends Component
             </button>
         </div>
 
-        <div class="mb-6 mt-4 flex gap-1">
-            @for ($i = 1; $i <= 6; $i++)
-                <div @class(['h-1.5 flex-1 rounded-full', 'bg-accent' => $i <= $paso, 'bg-surface-2' => $i > $paso])></div>
-            @endfor
-        </div>
+        @unless ($esRematricula)
+            <div class="mb-6 mt-4 flex gap-1">
+                @for ($i = 1; $i <= 6; $i++)
+                    <div @class(['h-1.5 flex-1 rounded-full', 'bg-accent' => $i <= $paso, 'bg-surface-2' => $i > $paso])></div>
+                @endfor
+            </div>
+        @endunless
 
         <div>
         {{-- Paso 1: Estudiante --}}
@@ -461,6 +556,16 @@ new class extends Component
                     <x-text-input wire:model.live="dni" id="dni" class="mt-1 block w-full" />
                     <x-input-error :messages="$errors->get('dni')" class="mt-1" />
                 </div>
+                @if ($this->estudianteEncontrado)
+                    <div class="sm:col-span-2 rounded-md border border-accent/30 bg-accent-soft/40 p-3 text-sm">
+                        <p class="font-medium text-ink">Ya existe un estudiante con este DNI: {{ $this->estudianteEncontrado->nombreCompleto() }}</p>
+                        <p class="mt-1 text-ink-dim">Grado actual: {{ $this->estudianteEncontrado->gradoActual?->nombre ?? 'sin grado asignado' }}</p>
+                        <p class="mt-2 text-xs text-ink-faint">Si vuelve a matricularse (rematrícula), no hace falta llenar sus datos otra vez — solo el ciclo y grado nuevos.</p>
+                        <x-secondary-button type="button" wire:click="continuarComoRematricula" class="mt-2">
+                            Rematricular a este estudiante
+                        </x-secondary-button>
+                    </div>
+                @endif
                 <div>
                     <x-input-label for="fechaNacimiento" value="Fecha de nacimiento" />
                     <x-date-input wire:model.live="fechaNacimiento" id="fechaNacimiento" class="mt-1 block w-full" />
@@ -640,6 +745,12 @@ new class extends Component
         {{-- Paso 5: Matrícula --}}
         @if ($paso === 5)
             <h2 class="font-display text-lg text-ink">Matrícula</h2>
+            @if ($esRematricula && $this->estudianteEncontrado)
+                <p class="mt-1 text-sm text-ink-dim">
+                    Rematriculando a <span class="font-medium text-ink">{{ $this->estudianteEncontrado->nombreCompleto() }}</span>
+                    (DNI {{ $this->estudianteEncontrado->dni }}).
+                </p>
+            @endif
             <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                     <x-input-label for="cicloId" value="Ciclo" />
@@ -747,7 +858,7 @@ new class extends Component
             @if ($paso < 6)
                 <x-primary-button type="button" wire:click="avanzar">Continuar</x-primary-button>
             @else
-                <x-primary-button type="button" wire:click="confirmar">Confirmar matrícula</x-primary-button>
+                <x-primary-button type="button" wire:click="confirmar">{{ $esRematricula ? 'Confirmar rematrícula' : 'Confirmar matrícula' }}</x-primary-button>
             @endif
         </div>
         </div>

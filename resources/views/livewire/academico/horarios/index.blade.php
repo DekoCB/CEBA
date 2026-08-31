@@ -41,11 +41,35 @@ new #[Layout('layouts.app')] class extends Component
     public string $horaFinMinuto = '';
 
     /**
+     * Las 3 franjas institucionales, salvo que el curso elegido tenga
+     * franjas propias marcadas en su ficha (Curso::franjas_permitidas) --
+     * en ese caso solo se ofrecen esas.
+     *
      * @return array<string, string>
      */
     public function franjasDisponibles(): array
     {
-        return collect(FranjaHorarioEnum::cases())->mapWithKeys(fn (FranjaHorarioEnum $franja) => [$franja->value => $franja->label()])->all();
+        $curso = $this->cursoId !== '' ? Curso::query()->find($this->cursoId) : null;
+        $permitidas = $curso?->franjas_permitidas;
+
+        return collect(FranjaHorarioEnum::cases())
+            ->when(! empty($permitidas), fn (Collection $franjas) => $franjas->filter(
+                fn (FranjaHorarioEnum $franja) => in_array($franja->value, $permitidas, true)
+            ))
+            ->mapWithKeys(fn (FranjaHorarioEnum $franja) => [$franja->value => $franja->label()])
+            ->all();
+    }
+
+    /**
+     * Si al elegir el curso la franja ya marcada deja de estar permitida
+     * para él, se limpia -- no tendría sentido dejar seleccionada una
+     * franja que ya no aparece en la lista.
+     */
+    public function updatedCursoId(): void
+    {
+        if ($this->franjaPreset !== '' && ! array_key_exists($this->franjaPreset, $this->franjasDisponibles())) {
+            $this->franjaPreset = '';
+        }
     }
 
     /**
@@ -95,7 +119,7 @@ new #[Layout('layouts.app')] class extends Component
             'aulaId' => 'required|integer|exists:aulas,id',
             'cicloId' => 'required|integer|exists:ciclos,id',
             'gradoId' => 'required|integer|exists:grados,id',
-            'franjaPreset' => 'required|string|in:'.implode(',', array_column(FranjaHorarioEnum::cases(), 'value')),
+            'franjaPreset' => 'required|string|in:'.implode(',', array_keys($this->franjasDisponibles())),
             'horaInicioHora' => 'required|string|in:'.implode(',', array_keys($this->horasDisponibles())),
             'horaInicioMinuto' => 'required|string|in:'.implode(',', array_keys($this->minutosDisponibles())),
             'horaFinHora' => 'required|string|in:'.implode(',', array_keys($this->horasDisponibles())),
@@ -135,6 +159,7 @@ new #[Layout('layouts.app')] class extends Component
             'docentes' => User::role('docente')->orderBy('name')->get(),
             'aulas' => Aula::query()->where('activa', true)->orderBy('nombre')->get(),
             'grados' => Grado::query()->where('activo', true)->orderBy('nombre')->get(),
+            'cursoTieneFranjasRestringidas' => $this->cursoId !== '' && ! empty(Curso::query()->find($this->cursoId)?->franjas_permitidas),
             'franjas' => $this->franjasDisponibles(),
             'horas' => $this->horasDisponibles(),
             'minutos' => $this->minutosDisponibles(),
@@ -291,7 +316,7 @@ new #[Layout('layouts.app')] class extends Component
                     <div>
                         <x-input-label for="cursoId" value="Curso" />
                         <x-select-input
-                            wire:model="cursoId"
+                            wire:model.live="cursoId"
                             id="cursoId"
                             class="mt-1 block w-full"
                             :options="collect($cursos)->mapWithKeys(fn ($curso) => [$curso->id => $curso->nombre.' ('.$curso->codigo.')'])"
@@ -325,6 +350,9 @@ new #[Layout('layouts.app')] class extends Component
                     <div>
                         <x-input-label value="Días de clase" />
                         <p class="mt-1 text-xs text-ink-faint">Ningún curso se dicta en un día suelto: elige la franja.</p>
+                        @if ($cursoTieneFranjasRestringidas)
+                            <p class="mt-1 text-xs text-ink-faint">Solo se muestran las franjas permitidas para este curso.</p>
+                        @endif
 
                         <div class="mt-2 space-y-2">
                             @foreach ($franjas as $valor => $etiqueta)

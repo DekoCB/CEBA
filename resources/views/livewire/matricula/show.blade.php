@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Matricula\Models\DocumentoEstudiante;
 use App\Modules\Matricula\Models\Estudiante;
@@ -25,6 +26,8 @@ new #[Layout('layouts.app')] class extends Component
     public string $fechaFinEstudioNueva = '';
 
     public ?int $editandoHorarioMatriculaId = null;
+
+    public ?int $editandoHorarioCursoId = null;
 
     public string $horarioSeleccionado = '';
 
@@ -95,19 +98,22 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('status', 'Fin de estudios actualizado.');
     }
 
-    public function editarHorario(int $matriculaId): void
+    public function editarHorario(int $matriculaId, int $cursoId): void
     {
         Gate::authorize('matricula.editar');
 
         $matricula = Matricula::query()->findOrFail($matriculaId);
+        $asignado = $matricula->horarios()->where('curso_id', $cursoId)->first();
 
         $this->editandoHorarioMatriculaId = $matriculaId;
-        $this->horarioSeleccionado = $matricula->horario_id !== null ? (string) $matricula->horario_id : '';
+        $this->editandoHorarioCursoId = $cursoId;
+        $this->horarioSeleccionado = $asignado !== null ? (string) $asignado->id : '';
     }
 
     public function cancelarEdicionHorario(): void
     {
         $this->editandoHorarioMatriculaId = null;
+        $this->editandoHorarioCursoId = null;
         $this->horarioSeleccionado = '';
     }
 
@@ -115,15 +121,20 @@ new #[Layout('layouts.app')] class extends Component
     {
         Gate::authorize('matricula.editar');
 
-        if ($this->editandoHorarioMatriculaId === null) {
+        if ($this->editandoHorarioMatriculaId === null || $this->editandoHorarioCursoId === null) {
             return;
         }
 
         $matricula = Matricula::query()->findOrFail($this->editandoHorarioMatriculaId);
 
-        $service->reasignarHorario($matricula, $this->horarioSeleccionado !== '' ? (int) $this->horarioSeleccionado : null);
+        $service->asignarHorarioDeCurso(
+            $matricula,
+            $this->editandoHorarioCursoId,
+            $this->horarioSeleccionado !== '' ? (int) $this->horarioSeleccionado : null,
+        );
 
         $this->editandoHorarioMatriculaId = null;
+        $this->editandoHorarioCursoId = null;
         $this->horarioSeleccionado = '';
 
         session()->flash('status', 'Horario actualizado.');
@@ -166,19 +177,33 @@ new #[Layout('layouts.app')] class extends Component
     }
 
     /**
-     * Todos los horarios (cualquier curso) del grado y ciclo de la
-     * matrícula, para alimentar "Editar horario".
+     * Los cursos del grado y ciclo de esta matrícula, cada uno con sus
+     * horarios disponibles (por si tiene varias secciones), cuál está
+     * asignado explícitamente (si alguno) y si hace falta elegir uno
+     * ("ambiguo" = el curso tiene más de una sección, ver
+     * Matricula::scopeDelHorario()).
      *
-     * @return Collection<int, Horario>
+     * @return Collection<int, array{curso: Curso, opciones: Collection<int, Horario>, asignado: ?Horario, ambiguo: bool}>
      */
-    private function horariosParaMatricula(Matricula $matricula): Collection
+    private function cursosConHorarios(Matricula $matricula): Collection
     {
-        return Horario::query()
+        $horariosPorCurso = Horario::query()
             ->where('ciclo_id', $matricula->ciclo_id)
             ->where('grado_id', $matricula->grado_id)
             ->with(['curso', 'docente', 'dias'])
             ->get()
-            ->sortBy(fn (Horario $horario) => $horario->curso->nombre)
+            ->groupBy('curso_id');
+
+        $asignadosPorCurso = $matricula->horarios->keyBy('curso_id');
+
+        return $horariosPorCurso
+            ->map(fn (Collection $opciones, int $cursoId) => [
+                'curso' => $opciones->first()->curso,
+                'opciones' => $opciones->sortBy(fn (Horario $horario) => $horario->diasResumen())->values(),
+                'asignado' => $asignadosPorCurso->get($cursoId),
+                'ambiguo' => $opciones->count() > 1,
+            ])
+            ->sortBy(fn (array $entrada) => $entrada['curso']->nombre)
             ->values();
     }
 
@@ -186,13 +211,13 @@ new #[Layout('layouts.app')] class extends Component
     {
         $this->estudiante->refresh();
 
-        $matriculas = $this->estudiante->matriculas()->with(['ciclo', 'grado', 'horario.curso', 'horario.docente', 'media'])->latest('fecha_matricula')->get();
+        $matriculas = $this->estudiante->matriculas()->with(['ciclo', 'grado', 'horarios.curso', 'horarios.docente', 'media'])->latest('fecha_matricula')->get();
 
         return [
             'documentos' => $this->estudiante->documentos()->with('media')->get(),
             'examenes' => $this->estudiante->examenesUbicacion()->with('gradoAsignado')->latest('fecha')->get(),
             'matriculas' => $matriculas,
-            'horariosPorMatricula' => $matriculas->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $this->horariosParaMatricula($matricula)]),
+            'cursosConHorarios' => $matriculas->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $this->cursosConHorarios($matricula)]),
             'planesPorMatricula' => Auth::user()->hasPermissionTo('pagos.ver')
                 ? $matriculas->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $planes->planDe($matricula)])
                 : collect(),
@@ -225,8 +250,9 @@ new #[Layout('layouts.app')] class extends Component
         :documentos="$documentos"
         :examenes="$examenes"
         :matriculas="$matriculas"
-        :horarios-por-matricula="$horariosPorMatricula"
+        :cursos-con-horarios="$cursosConHorarios"
         :editando-horario-matricula-id="$editandoHorarioMatriculaId"
+        :editando-horario-curso-id="$editandoHorarioCursoId"
         :horario-seleccionado="$horarioSeleccionado"
         :editando-fecha-fin-matricula-id="$editandoFechaFinMatriculaId"
         :fecha-fin-estudio-nueva="$fechaFinEstudioNueva"

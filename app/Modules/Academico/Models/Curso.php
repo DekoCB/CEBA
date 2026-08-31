@@ -18,6 +18,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property int $grado_id
  * @property string $nombre
  * @property string $codigo
+ * @property list<string>|null $franjas_permitidas
  */
 class Curso extends Model implements HasMedia
 {
@@ -28,6 +29,7 @@ class Curso extends Model implements HasMedia
         'nombre',
         'codigo',
         'grado_id',
+        'franjas_permitidas',
         'horas',
         'activo',
     ];
@@ -36,6 +38,7 @@ class Curso extends Model implements HasMedia
     {
         return [
             'activo' => 'boolean',
+            'franjas_permitidas' => 'array',
         ];
     }
 

@@ -15,6 +15,8 @@ use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Enums\EstadoCuotaEnum;
 use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Models\Pago;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 /**
  * Constructor de reportes tabulares exportables. Cada método devuelve
@@ -29,13 +31,13 @@ class ReporteService
      */
     public function matricula(?string $desde, ?string $hasta, ?string $franja = null): array
     {
-        $horarioIds = $this->horarioIdsDeFranja($franja);
+        $paresGradoCiclo = $this->paresGradoCicloDeFranja($franja);
 
         $matriculas = Matricula::query()
             ->with(['estudiante', 'grado', 'ciclo'])
             ->when($desde, fn ($query) => $query->whereDate('fecha_matricula', '>=', $desde))
             ->when($hasta, fn ($query) => $query->whereDate('fecha_matricula', '<=', $hasta))
-            ->when($horarioIds !== null, fn ($query) => $query->whereIn('horario_id', $horarioIds))
+            ->when($paresGradoCiclo !== null, fn ($query) => $this->filtrarPorGradoYCiclo($query, $paresGradoCiclo))
             ->latest('fecha_matricula')
             ->get();
 
@@ -87,15 +89,15 @@ class ReporteService
      */
     public function financiero(?string $desde, ?string $hasta, ?string $franja = null): array
     {
-        $horarioIds = $this->horarioIdsDeFranja($franja);
+        $paresGradoCiclo = $this->paresGradoCicloDeFranja($franja);
 
         $pagos = Pago::query()
             ->with(['estudiante', 'concepto'])
             ->when($desde, fn ($query) => $query->whereDate('fecha_pago', '>=', $desde))
             ->when($hasta, fn ($query) => $query->whereDate('fecha_pago', '<=', $hasta))
-            ->when($horarioIds !== null, fn ($query) => $query->whereHas(
+            ->when($paresGradoCiclo !== null, fn ($query) => $query->whereHas(
                 'estudiante.matriculas',
-                fn ($sub) => $sub->whereIn('horario_id', $horarioIds),
+                fn ($sub) => $this->filtrarPorGradoYCiclo($sub, $paresGradoCiclo),
             ))
             ->latest('fecha_pago')
             ->get();
@@ -118,15 +120,15 @@ class ReporteService
      */
     public function certificados(?string $desde, ?string $hasta, ?string $franja = null): array
     {
-        $horarioIds = $this->horarioIdsDeFranja($franja);
+        $paresGradoCiclo = $this->paresGradoCicloDeFranja($franja);
 
         $certificados = Certificado::query()
             ->with(['estudiante', 'matricula.grado'])
             ->when($desde, fn ($query) => $query->whereDate('fecha_emision', '>=', $desde))
             ->when($hasta, fn ($query) => $query->whereDate('fecha_emision', '<=', $hasta))
-            ->when($horarioIds !== null, fn ($query) => $query->whereHas(
+            ->when($paresGradoCiclo !== null, fn ($query) => $query->whereHas(
                 'matricula',
-                fn ($sub) => $sub->whereIn('horario_id', $horarioIds),
+                fn ($sub) => $this->filtrarPorGradoYCiclo($sub, $paresGradoCiclo),
             ))
             ->latest('fecha_emision')
             ->get();
@@ -190,16 +192,16 @@ class ReporteService
      */
     public function morosos(?string $desde, ?string $hasta, ?string $franja = null): array
     {
-        $horarioIds = $this->horarioIdsDeFranja($franja);
+        $paresGradoCiclo = $this->paresGradoCicloDeFranja($franja);
 
         $cuotasVencidas = Cuota::query()
             ->where('estado', EstadoCuotaEnum::PENDIENTE)
             ->where('fecha_vencimiento', '<', now()->toDateString())
             ->when($desde, fn ($query) => $query->whereDate('fecha_vencimiento', '>=', $desde))
             ->when($hasta, fn ($query) => $query->whereDate('fecha_vencimiento', '<=', $hasta))
-            ->when($horarioIds !== null, fn ($query) => $query->whereHas(
+            ->when($paresGradoCiclo !== null, fn ($query) => $query->whereHas(
                 'planPago.matricula',
-                fn ($sub) => $sub->whereIn('horario_id', $horarioIds),
+                fn ($sub) => $this->filtrarPorGradoYCiclo($sub, $paresGradoCiclo),
             ))
             ->with('planPago.matricula.estudiante', 'planPago.matricula.grado')
             ->get()
@@ -281,5 +283,53 @@ class ReporteService
             ->filter(fn (Horario $horario) => $horario->franja() === $franjaEnum)
             ->pluck('id')
             ->all();
+    }
+
+    /**
+     * Pares únicos de grado_id+ciclo_id de los horarios que caen en una
+     * franja institucional, o null si no se pidió filtrar por franja. Los
+     * reportes que dependen de `matriculas` (donde ya no existe un
+     * horario_id puntual: la asignación real vive en el pivote
+     * matricula_horario, y solo se usa cuando un curso tiene secciones
+     * paralelas) filtran por estos pares para replicar la misma semántica
+     * de pertenencia automática que usa Matricula::scopeDelHorario().
+     *
+     * @return ?Collection<int, array{grado_id: int, ciclo_id: int}>
+     */
+    private function paresGradoCicloDeFranja(?string $franja): ?Collection
+    {
+        $franjaEnum = $franja !== null ? FranjaHorarioEnum::tryFrom($franja) : null;
+
+        if ($franjaEnum === null) {
+            return null;
+        }
+
+        return Horario::query()
+            ->with('dias')
+            ->get()
+            ->filter(fn (Horario $horario) => $horario->franja() === $franjaEnum)
+            ->map(fn (Horario $horario) => ['grado_id' => $horario->grado_id, 'ciclo_id' => $horario->ciclo_id])
+            ->unique(fn (array $par) => $par['grado_id'].'-'.$par['ciclo_id'])
+            ->values();
+    }
+
+    /**
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  Builder<TModel>  $query
+     * @param  Collection<int, array{grado_id: int, ciclo_id: int}>  $pares
+     * @return Builder<TModel>
+     */
+    private function filtrarPorGradoYCiclo(Builder $query, Collection $pares): Builder
+    {
+        if ($pares->isEmpty()) {
+            return $query->whereIn('id', []);
+        }
+
+        return $query->where(function (Builder $q) use ($pares) {
+            foreach ($pares as $par) {
+                $q->orWhere(fn (Builder $qq) => $qq->where('grado_id', $par['grado_id'])->where('ciclo_id', $par['ciclo_id']));
+            }
+        });
     }
 }

@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Spatie\MediaLibrary\HasMedia;
@@ -25,14 +26,12 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property int $estudiante_id
  * @property int $ciclo_id
  * @property int $grado_id
- * @property int|null $horario_id
  * @property Carbon $fecha_matricula
  * @property Carbon|null $fecha_fin_estudio
  * @property EstadoMatriculaEnum $estado
  * @property-read Estudiante|null $estudiante
  * @property-read Ciclo $ciclo
  * @property-read Grado $grado
- * @property-read Horario|null $horario
  */
 class Matricula extends Model implements HasMedia
 {
@@ -43,7 +42,6 @@ class Matricula extends Model implements HasMedia
         'estudiante_id',
         'ciclo_id',
         'grado_id',
-        'horario_id',
         'fecha_matricula',
         'fecha_fin_estudio',
         'estado',
@@ -86,9 +84,17 @@ class Matricula extends Model implements HasMedia
         return $this->belongsTo(Grado::class);
     }
 
-    public function horario(): BelongsTo
+    /**
+     * Los horarios específicos (uno por curso, como máximo) que se le
+     * asignaron explícitamente a esta matrícula -- solo hace falta usarlo
+     * cuando un curso tiene varias secciones/paralelos; ver
+     * scopeDelHorario() para cómo se usa esto en la práctica.
+     *
+     * @return BelongsToMany<Horario, $this>
+     */
+    public function horarios(): BelongsToMany
     {
-        return $this->belongsTo(Horario::class);
+        return $this->belongsToMany(Horario::class, 'matricula_horario');
     }
 
     public function registradoPor(): BelongsTo
@@ -102,11 +108,29 @@ class Matricula extends Model implements HasMedia
      * aparte -- la determina el grado (ver Grado::letraAula()), siempre
      * igual dentro de un mismo grado y ciclo, así que coincidir por
      * grado_id ya basta.
+     *
+     * Cuando el curso de este horario tiene paralelos (otro Horario con el
+     * mismo curso_id+grado_id+ciclo_id), esa coincidencia por grado+ciclo
+     * ya no basta para saber a cuál sección pertenece cada estudiante: ahí
+     * además se exige la asignación explícita en matricula_horario. Si el
+     * curso no tiene paralelos, nadie necesita asignación (sigue siendo
+     * automático, como antes).
      */
     public function scopeDelHorario(Builder $query, Horario $horario): Builder
     {
+        $tieneParalelos = Horario::query()
+            ->where('curso_id', $horario->curso_id)
+            ->where('grado_id', $horario->grado_id)
+            ->where('ciclo_id', $horario->ciclo_id)
+            ->where('id', '!=', $horario->id)
+            ->exists();
+
         return $query->where('grado_id', $horario->grado_id)
             ->where('ciclo_id', $horario->ciclo_id)
-            ->where('estado', 'aprobada');
+            ->where('estado', 'aprobada')
+            ->when(
+                $tieneParalelos,
+                fn (Builder $q) => $q->whereHas('horarios', fn (Builder $qq) => $qq->where('horarios.id', $horario->id)),
+            );
     }
 }

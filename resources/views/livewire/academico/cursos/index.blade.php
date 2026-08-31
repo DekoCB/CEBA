@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Academico\Enums\FranjaHorarioEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Grado;
@@ -24,6 +25,9 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $gradoId = '';
 
+    /** @var list<string> */
+    public array $franjasPermitidas = [];
+
     public string $horas = '';
 
     public bool $activo = true;
@@ -45,10 +49,11 @@ new #[Layout('layouts.app')] class extends Component
             $this->nombre = $curso->nombre;
             $this->codigo = $curso->codigo;
             $this->gradoId = (string) $curso->grado_id;
+            $this->franjasPermitidas = $curso->franjas_permitidas ?? [];
             $this->horas = (string) $curso->horas;
             $this->activo = $curso->activo;
         } else {
-            $this->reset(['nombre', 'codigo', 'gradoId', 'horas']);
+            $this->reset(['nombre', 'codigo', 'gradoId', 'franjasPermitidas', 'horas']);
             $this->activo = true;
         }
 
@@ -104,6 +109,8 @@ new #[Layout('layouts.app')] class extends Component
             'nombre' => 'required|string|max:100',
             'codigo' => 'required|string|max:20',
             'gradoId' => 'required|integer|exists:grados,id',
+            'franjasPermitidas' => 'array',
+            'franjasPermitidas.*' => 'string|in:'.implode(',', array_column(FranjaHorarioEnum::cases(), 'value')),
             'horas' => 'required|integer|min:1|max:500',
         ]);
 
@@ -117,6 +124,7 @@ new #[Layout('layouts.app')] class extends Component
             'nombre' => $this->nombre,
             'codigo' => strtoupper($this->codigo),
             'grado_id' => (int) $this->gradoId,
+            'franjas_permitidas' => $this->franjasPermitidas !== [] ? $this->franjasPermitidas : null,
             'horas' => (int) $this->horas,
         ];
 
@@ -269,6 +277,20 @@ new #[Layout('layouts.app')] class extends Component
                             :options="collect($grados)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])"
                         />
                         <x-input-error :messages="$errors->get('gradoId')" class="mt-1" />
+                    </div>
+
+                    <div>
+                        <x-input-label value="Franjas en las que se dicta (opcional)" />
+                        <p class="mt-1 text-xs text-ink-faint">Si no marcas ninguna, se puede crear el horario en cualquiera de las 3.</p>
+                        <div class="mt-2 space-y-1">
+                            @foreach (\App\Modules\Academico\Enums\FranjaHorarioEnum::cases() as $franja)
+                                <label class="flex items-center gap-2 text-sm text-ink-dim">
+                                    <input type="checkbox" wire:model="franjasPermitidas" value="{{ $franja->value }}" class="rounded border-border text-accent focus:ring-accent">
+                                    {{ $franja->label() }}
+                                </label>
+                            @endforeach
+                        </div>
+                        <x-input-error :messages="$errors->get('franjasPermitidas')" class="mt-1" />
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
