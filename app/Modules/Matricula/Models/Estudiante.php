@@ -80,6 +80,9 @@ class Estudiante extends Model implements HasMedia
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * @return BelongsTo<Grado, $this>
+     */
     public function gradoActual(): BelongsTo
     {
         return $this->belongsTo(Grado::class, 'grado_actual_id');

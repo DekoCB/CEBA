@@ -3,10 +3,17 @@
 namespace Tests\Feature\Pagos;
 
 use App\Models\User;
+use App\Modules\Academico\Models\Ciclo;
+use App\Modules\Academico\Models\Grado;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Pagos\Enums\EstadoPagoEnum;
+use App\Modules\Pagos\Enums\TipoConceptoEnum;
 use App\Modules\Pagos\Models\ConceptoPago;
+use App\Modules\Pagos\Models\Cuota;
+use App\Modules\Pagos\Models\Pago;
+use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Pagos\Services\SolicitudCambioMontoService;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -183,5 +190,72 @@ class PagosPermisosTest extends TestCase
             ->set('titular', 'CEBA E.I.R.L.')
             ->call('guardar')
             ->assertHasErrors('tipoBilletera');
+    }
+
+    public function test_un_docente_no_ve_la_pestana_de_cobros(): void
+    {
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+
+        $this->actingAs($docente);
+
+        Volt::test('pagos.index')
+            ->assertDontSee('Cobros');
+    }
+
+    public function test_cobros_individual_muestra_la_deuda_del_estudiante_elegido(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create(['nombres' => 'Miguel', 'apellidos' => 'Paredes Aquino']);
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
+        Cuota::factory()->create(['plan_pago_id' => $plan->id, 'numero' => 1, 'monto' => 150]);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('pagos.index')
+            ->set('tab', 'cobros')
+            ->call('cobrosSeleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->assertSee('Miguel Paredes Aquino')
+            ->assertSee('150.00');
+    }
+
+    public function test_cobros_grupal_lista_a_los_estudiantes_que_deben_el_concepto_elegido(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $concepto = ConceptoPago::factory()->create(['tipo' => TipoConceptoEnum::CERTIFICADO, 'nombre' => 'Certificado de estudios']);
+        $estudiante = Estudiante::factory()->create(['nombres' => 'Rosa', 'apellidos' => 'Delgado']);
+        Pago::factory()->create(['estudiante_id' => $estudiante->id, 'concepto_id' => $concepto->id, 'estado' => EstadoPagoEnum::PENDIENTE]);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('pagos.index')
+            ->set('tab', 'cobros')
+            ->set('cobrosModo', 'grupal')
+            ->set('cobrosConceptoIds', [(string) $concepto->id])
+            ->assertSee('Rosa Delgado')
+            ->assertSee('Certificado de estudios');
+    }
+
+    public function test_cobros_grupal_elegir_un_grupo_reinicia_grado_y_curso(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $ciclo = Ciclo::factory()->create();
+        $grado = Grado::factory()->create();
+
+        $this->actingAs($coordinador);
+
+        Volt::test('pagos.index')
+            ->set('tab', 'cobros')
+            ->set('cobrosGradoId', (string) $grado->id)
+            ->set('cobrosCursoId', '1')
+            ->set('cobrosCicloId', (string) $ciclo->id)
+            ->assertSet('cobrosGradoId', '')
+            ->assertSet('cobrosCursoId', '');
     }
 }
