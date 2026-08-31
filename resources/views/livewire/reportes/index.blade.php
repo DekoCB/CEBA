@@ -1,8 +1,13 @@
 <?php
 
+use App\Models\User;
 use App\Modules\Academico\Enums\FranjaHorarioEnum;
+use App\Modules\Academico\Models\Ciclo;
+use App\Modules\Academico\Models\Curso;
+use App\Modules\Academico\Models\Grado;
 use App\Modules\Reportes\Exports\ReporteExport;
 use App\Modules\Reportes\Services\ReporteService;
+use App\Shared\Enums\RolEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -20,7 +25,7 @@ new #[Layout('layouts.app')] class extends Component
         'matricula' => ['permiso' => 'reportes.matricula', 'label' => 'Matrícula'],
         'academico' => ['permiso' => 'reportes.academicos', 'label' => 'Académico'],
         'financiero' => ['permiso' => 'reportes.financieros', 'label' => 'Financiero'],
-        'morosos' => ['permiso' => 'reportes.morosos', 'label' => 'Morosos'],
+        'morosos' => ['permiso' => 'reportes.morosos', 'label' => 'Deudores'],
         'certificados' => ['permiso' => 'reportes.certificados', 'label' => 'Certificados'],
         'operativo' => ['permiso' => 'reportes.operativos', 'label' => 'Operativo (asistencia)'],
         'propio' => ['permiso' => 'reportes.propios', 'label' => 'Mis evaluaciones'],
@@ -29,7 +34,7 @@ new #[Layout('layouts.app')] class extends Component
     /**
      * Tipos de reporte cuyos datos se originan en un Horario (clase
      * recurrente: curso + docente + día + hora) y por lo tanto admiten
-     * filtrarse por franja institucional, además del rango de fechas.
+     * filtrarse por franja institucional, además de Grupo/Grado/Curso.
      *
      * @var list<string>
      */
@@ -37,9 +42,11 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $tipo = '';
 
-    public string $desde = '';
+    public string $cicloId = '';
 
-    public string $hasta = '';
+    public string $gradoId = '';
+
+    public string $cursoId = '';
 
     public string $franja = '';
 
@@ -51,12 +58,47 @@ new #[Layout('layouts.app')] class extends Component
 
         $this->tipo = collect(self::TIPOS)
             ->keys()
-            ->first(fn (string $tipo) => $user->hasPermissionTo(self::TIPOS[$tipo]['permiso'])) ?? '';
+            ->first(fn (string $tipo) => $this->tipoDisponible($tipo, $user)) ?? '';
+    }
+
+    /**
+     * "Mis evaluaciones" es un reporte pensado para que un docente vea sus
+     * propios horarios -- los roles superiores (Dirección, Coordinador,
+     * etc.) técnicamente pasan el permiso `reportes.propios` porque
+     * Dirección tiene el comodín '*', pero no dictan horarios propios, así
+     * que no tiene sentido ofrecérselo a nadie que no sea Docente.
+     */
+    private function tipoDisponible(string $tipo, User $user): bool
+    {
+        if (! $user->hasPermissionTo(self::TIPOS[$tipo]['permiso'])) {
+            return false;
+        }
+
+        if ($tipo === 'propio' && ! $user->hasRole(RolEnum::DOCENTE->value)) {
+            return false;
+        }
+
+        return true;
     }
 
     public function updatingTipo(): void
     {
         $this->franja = '';
+    }
+
+    /**
+     * El filtro es en cascada: Grupo primero, luego Grado, luego Curso.
+     * Cambiar un nivel invalida los que dependen de él.
+     */
+    public function updatedCicloId(): void
+    {
+        $this->gradoId = '';
+        $this->cursoId = '';
+    }
+
+    public function updatedGradoId(): void
+    {
+        $this->cursoId = '';
     }
 
     public function exportarExcel(ReporteService $reportes)
@@ -108,20 +150,45 @@ new #[Layout('layouts.app')] class extends Component
      */
     private function generarReporte(ReporteService $reportes): array
     {
-        $desde = $this->desde ?: null;
-        $hasta = $this->hasta ?: null;
+        $cicloId = $this->cicloId !== '' ? (int) $this->cicloId : null;
+        $gradoId = $this->gradoId !== '' ? (int) $this->gradoId : null;
+        $cursoId = $this->cursoId !== '' ? (int) $this->cursoId : null;
         $franja = $this->franja !== '' ? $this->franja : null;
 
         return match ($this->tipo) {
-            'matricula' => $reportes->matricula($desde, $hasta, $franja),
-            'academico' => $reportes->academico($desde, $hasta, $franja),
-            'financiero' => $reportes->financiero($desde, $hasta, $franja),
-            'morosos' => $reportes->morosos($desde, $hasta, $franja),
-            'certificados' => $reportes->certificados($desde, $hasta, $franja),
-            'operativo' => $reportes->operativo($desde, $hasta, $franja),
-            'propio' => $reportes->propio(Auth::user(), $desde, $hasta, $franja),
+            'matricula' => $reportes->matricula($cicloId, $gradoId, $cursoId, $franja),
+            'academico' => $reportes->academico($cicloId, $gradoId, $cursoId, $franja),
+            'financiero' => $reportes->financiero($cicloId, $gradoId, $cursoId, $franja),
+            'morosos' => $reportes->morosos($cicloId, $gradoId, $cursoId, $franja),
+            'certificados' => $reportes->certificados($cicloId, $gradoId, $cursoId, $franja),
+            'operativo' => $reportes->operativo($cicloId, $gradoId, $cursoId, $franja),
+            'propio' => $reportes->propio(Auth::user(), $cicloId, $gradoId, $cursoId, $franja),
             default => ['columnas' => [], 'filas' => []],
         };
+    }
+
+    /**
+     * @return Collection<int, Grado>
+     */
+    private function gradosDisponibles(): Collection
+    {
+        return Grado::query()->where('activo', true)->orderBy('orden')->get();
+    }
+
+    /**
+     * @return Collection<int, Curso>
+     */
+    private function cursosDisponibles(): Collection
+    {
+        if ($this->gradoId === '') {
+            return collect();
+        }
+
+        return Curso::query()
+            ->where('grado_id', (int) $this->gradoId)
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->get();
     }
 
     /**
@@ -147,11 +214,11 @@ new #[Layout('layouts.app')] class extends Component
         $user = Auth::user();
 
         $tiposDisponibles = collect(self::TIPOS)
-            ->filter(fn (array $config) => $user->hasPermissionTo($config['permiso']))
+            ->filter(fn (array $config, string $tipo) => $this->tipoDisponible($tipo, $user))
             ->map(fn (array $config, string $tipo) => ['value' => $tipo, 'label' => $config['label']])
             ->values();
 
-        $reporte = $this->tipo !== '' && $user->hasPermissionTo(self::TIPOS[$this->tipo]['permiso'] ?? 'sin-permiso')
+        $reporte = $this->tipo !== '' && $this->tipoDisponible($this->tipo, $user)
             ? $this->generarReporte($reportes)
             : ['columnas' => [], 'filas' => []];
 
@@ -160,6 +227,9 @@ new #[Layout('layouts.app')] class extends Component
             'reporte' => $reporte,
             'puedeExportar' => $user->hasPermissionTo('reportes.exportar'),
             'franjasDisponibles' => $this->franjasDisponibles(),
+            'ciclosDisponibles' => Ciclo::query()->orderByDesc('fecha_inicio')->get(),
+            'gradosDisponibles' => $this->gradosDisponibles(),
+            'cursosDisponibles' => $this->cursosDisponibles(),
         ];
     }
 }; ?>
@@ -182,12 +252,40 @@ new #[Layout('layouts.app')] class extends Component
                 />
             </div>
             <div>
-                <x-input-label for="desde" value="Desde" />
-                <x-date-input wire:model.live="desde" id="desde" class="mt-1 block" />
+                <x-input-label for="cicloId" value="Grupo" />
+                <x-select-input
+                    wire:model.live="cicloId"
+                    id="cicloId"
+                    class="mt-1 block w-56"
+                    :options="collect($ciclosDisponibles)->mapWithKeys(fn ($ciclo) => [$ciclo->id => $ciclo->nombre])->prepend('Todos los grupos', '')"
+                />
             </div>
-            <div>
-                <x-input-label for="hasta" value="Hasta" />
-                <x-date-input wire:model.live="hasta" id="hasta" class="mt-1 block" />
+            {{--
+                wire:key fuerza a Livewire a destruir y recrear este bloque
+                cuando cambia de qué depende su lista de opciones -- si no,
+                el x-data de x-select-input (que solo se evalúa una vez, al
+                crearse el nodo) queda con las opciones "congeladas" del
+                primer render y nunca ve las nuevas tras un morph.
+            --}}
+            <div wire:key="grado-select-{{ $cicloId }}">
+                <x-input-label for="gradoId" value="Grado" />
+                <x-select-input
+                    wire:model.live="gradoId"
+                    id="gradoId"
+                    class="mt-1 block w-48"
+                    :disabled="$cicloId === ''"
+                    :options="collect($gradosDisponibles)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])->prepend('Todos los grados', '')"
+                />
+            </div>
+            <div wire:key="curso-select-{{ $gradoId }}">
+                <x-input-label for="cursoId" value="Curso" />
+                <x-select-input
+                    wire:model.live="cursoId"
+                    id="cursoId"
+                    class="mt-1 block w-48"
+                    :disabled="$gradoId === ''"
+                    :options="collect($cursosDisponibles)->mapWithKeys(fn ($curso) => [$curso->id => $curso->nombre])->prepend('Todos los cursos', '')"
+                />
             </div>
 
             @if ($franjasDisponibles->isNotEmpty())

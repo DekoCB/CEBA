@@ -4,11 +4,15 @@ namespace Tests\Feature\Reportes;
 
 use App\Models\User;
 use App\Modules\Academico\Enums\FranjaHorarioEnum;
+use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Curso;
+use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Evaluaciones\Models\Calificacion;
 use App\Modules\Evaluaciones\Models\Evaluacion;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
+use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Matricula\Models\Matricula;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
@@ -52,7 +56,9 @@ class ReportesPermisosTest extends TestCase
         $this->actingAs($coordinador)
             ->get(route('reportes.index'))
             ->assertOk()
-            ->assertSee('Académico');
+            ->assertSee('Académico')
+            ->assertSee('Deudores')
+            ->assertDontSee('Mis evaluaciones');
     }
 
     public function test_docente_solo_ve_su_propio_tipo_de_reporte(): void
@@ -65,6 +71,23 @@ class ReportesPermisosTest extends TestCase
             ->assertOk()
             ->assertSee('Mis evaluaciones')
             ->assertDontSee('Financiero');
+    }
+
+    /**
+     * Dirección tiene todos los permisos vía el comodín '*', lo que
+     * incluiría `reportes.propios` -- pero "Mis evaluaciones" es un reporte
+     * pensado para el propio docente (sus horarios), así que no debe
+     * ofrecerse en el selector a ningún rol superior que no sea Docente.
+     */
+    public function test_direccion_no_ve_mis_evaluaciones_en_el_selector_de_reportes(): void
+    {
+        $direccion = User::factory()->create();
+        $direccion->assignRole(RolEnum::DIRECCION->value);
+
+        $this->actingAs($direccion)
+            ->get(route('reportes.index'))
+            ->assertOk()
+            ->assertDontSee('Mis evaluaciones');
     }
 
     public function test_un_estudiante_no_puede_ver_reportes(): void
@@ -178,5 +201,74 @@ class ReportesPermisosTest extends TestCase
             ->assertSet('franja', FranjaHorarioEnum::LUN_MIE->value)
             ->set('tipo', 'financiero')
             ->assertSet('franja', '');
+    }
+
+    public function test_el_filtro_de_fecha_fue_reemplazado_por_grupo_grado_y_curso(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $this->actingAs($coordinador);
+
+        $html = Volt::test('reportes.index')->html();
+
+        $this->assertStringContainsString('id="cicloId"', $html);
+        $this->assertStringContainsString('id="gradoId"', $html);
+        $this->assertStringContainsString('id="cursoId"', $html);
+        $this->assertStringNotContainsString('id="desde"', $html);
+        $this->assertStringNotContainsString('id="hasta"', $html);
+    }
+
+    public function test_elegir_un_grupo_reinicia_grado_y_curso(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $ciclo = Ciclo::factory()->create();
+        $grado = Grado::factory()->create();
+
+        $this->actingAs($coordinador);
+
+        Volt::test('reportes.index')
+            ->set('gradoId', (string) $grado->id)
+            ->set('cursoId', '1')
+            ->set('cicloId', (string) $ciclo->id)
+            ->assertSet('gradoId', '')
+            ->assertSet('cursoId', '');
+    }
+
+    public function test_elegir_un_grado_reinicia_curso(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $grado = Grado::factory()->create();
+
+        $this->actingAs($coordinador);
+
+        Volt::test('reportes.index')
+            ->set('cursoId', '1')
+            ->set('gradoId', (string) $grado->id)
+            ->assertSet('cursoId', '');
+    }
+
+    public function test_filtrar_por_grupo_reduce_el_reporte_de_matricula(): void
+    {
+        $horarioA = Horario::factory()->create();
+        $horarioB = Horario::factory()->create();
+        $estudianteA = Estudiante::factory()->create(['nombres' => 'Ana', 'apellidos' => 'Quispe']);
+        $estudianteB = Estudiante::factory()->create(['nombres' => 'Beto', 'apellidos' => 'Salas']);
+        Matricula::factory()->create(['estudiante_id' => $estudianteA->id, 'grado_id' => $horarioA->grado_id, 'ciclo_id' => $horarioA->ciclo_id]);
+        Matricula::factory()->create(['estudiante_id' => $estudianteB->id, 'grado_id' => $horarioB->grado_id, 'ciclo_id' => $horarioB->ciclo_id]);
+
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $this->actingAs($coordinador);
+
+        Volt::test('reportes.index')
+            ->set('tipo', 'matricula')
+            ->assertSee('Ana')
+            ->assertSee('Beto')
+            ->set('cicloId', (string) $horarioA->ciclo_id)
+            ->assertSee('Ana')
+            ->assertDontSee('Beto');
     }
 }
