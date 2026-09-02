@@ -31,6 +31,36 @@
             <x-heroicon-o-identification class="h-5 w-5 shrink-0" />
             <span class="sidebar-label">Estudiantes</span>
         </a>
+
+        @can('migraciones.ver')
+            <a
+                href="{{ route('migraciones.index') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('migraciones.*'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('migraciones.*'),
+                ])
+            >
+                <x-heroicon-o-arrow-up-circle class="h-5 w-5 shrink-0" />
+                <span class="sidebar-label">Migraciones</span>
+            </a>
+        @endcan
+
+        @can('vacaciones.ver')
+            <a
+                href="{{ route('vacaciones.index') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('vacaciones.*'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('vacaciones.*'),
+                ])
+            >
+                <x-heroicon-o-sun class="h-5 w-5 shrink-0" />
+                <span class="sidebar-label">Vacaciones</span>
+            </a>
+        @endcan
     @endcan
 
     @canany(['aula_virtual.ver', 'aula_virtual.gestionar_propio', 'aula_virtual.ver_propio'])

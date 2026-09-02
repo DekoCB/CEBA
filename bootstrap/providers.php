@@ -10,9 +10,11 @@ use App\Modules\Identidad\Providers\IdentidadServiceProvider;
 use App\Modules\Incidencias\Providers\IncidenciasServiceProvider;
 use App\Modules\Landing\Providers\LandingServiceProvider;
 use App\Modules\Matricula\Providers\MatriculaServiceProvider;
+use App\Modules\Migraciones\Providers\MigracionesServiceProvider;
 use App\Modules\Notificaciones\Providers\NotificacionesServiceProvider;
 use App\Modules\Pagos\Providers\PagosServiceProvider;
 use App\Modules\Reportes\Providers\ReportesServiceProvider;
+use App\Modules\Vacaciones\Providers\VacacionesServiceProvider;
 use App\Providers\AppServiceProvider;
 use App\Providers\AuthServiceProvider;
 use App\Providers\VoltServiceProvider;
@@ -34,4 +36,6 @@ return [
     ReportesServiceProvider::class,
     NotificacionesServiceProvider::class,
     IncidenciasServiceProvider::class,
+    MigracionesServiceProvider::class,
+    VacacionesServiceProvider::class,
 ];

@@ -31,6 +31,8 @@ class RolesAndPermissionsSeeder extends Seeder
         RolEnum::COORDINADOR->value => [
             'academico.ver', 'academico.gestionar',
             'matricula.crear', 'matricula.ver', 'matricula.editar', 'matricula.anular',
+            'migraciones.ver', 'migraciones.gestionar',
+            'vacaciones.ver', 'vacaciones.gestionar',
             'aula_virtual.ver', 'aula_virtual.gestionar_propio',
             'evaluaciones.ver', 'evaluaciones.publicar',
             'asistencia.ver',
@@ -83,6 +85,8 @@ class RolesAndPermissionsSeeder extends Seeder
     private const TODOS_LOS_PERMISOS = [
         'academico.ver', 'academico.gestionar',
         'matricula.crear', 'matricula.ver', 'matricula.editar', 'matricula.anular',
+        'migraciones.ver', 'migraciones.gestionar',
+        'vacaciones.ver', 'vacaciones.gestionar',
         'aula_virtual.ver', 'aula_virtual.gestionar_propio', 'aula_virtual.ver_propio',
         'evaluaciones.ver', 'evaluaciones.registrar', 'evaluaciones.publicar', 'evaluaciones.ver_propio',
         'asistencia.ver', 'asistencia.registrar', 'asistencia.ver_propio',
