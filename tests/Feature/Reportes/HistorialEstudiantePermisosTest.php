@@ -4,6 +4,9 @@ namespace Tests\Feature\Reportes;
 
 use App\Models\User;
 use App\Modules\Academico\Models\Ciclo;
+use App\Modules\Academico\Models\Horario;
+use App\Modules\Evaluaciones\Models\Calificacion;
+use App\Modules\Evaluaciones\Models\Evaluacion;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
@@ -170,6 +173,76 @@ class HistorialEstudiantePermisosTest extends TestCase
             ->assertHasNoErrors()
             ->assertSee('Detalle de pagos')
             ->assertSee('S/ 120.00');
+    }
+
+    public function test_seleccionar_estudiante_preselecciona_la_libreta_del_ciclo_mas_reciente(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $estudiante = Estudiante::factory()->create(['dni' => '55667711', 'nombres' => 'Hernán', 'apellidos' => 'Ochoa Rojas']);
+
+        $matriculaVieja = Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => 'aprobada', 'fecha_matricula' => now()->subYear()]);
+        $matriculaReciente = Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => 'aprobada', 'fecha_matricula' => now()]);
+
+        foreach ([$matriculaVieja, $matriculaReciente] as $matricula) {
+            $horario = Horario::factory()->create(['grado_id' => $matricula->grado_id, 'ciclo_id' => $matricula->ciclo_id]);
+            $evaluacion = Evaluacion::factory()->create(['horario_id' => $horario->id, 'estado' => 'publicada']);
+            Calificacion::factory()->create(['evaluacion_id' => $evaluacion->id, 'estudiante_id' => $estudiante->id, 'nota_numerica' => 15]);
+        }
+
+        $this->actingAs($coordinador);
+
+        Volt::test('historial-estudiante.index')
+            ->set('terminoBusqueda', 'Ochoa Rojas')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->assertSet('cicloLibretaId', $matriculaReciente->ciclo_id)
+            ->assertSee('Libreta de notas')
+            ->assertSee('Exportar libreta (PDF)');
+    }
+
+    public function test_cambiar_el_ciclo_de_la_libreta_filtra_las_notas_mostradas(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $estudiante = Estudiante::factory()->create(['dni' => '55667712', 'nombres' => 'Carmen', 'apellidos' => 'Torres Rojas']);
+
+        $matriculaUno = Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => 'aprobada', 'fecha_matricula' => now()->subYear()]);
+        $matriculaDos = Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => 'aprobada', 'fecha_matricula' => now()]);
+
+        $horarioUno = Horario::factory()->create(['grado_id' => $matriculaUno->grado_id, 'ciclo_id' => $matriculaUno->ciclo_id]);
+        $evaluacionUno = Evaluacion::factory()->create(['horario_id' => $horarioUno->id, 'estado' => 'publicada']);
+        Calificacion::factory()->create(['evaluacion_id' => $evaluacionUno->id, 'estudiante_id' => $estudiante->id, 'nota_numerica' => 12]);
+
+        $horarioDos = Horario::factory()->create(['grado_id' => $matriculaDos->grado_id, 'ciclo_id' => $matriculaDos->ciclo_id]);
+        $evaluacionDos = Evaluacion::factory()->create(['horario_id' => $horarioDos->id, 'estado' => 'publicada']);
+        Calificacion::factory()->create(['evaluacion_id' => $evaluacionDos->id, 'estudiante_id' => $estudiante->id, 'nota_numerica' => 18]);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('historial-estudiante.index')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->assertSet('cicloLibretaId', $matriculaDos->ciclo_id)
+            ->assertSee('18.00')
+            ->set('cicloLibretaId', $matriculaUno->ciclo_id)
+            ->assertSee('12.00');
+    }
+
+    public function test_exportar_libreta_pdf_descarga_el_pdf_del_ciclo_elegido(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $estudiante = Estudiante::factory()->create(['dni' => '55667713', 'nombres' => 'Julio', 'apellidos' => 'Rojas Medina']);
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => 'aprobada']);
+
+        $this->actingAs($coordinador);
+
+        $testable = Volt::test('historial-estudiante.index')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->set('cicloLibretaId', $matricula->ciclo_id)
+            ->call('exportarLibretaPdf');
+
+        $this->assertArrayHasKey('download', $testable->effects);
+        $this->assertSame('application/pdf', $testable->effects['download']['contentType']);
     }
 
     public function test_el_enlace_de_historial_aparece_en_el_menu_para_coordinador(): void

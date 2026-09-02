@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Evaluaciones\Services\LibretaService;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Reportes\Services\HistorialEstudianteService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -15,16 +16,23 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $estudianteSeleccionadoNombre = '';
 
+    public ?int $cicloLibretaId = null;
+
     public function mount(): void
     {
         abort_unless(Auth::user()->hasPermissionTo('reportes.historial_estudiante'), 403);
     }
 
-    public function seleccionarEstudiante(int $estudianteId, string $nombre): void
+    public function seleccionarEstudiante(int $estudianteId, string $nombre, HistorialEstudianteService $servicio): void
     {
         $this->estudianteSeleccionadoId = $estudianteId;
         $this->estudianteSeleccionadoNombre = $nombre;
         $this->terminoBusqueda = '';
+
+        // Por defecto, la libreta filtrable arranca en el ciclo más
+        // reciente con notas -- sigue siendo editable desde el selector.
+        $historial = $servicio->porId($estudianteId);
+        $this->cicloLibretaId = $historial['notasPorCiclo']->last()['ciclo']->id ?? null;
     }
 
     public function exportarPdf(HistorialEstudianteService $servicio)
@@ -45,7 +53,35 @@ new #[Layout('layouts.app')] class extends Component
         );
     }
 
-    public function with(HistorialEstudianteService $servicio): array
+    /**
+     * Aparte del PDF general de historial: solo la libreta del ciclo
+     * elegido en el selector, misma plantilla que ya usa
+     * LibretaService::generar() para "Mi libreta"/la libreta que ve el
+     * personal -- pero sin persistir un registro Libreta, ya que esto es
+     * solo un export de lectura, no la generación oficial.
+     */
+    public function exportarLibretaPdf(HistorialEstudianteService $servicio, LibretaService $libretas)
+    {
+        abort_unless(Auth::user()->hasPermissionTo('reportes.exportar'), 403);
+        abort_if($this->estudianteSeleccionadoId === null || $this->cicloLibretaId === null, 404);
+
+        $historial = $servicio->porId($this->estudianteSeleccionadoId);
+        abort_if($historial === null, 404);
+
+        $ciclo = $historial['matriculas']->first(fn ($matricula) => $matricula->ciclo_id === $this->cicloLibretaId)?->ciclo;
+        abort_if($ciclo === null, 404);
+
+        $estudiante = $historial['estudiante'];
+        $cursos = $libretas->resumenPorCursos($estudiante, $ciclo);
+
+        return response()->streamDownload(
+            fn () => print (Pdf::loadView('pdf.libreta', ['estudiante' => $estudiante, 'ciclo' => $ciclo, 'cursos' => $cursos])->output()),
+            "libreta-{$estudiante->dni}-{$ciclo->anio}.pdf",
+            ['Content-Type' => 'application/pdf'],
+        );
+    }
+
+    public function with(HistorialEstudianteService $servicio, LibretaService $libretas): array
     {
         $resultadosBusqueda = collect();
 
@@ -62,10 +98,16 @@ new #[Layout('layouts.app')] class extends Component
                 ->get();
         }
 
+        $historial = $this->estudianteSeleccionadoId !== null ? $servicio->porId($this->estudianteSeleccionadoId) : null;
+
+        $cicloLibreta = $historial ? $historial['matriculas']->first(fn ($matricula) => $matricula->ciclo_id === $this->cicloLibretaId)?->ciclo : null;
+
         return [
             'resultadosBusqueda' => $resultadosBusqueda,
-            'historial' => $this->estudianteSeleccionadoId !== null ? $servicio->porId($this->estudianteSeleccionadoId) : null,
+            'historial' => $historial,
             'puedeExportar' => Auth::user()->hasPermissionTo('reportes.exportar'),
+            'cicloLibreta' => $cicloLibreta,
+            'cursosLibreta' => ($historial && $cicloLibreta) ? $libretas->resumenPorCursos($historial['estudiante'], $cicloLibreta) : collect(),
         ];
     }
 }; ?>
@@ -293,6 +335,29 @@ new #[Layout('layouts.app')] class extends Component
                             </div>
                         @endforeach
                     </div>
+                @endif
+
+                @if ($historial['notasPorCiclo']->isNotEmpty())
+                    <div class="mt-4 flex flex-wrap items-end justify-between gap-4">
+                        <div>
+                            <x-input-label for="cicloLibretaId" value="Libreta de notas" />
+                            <x-select-input
+                                wire:model.live="cicloLibretaId"
+                                id="cicloLibretaId"
+                                class="mt-1 block w-full sm:w-64"
+                                :options="collect($historial['notasPorCiclo'])->mapWithKeys(fn ($entrada) => [$entrada['ciclo']->id => $entrada['ciclo']->nombre])"
+                            />
+                        </div>
+                        @if ($cicloLibreta && $puedeExportar)
+                            <x-secondary-button type="button" wire:click="exportarLibretaPdf">Exportar libreta (PDF)</x-secondary-button>
+                        @endif
+                    </div>
+
+                    @if ($cicloLibreta)
+                        <div class="mt-2">
+                            <x-evaluaciones.resumen-libreta :cursos="$cursosLibreta" />
+                        </div>
+                    @endif
                 @endif
 
                 <h3 class="mt-4 text-xs font-semibold uppercase tracking-wide text-ink-faint">Notas por ciclo</h3>
