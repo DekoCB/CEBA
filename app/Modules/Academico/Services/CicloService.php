@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Academico\Services;
 
+use App\Modules\Academico\Enums\EstadoCicloEnum;
 use App\Modules\Academico\Enums\ModalidadCicloEnum;
 use App\Modules\Academico\Enums\TipoCicloEnum;
 use App\Modules\Academico\Models\Ciclo;
@@ -82,8 +83,10 @@ class CicloService
 
     /**
      * Un ciclo SIAGE anual no tiene mes de inicio fijo ni Grupo asociado:
-     * solo se exige que dure entre 9 y 12 meses (año escolar de ~8 meses
-     * de clases + 2 de vacaciones, con margen).
+     * su periodo de clases dura 8 meses, declarados a mano (de qué mes a
+     * qué mes) por quien lo registra -- los 2 meses restantes del año son
+     * las vacaciones propias de esta modalidad (ver módulo Vacaciones),
+     * fuera del ciclo mismo.
      */
     public function validarFechasCicloAnual(string $fechaInicio, string $fechaFin): void
     {
@@ -96,11 +99,12 @@ class CicloService
             ]);
         }
 
-        $meses = $inicio->diffInMonths($fin);
+        $finEsperado = $inicio->copy()->addMonths(8);
+        $diferenciaEnDias = abs($fin->diffInDays($finEsperado));
 
-        if ($meses < 9 || $meses > 12) {
+        if ($diferenciaEnDias > 15) {
             throw ValidationException::withMessages([
-                'fecha_fin' => 'Un ciclo SIAGE anual debe durar entre 9 y 12 meses (año escolar + vacaciones).',
+                'fecha_fin' => 'Un ciclo SIAGE anual dura 8 meses de clases; la fecha de fin no cuadra con la de inicio (margen de 15 días).',
             ]);
         }
     }
@@ -227,5 +231,26 @@ class CicloService
             ->where('tipo', $actual->tipo->siguiente())
             ->where('anio', $siguienteAnio)
             ->first();
+    }
+
+    /**
+     * SIAGE anual no rota entre Grupos como el de 6 meses: a lo sumo hay un
+     * ciclo anual "vigente" a la vez, el marcado Activo. Si todavía no hay
+     * ninguno activo, cae al más reciente por fecha de inicio. Sin periodo
+     * de matrícula que abrir de por medio -- esta modalidad se identifica
+     * solo por año, y su matrícula está disponible mientras el ciclo esté
+     * vigente (ver MatriculaService::matricular()).
+     */
+    public function cicloAnualVigente(): ?Ciclo
+    {
+        return Ciclo::query()
+            ->where('modalidad', ModalidadCicloEnum::ANUAL)
+            ->where('estado', EstadoCicloEnum::ACTIVO)
+            ->orderByDesc('fecha_inicio')
+            ->first()
+            ?? Ciclo::query()
+                ->where('modalidad', ModalidadCicloEnum::ANUAL)
+                ->orderByDesc('fecha_inicio')
+                ->first();
     }
 }

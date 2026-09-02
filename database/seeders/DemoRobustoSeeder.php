@@ -409,17 +409,10 @@ class DemoRobustoSeeder extends Seeder
                 'nombre' => "SIAGE Anual - {$anio}",
                 'tipo' => null,
                 'fecha_inicio' => "{$anio}-03-01",
-                'fecha_fin' => "{$anio}-12-20",
+                'fecha_fin' => "{$anio}-10-31",
                 'estado' => EstadoCicloEnum::ACTIVO,
             ]
         );
-
-        if ($cicloAnual->periodosMatricula()->where('estado', 'abierto')->doesntExist()) {
-            $cicloAnual->periodosMatricula()->create([
-                'fecha_inicio' => now()->subDays(10),
-                'fecha_fin' => now()->addDays(20),
-            ]);
-        }
 
         $servicio = app(MatriculaService::class);
 

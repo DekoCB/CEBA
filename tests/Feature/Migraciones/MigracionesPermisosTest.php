@@ -43,23 +43,18 @@ class MigracionesPermisosTest extends TestCase
         return $ciclo;
     }
 
-    private function cicloAnualConPeriodoAbierto(int $anio, bool $activo = true): Ciclo
+    // SIAGE anual no depende de un periodo de matrícula abierto (a
+    // diferencia de los Grupos de 6 meses): solo importa el año.
+    private function cicloAnual(int $anio, bool $activo = true): Ciclo
     {
-        $ciclo = Ciclo::factory()->create([
+        return Ciclo::factory()->create([
             'modalidad' => ModalidadCicloEnum::ANUAL,
             'tipo' => null,
             'anio' => $anio,
             'fecha_inicio' => "{$anio}-03-01",
-            'fecha_fin' => "{$anio}-12-20",
+            'fecha_fin' => "{$anio}-10-31",
             'estado' => $activo ? 'activo' : 'planificado',
         ]);
-
-        $ciclo->periodosMatricula()->create([
-            'fecha_inicio' => now()->subDays(10),
-            'fecha_fin' => now()->addDays(10),
-        ]);
-
-        return $ciclo;
     }
 
     private function estudianteMatriculado(Ciclo $ciclo, Grado $grado, string $dni): Estudiante
@@ -161,8 +156,8 @@ class MigracionesPermisosTest extends TestCase
 
         $gradoOrigen = Grado::factory()->create(['orden' => 1]);
         $gradoDestino = Grado::factory()->create(['orden' => 2]);
-        $cicloAnualOrigen = $this->cicloAnualConPeriodoAbierto(now()->year);
-        $cicloAnualDestino = $this->cicloAnualConPeriodoAbierto(now()->year + 1, activo: false);
+        $cicloAnualOrigen = $this->cicloAnual(now()->year);
+        $cicloAnualDestino = $this->cicloAnual(now()->year + 1, activo: false);
         $this->estudianteMatriculado($cicloAnualOrigen, $gradoOrigen, '55667755');
 
         $this->actingAs($usuario);
@@ -171,7 +166,7 @@ class MigracionesPermisosTest extends TestCase
             ->set('tab', 'masivo')
             ->set('siageOrigen', 'anual')
             ->assertDontSee('Todos los grupos')
-            ->assertSee($cicloAnualOrigen->nombre)
+            ->assertSee((string) $cicloAnualOrigen->anio)
             ->set('gradoOrigenId', (string) $gradoOrigen->id)
             ->assertSet('masivoCicloDestinoId', (string) $cicloAnualDestino->id)
             ->set('masivoGradoDestinoId', (string) $gradoDestino->id)

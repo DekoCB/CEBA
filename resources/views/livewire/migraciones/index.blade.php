@@ -349,11 +349,11 @@ new #[Layout('layouts.app')] class extends Component
                         </div>
                     @elseif ($siageOrigen === 'anual')
                         <div>
-                            <x-input-label value="Ciclo SIAGE anual" />
+                            <x-input-label value="Año" />
                             @if ($cicloAnualVigente)
-                                <p class="mt-1 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-ink">{{ $cicloAnualVigente->nombre }}</p>
+                                <p class="mt-1 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-ink">{{ $cicloAnualVigente->anio }}</p>
                             @else
-                                <p class="mt-1 text-xs text-danger">No hay ningún ciclo SIAGE anual registrado todavía.</p>
+                                <p class="mt-1 text-xs text-danger">No hay ningún ciclo SIAGE anual registrado todavía. Créalo primero en Ciclos.</p>
                             @endif
                         </div>
                     @endif

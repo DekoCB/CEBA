@@ -194,13 +194,13 @@ class CicloValidacionTest extends TestCase
             'tipo' => null,
             'anio' => 2026,
             'fecha_inicio' => '2026-03-01',
-            'fecha_fin' => '2026-12-20',
+            'fecha_fin' => '2026-10-31',
         ]);
 
         $this->assertDatabaseHas('ciclos', ['id' => $ciclo->id, 'modalidad' => 'anual', 'tipo' => null]);
     }
 
-    public function test_un_ciclo_anual_debe_durar_entre_9_y_12_meses(): void
+    public function test_un_ciclo_anual_debe_durar_los_8_meses_declarados(): void
     {
         $this->expectException(ValidationException::class);
 
@@ -222,7 +222,7 @@ class CicloValidacionTest extends TestCase
             'tipo' => null,
             'anio' => 2026,
             'fecha_inicio' => '2026-03-01',
-            'fecha_fin' => '2026-12-20',
+            'fecha_fin' => '2026-10-31',
         ]);
 
         $this->expectException(ValidationException::class);
@@ -233,7 +233,7 @@ class CicloValidacionTest extends TestCase
             'tipo' => null,
             'anio' => 2026,
             'fecha_inicio' => '2026-04-01',
-            'fecha_fin' => '2027-01-15',
+            'fecha_fin' => '2026-11-30',
         ]);
     }
 
@@ -255,7 +255,7 @@ class CicloValidacionTest extends TestCase
             'tipo' => null,
             'anio' => 2026,
             'fecha_inicio' => '2026-03-01',
-            'fecha_fin' => '2026-12-20',
+            'fecha_fin' => '2026-10-31',
         ]);
 
         $this->assertDatabaseHas('ciclos', ['id' => $ciclo->id]);

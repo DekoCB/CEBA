@@ -62,7 +62,7 @@ class CicloFactory extends Factory
                 'modalidad' => ModalidadCicloEnum::ANUAL,
                 'tipo' => null,
                 'fecha_inicio' => "{$anio}-03-01",
-                'fecha_fin' => "{$anio}-12-20",
+                'fecha_fin' => "{$anio}-10-31",
             ];
         });
     }

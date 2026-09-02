@@ -138,7 +138,9 @@ class MatriculaService
         $ciclo = Ciclo::query()->findOrFail($data->cicloId);
         $grado = Grado::query()->findOrFail($data->gradoId);
 
-        $this->validarPeriodoDeMatriculaAbierto($ciclo);
+        if ($ciclo->modalidad !== ModalidadCicloEnum::ANUAL) {
+            $this->validarPeriodoDeMatriculaAbierto($ciclo);
+        }
 
         if ($this->matriculas->existeParaEstudianteYCiclo($estudiante->id, $ciclo->id)) {
             throw ValidationException::withMessages([
@@ -224,6 +226,13 @@ class MatriculaService
         return $matricula->fresh();
     }
 
+    /**
+     * Solo aplica a los 4 Grupos rotativos de 6 meses, cada uno con sus
+     * propias ventanas de admisión que un coordinador abre y cierra a
+     * mano. SIAGE anual no tiene este concepto -- se identifica solo por
+     * año y su matrícula está disponible mientras el ciclo esté vigente
+     * (ver el llamado condicional en matricular()).
+     */
     private function validarPeriodoDeMatriculaAbierto(Ciclo $ciclo): void
     {
         $hoy = Carbon::today();

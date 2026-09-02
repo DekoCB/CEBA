@@ -3,6 +3,7 @@
 use App\Modules\Academico\Enums\ModalidadCicloEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
+use App\Modules\Academico\Services\CicloService;
 use App\Modules\Matricula\DTOs\RegistrarApoderadoData;
 use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
 use App\Modules\Matricula\DTOs\RegistrarMatriculaData;
@@ -180,30 +181,18 @@ new class extends Component
 
     /**
      * Al cambiar de modalidad se limpia el ciclo elegido; para SIAGE anual
-     * no hay selector -- se autoasigna el único ciclo anual con periodo de
-     * matrícula abierto hoy, si existe (ver with()).
+     * no hay selector -- se autoasigna el ciclo anual vigente, si existe
+     * (ver CicloService::cicloAnualVigente() y with()). A diferencia de
+     * los Grupos de 6 meses, no depende de un periodo de matrícula abierto.
      */
-    public function updatedModalidadCiclo(): void
+    public function updatedModalidadCiclo(CicloService $ciclos): void
     {
         $this->cicloId = '';
 
         if ($this->modalidadCiclo === ModalidadCicloEnum::ANUAL->value) {
-            $cicloAnual = $this->cicloAnualAbierto();
+            $cicloAnual = $ciclos->cicloAnualVigente();
             $this->cicloId = $cicloAnual !== null ? (string) $cicloAnual->id : '';
         }
-    }
-
-    private function cicloAnualAbierto(): ?Ciclo
-    {
-        return Ciclo::query()
-            ->where('modalidad', ModalidadCicloEnum::ANUAL)
-            ->whereHas('periodosMatricula', function ($query) {
-                $query->where('estado', 'abierto')
-                    ->where('fecha_inicio', '<=', now())
-                    ->where('fecha_fin', '>=', now());
-            })
-            ->orderByDesc('fecha_inicio')
-            ->first();
     }
 
     public function avanzar(MatriculaService $service): void
@@ -497,7 +486,7 @@ new class extends Component
         );
     }
 
-    public function with(): array
+    public function with(CicloService $ciclos): array
     {
         $grados = Grado::query()->where('activo', true)->orderBy('orden')->get();
 
@@ -517,7 +506,7 @@ new class extends Component
             'todosLosGrados' => $grados,
             'modalidadesCiclo' => ModalidadCicloEnum::cases(),
             'ciclosDisponibles' => $ciclosConMatriculaAbierta,
-            'cicloAnualAbierto' => $this->cicloAnualAbierto(),
+            'cicloAnualVigente' => $ciclos->cicloAnualVigente(),
             'numerosCuotas' => NumeroCuotasEnum::cases(),
         ];
     }
@@ -808,11 +797,11 @@ new class extends Component
                 </div>
                 @if ($modalidadCiclo === 'anual')
                     <div>
-                        <x-input-label value="Ciclo SIAGE anual" />
-                        @if ($cicloAnualAbierto)
-                            <p class="mt-1 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-ink">{{ $cicloAnualAbierto->anio }}</p>
+                        <x-input-label value="Año" />
+                        @if ($cicloAnualVigente)
+                            <p class="mt-1 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-ink">{{ $cicloAnualVigente->anio }}</p>
                         @else
-                            <p class="mt-1 text-xs text-danger">No hay un ciclo SIAGE anual con periodo de matrícula abierto hoy.</p>
+                            <p class="mt-1 text-xs text-danger">No hay ningún ciclo SIAGE anual registrado todavía. Créalo primero en Ciclos.</p>
                         @endif
                         <x-input-error :messages="$errors->get('cicloId')" class="mt-1" />
                     </div>

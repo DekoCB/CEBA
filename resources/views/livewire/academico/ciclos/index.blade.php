@@ -206,6 +206,9 @@ new #[Layout('layouts.app')] class extends Component
                     </div>
                 </div>
 
+                @if ($modalidad === 'anual')
+                    <p class="text-xs text-ink-dim">El periodo de clases del SIAGE anual dura 8 meses; declara de qué mes a qué mes (los 2 meses restantes del año son vacaciones, fuera del ciclo).</p>
+                @endif
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <x-input-label for="fechaInicio" value="Fecha inicio" />

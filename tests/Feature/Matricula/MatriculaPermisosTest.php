@@ -96,18 +96,16 @@ class MatriculaPermisosTest extends TestCase
         $this->assertSame('Pendiente entregar certificado de estudios del colegio anterior.', $estudiante->observaciones);
     }
 
-    public function test_elegir_modalidad_anual_en_el_wizard_autoselecciona_el_ciclo_abierto(): void
+    public function test_elegir_modalidad_anual_en_el_wizard_autoselecciona_el_ciclo_vigente(): void
     {
         Storage::fake('public');
 
         $usuario = User::factory()->create();
         $usuario->assignRole(RolEnum::COORDINADOR->value);
 
+        // Sin periodo de matrícula: a diferencia de los Grupos de 6 meses,
+        // SIAGE anual no lo necesita para poder matricularse.
         $cicloAnual = Ciclo::factory()->anual()->activo()->create();
-        $cicloAnual->periodosMatricula()->create([
-            'fecha_inicio' => now()->subDays(10),
-            'fecha_fin' => now()->addDays(10),
-        ]);
         $grado = Grado::factory()->create();
 
         $this->actingAs($usuario);

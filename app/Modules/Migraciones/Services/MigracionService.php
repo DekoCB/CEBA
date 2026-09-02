@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Modules\Migraciones\Services;
 
-use App\Modules\Academico\Enums\EstadoCicloEnum;
 use App\Modules\Academico\Enums\ModalidadCicloEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
@@ -29,6 +28,7 @@ class MigracionService
 {
     public function __construct(
         private readonly MatriculaService $matriculas,
+        private readonly CicloService $ciclos,
     ) {}
 
     /**
@@ -54,27 +54,13 @@ class MigracionService
     }
 
     /**
-     * SIAGE anual no rota entre Grupos como el de 6 meses (ver
-     * ModalidadCicloEnum) -- a lo sumo hay un ciclo anual "vigente" a la
-     * vez: el que esté marcado Activo (mismo criterio que ya usa
-     * DemoRobustoSeeder para encontrar "el" ciclo actual). Si por lo que
-     * sea todavía no hay ninguno activo, cae al más reciente por fecha de
-     * inicio en vez de no encontrar nada. Sirve tanto para acotar la
-     * cohorte de origen en modo masivo como para sugerir destino, sin
-     * pedirle al usuario que elija un "Grupo" que no existe en esa
-     * modalidad.
+     * Sirve tanto para acotar la cohorte de origen en modo masivo como
+     * para sugerir destino, sin pedirle al usuario que elija un "Grupo"
+     * que no existe en la modalidad anual (ver CicloService::cicloAnualVigente()).
      */
     public function cicloAnualVigente(): ?Ciclo
     {
-        return Ciclo::query()
-            ->where('modalidad', ModalidadCicloEnum::ANUAL)
-            ->where('estado', EstadoCicloEnum::ACTIVO)
-            ->orderByDesc('fecha_inicio')
-            ->first()
-            ?? Ciclo::query()
-                ->where('modalidad', ModalidadCicloEnum::ANUAL)
-                ->orderByDesc('fecha_inicio')
-                ->first();
+        return $this->ciclos->cicloAnualVigente();
     }
 
     public function migrar(Matricula $origen, int $cicloDestinoId, int $gradoDestinoId, ?int $registradoPor): Matricula
