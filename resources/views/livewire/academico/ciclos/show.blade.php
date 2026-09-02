@@ -55,7 +55,7 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     @if (session('status'))
-        <div class="rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">{{ session('status') }}</div>
+        <x-alert>{{ session('status') }}</x-alert>
     @endif
 
     <x-academico.detalle-ciclo :ciclo="$ciclo" :periodos="$periodos" :horarios="$horarios" />

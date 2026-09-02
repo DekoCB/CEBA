@@ -74,24 +74,24 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     <div class="mb-4 flex justify-end">
-        <button wire:click="abrirModal" class="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 font-display text-sm font-medium text-white hover:opacity-90">
+        <x-primary-button type="button" wire:click="abrirModal" class="gap-2">
             <x-heroicon-o-plus class="h-4 w-4" />
             Nueva plantilla
-        </button>
+        </x-primary-button>
     </div>
 
     @if (session('status'))
-        <div class="mb-4 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">{{ session('status') }}</div>
+        <x-alert class="mb-4">{{ session('status') }}</x-alert>
     @endif
 
-    <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+    <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
         @forelse ($plantillas as $plantilla)
             <div class="flex items-start justify-between gap-4 px-4 py-3 text-sm" wire:key="plantilla-{{ $plantilla->id }}">
                 <div>
                     <p class="text-ink">
                         {{ $plantilla->nombre }}
                         @unless ($plantilla->activa)
-                            <span class="ml-1 rounded-full bg-ink-faint/10 px-2 py-0.5 text-xs text-ink-faint">Inactiva</span>
+                            <x-badge variant="neutral" class="ml-1">Inactiva</x-badge>
                         @endunless
                     </p>
                     <p class="mt-1 text-xs text-ink-faint">{{ $plantilla->contenido }}</p>
@@ -117,7 +117,7 @@ new #[Layout('layouts.app')] class extends Component
     >
         <div
             x-show="$wire.mostrarModal"
-            class="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-lg"
+            class="w-full max-w-md rounded-2xl border border-border bg-surface-elevated p-6 shadow-lg"
             x-transition:enter="ease-out duration-300"
             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"

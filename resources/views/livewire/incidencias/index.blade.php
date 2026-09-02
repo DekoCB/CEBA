@@ -155,7 +155,7 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     @if (session('status'))
-        <p class="mb-4 rounded-md bg-accent-soft px-3 py-2 text-sm text-accent">{{ session('status') }}</p>
+        <x-alert class="mb-4">{{ session('status') }}</x-alert>
     @endif
 
     @if ($puedeCrear)
@@ -165,7 +165,7 @@ new #[Layout('layouts.app')] class extends Component
             @endunless
 
             @if ($mostrarFormNueva)
-                <form wire:submit="crear" class="mt-3 max-w-xl space-y-4 rounded-lg border border-border bg-surface p-6">
+                <form wire:submit="crear" class="mt-3 max-w-xl space-y-4 rounded-2xl border border-border bg-surface shadow-sm p-6">
                     <div>
                         <x-input-label value="Estudiante" />
                         @if ($estudianteSeleccionadoId)
@@ -260,10 +260,10 @@ new #[Layout('layouts.app')] class extends Component
 
     <div class="space-y-3">
         @forelse ($incidencias as $incidencia)
-            <div class="rounded-lg border border-border bg-surface p-4">
+            <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
                 <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2">
-                        <span class="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-ink-dim">{{ $incidencia->tipo->label() }}</span>
+                        <x-badge variant="neutral">{{ $incidencia->tipo->label() }}</x-badge>
                         @if (! $esVistaEstudiante)
                             <span class="text-sm font-medium text-ink">{{ $incidencia->estudiante?->nombreCompleto() ?? '—' }}</span>
                         @endif

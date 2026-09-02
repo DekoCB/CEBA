@@ -120,14 +120,14 @@ new #[Layout('layouts.app')] class extends Component
 
     {{-- Ver academico/grados/index.blade.php: el botón no puede vivir en x-slot="header". --}}
     <div class="mb-4 flex justify-end">
-        <button wire:click="abrirModal" class="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 font-display text-sm font-medium text-white hover:opacity-90">
+        <x-primary-button type="button" wire:click="abrirModal" class="gap-2">
             <x-heroicon-o-plus class="h-4 w-4" />
             Nuevo concepto
-        </button>
+        </x-primary-button>
     </div>
 
     @if (session('status'))
-        <div class="mb-4 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">{{ session('status') }}</div>
+        <x-alert class="mb-4">{{ session('status') }}</x-alert>
     @endif
 
     @if ($puedeAprobarMontos && $solicitudesPendientes->isNotEmpty())
@@ -165,7 +165,7 @@ new #[Layout('layouts.app')] class extends Component
         </div>
     @endif
 
-    <div class="overflow-hidden rounded-lg border border-border bg-surface">
+    <div class="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
         <table class="min-w-full divide-y divide-border text-sm">
             <thead class="bg-surface-2">
                 <tr>
@@ -219,7 +219,7 @@ new #[Layout('layouts.app')] class extends Component
     >
         <div
             x-show="$wire.mostrarModal"
-            class="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-lg"
+            class="w-full max-w-md rounded-2xl border border-border bg-surface-elevated p-6 shadow-lg"
             x-transition:enter="ease-out duration-300"
             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"

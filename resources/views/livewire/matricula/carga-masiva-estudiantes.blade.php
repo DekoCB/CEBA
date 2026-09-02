@@ -53,7 +53,7 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     <div class="max-w-3xl space-y-6">
-        <div class="rounded-lg border border-border bg-surface p-6">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
             <div class="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
                 <div>
                     <h2 class="font-display text-lg text-ink">1. Descarga la plantilla</h2>
@@ -69,7 +69,7 @@ new #[Layout('layouts.app')] class extends Component
             </div>
         </div>
 
-        <div class="rounded-lg border border-border bg-surface p-6">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
             <h2 class="font-display text-lg text-ink">2. Sube el archivo completo</h2>
 
             <form wire:submit="procesar" class="mt-4 space-y-4">
@@ -92,7 +92,7 @@ new #[Layout('layouts.app')] class extends Component
         </div>
 
         @if ($resultado)
-            <div class="rounded-lg border border-border bg-surface p-6">
+            <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
                 <h2 class="font-display text-lg text-ink">Resultado</h2>
 
                 <div class="mt-3 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">

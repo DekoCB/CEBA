@@ -9,7 +9,7 @@
     campos name/email/dni/phone/estado/rol.
 --}}
 <div class="space-y-6">
-    <div class="rounded-lg border border-border bg-surface p-6">
+    <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
         <h2 class="text-sm font-semibold text-ink">Datos personales</h2>
 
         <form wire:submit="guardarDatos" class="mt-4 space-y-4">
@@ -55,7 +55,7 @@
     </div>
 
     @if ($puedeGestionarRoles)
-        <div class="rounded-lg border border-border bg-surface p-6">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
             <h2 class="text-sm font-semibold text-ink">Rol institucional</h2>
             <form wire:submit="cambiarRol" class="mt-4 flex items-end gap-3">
                 <div class="flex-1">
@@ -71,7 +71,7 @@
     @endif
 
     @if ($puedeGestionarSesiones)
-        <div class="rounded-lg border border-border bg-surface p-6">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
             <h2 class="text-sm font-semibold text-ink">Sesiones activas</h2>
             <div class="mt-4 divide-y divide-border">
                 @forelse ($sesiones as $sesion)
@@ -105,7 +105,7 @@
     @endif
 
     @if ($puedeVerAuditoria)
-        <div class="rounded-lg border border-border bg-surface p-6">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
             <h2 class="text-sm font-semibold text-ink">Actividad reciente de esta cuenta</h2>
             <div class="mt-4 divide-y divide-border">
                 @forelse ($historial as $entrada)

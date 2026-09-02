@@ -532,7 +532,7 @@ new class extends Component
 >
     <div
         x-show="mostrar"
-        class="w-full max-w-3xl rounded-lg border border-border bg-surface p-6 shadow-lg"
+        class="w-full max-w-3xl rounded-2xl border border-border bg-surface-elevated p-6 shadow-lg"
         x-transition:enter="ease-out duration-300"
         x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
         x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"

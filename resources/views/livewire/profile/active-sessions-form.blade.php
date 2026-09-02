@@ -51,7 +51,7 @@ new class extends Component
                     <p class="text-ink">
                         {{ $sesion->ipAddress ?? 'IP desconocida' }}
                         @if ($sesion->esActual)
-                            <span class="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent">Este dispositivo</span>
+                            <x-badge variant="accent" class="ml-2">Este dispositivo</x-badge>
                         @endif
                     </p>
                     <p class="text-xs text-ink-faint">

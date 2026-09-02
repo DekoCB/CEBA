@@ -5,7 +5,7 @@
     entregada tarde/vencida/calificada). La usa el detalle del día
     seleccionado en el calendario de tareas del dashboard.
 --}}
-<div class="divide-y divide-border rounded-lg border border-border bg-surface">
+<div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
     @forelse ($tareas as $tarea)
         @php
             $miEntrega = $tarea->entregas->first();

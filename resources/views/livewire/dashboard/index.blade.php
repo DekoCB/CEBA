@@ -458,7 +458,7 @@ new #[Layout('layouts.app')] class extends Component
             }
 
             if ($this->evaluacionesSinPublicar > 0) {
-                $notificaciones[] = ['pill' => 'evaluación', 'color' => 'gold', 'texto' => "{$this->evaluacionesSinPublicar} evaluaciones sin publicar"];
+                $notificaciones[] = ['pill' => 'evaluación', 'color' => 'warn', 'texto' => "{$this->evaluacionesSinPublicar} evaluaciones sin publicar"];
             }
         }
 
@@ -475,54 +475,59 @@ new #[Layout('layouts.app')] class extends Component
 }; ?>
 
 <div>
-    <x-slot name="header">
-        <h1 class="font-display text-2xl text-ink">Hola, {{ auth()->user()->name }}</h1>
-        <p class="mt-1 text-sm text-ink-dim">Aquí tienes un resumen de lo que está activo hoy en CEBA.</p>
-    </x-slot>
-
     <div class="space-y-6">
+        <x-dashboard.hero-banner :nombre="auth()->user()->name" />
+
         @if ($esTesoreria)
             <div class="grid grid-cols-2 gap-4 lg:grid-cols-3">
-                <a href="{{ route('pagos.index') }}" wire:navigate class="rounded-lg border border-border bg-surface p-4 transition hover:border-accent">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Pagos por aprobar</p>
-                    <p class="mt-1 font-display text-2xl {{ $pagosPendientesAprobacion > 0 ? 'text-warn' : 'text-ink' }}">{{ $pagosPendientesAprobacion }}</p>
-                </a>
-                <div class="rounded-lg border border-border bg-surface p-4">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Ingresos aprobados este mes</p>
-                    <p class="mt-1 font-display text-2xl text-ok">S/ {{ number_format($ingresosDelMes, 2) }}</p>
-                </div>
-                <a href="{{ route('pagos.cuentas-bancarias') }}" wire:navigate class="rounded-lg border border-border bg-surface p-4 transition hover:border-accent">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Cuentas bancarias activas</p>
-                    <p class="mt-1 font-display text-2xl text-ink">{{ $cuentasBancariasActivas }}</p>
-                </a>
+                <x-dashboard.stat-card
+                    href="{{ route('pagos.index') }}"
+                    label="Pagos por aprobar"
+                    :value="$pagosPendientesAprobacion"
+                    icon="banknotes"
+                    :color="$pagosPendientesAprobacion > 0 ? 'warn' : 'accent'"
+                />
+                <x-dashboard.stat-card
+                    label="Ingresos aprobados este mes"
+                    value="S/ {{ number_format($ingresosDelMes, 2) }}"
+                    icon="arrow-trending-up"
+                    color="ok"
+                />
+                <x-dashboard.stat-card
+                    href="{{ route('pagos.cuentas-bancarias') }}"
+                    label="Cuentas bancarias activas"
+                    :value="$cuentasBancariasActivas"
+                    icon="building-library"
+                    color="accent"
+                />
             </div>
         @endif
 
         @if ($esCoordinador)
             <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                <div class="rounded-lg border border-border bg-surface p-4">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Estudiantes activos</p>
-                    <p class="mt-1 font-display text-2xl text-ink">{{ $estudiantesActivos }}</p>
-                </div>
-                <div class="rounded-lg border border-border bg-surface p-4">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Docentes</p>
-                    <p class="mt-1 font-display text-2xl text-ink">{{ $docentesActivos }}</p>
-                </div>
-                <a href="{{ route('evaluaciones.index') }}" wire:navigate class="rounded-lg border border-border bg-surface p-4 transition hover:border-accent">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Evaluaciones sin publicar</p>
-                    <p class="mt-1 font-display text-2xl {{ $evaluacionesSinPublicar > 0 ? 'text-warn' : 'text-ink' }}">{{ $evaluacionesSinPublicar }}</p>
-                </a>
-                <a href="{{ route('pagos.index') }}" wire:navigate class="rounded-lg border border-border bg-surface p-4 transition hover:border-accent">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Estudiantes bloqueados por deuda</p>
-                    <p class="mt-1 font-display text-2xl {{ $estudiantesBloqueados > 0 ? 'text-danger' : 'text-ink' }}">{{ $estudiantesBloqueados }}</p>
-                </a>
+                <x-dashboard.stat-card label="Estudiantes activos" :value="$estudiantesActivos" icon="user-group" color="accent" />
+                <x-dashboard.stat-card label="Docentes" :value="$docentesActivos" icon="academic-cap" color="accent" />
+                <x-dashboard.stat-card
+                    href="{{ route('evaluaciones.index') }}"
+                    label="Evaluaciones sin publicar"
+                    :value="$evaluacionesSinPublicar"
+                    icon="clipboard-document-list"
+                    :color="$evaluacionesSinPublicar > 0 ? 'warn' : 'accent'"
+                />
+                <x-dashboard.stat-card
+                    href="{{ route('pagos.index') }}"
+                    label="Estudiantes bloqueados por deuda"
+                    :value="$estudiantesBloqueados"
+                    icon="lock-closed"
+                    :color="$estudiantesBloqueados > 0 ? 'danger' : 'accent'"
+                />
             </div>
 
         @endif
 
         @if ($esCoordinador || $esTesoreria || $esAdministrativo)
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <div class="rounded-lg border border-border bg-surface p-4 lg:col-span-2">
+                <div class="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:col-span-2">
                     <h2 class="mb-3 text-sm font-semibold text-ink">Ingresos aprobados — últimas 8 semanas</h2>
                     <x-chart-canvas
                         type="line"
@@ -532,7 +537,7 @@ new #[Layout('layouts.app')] class extends Component
                     />
                 </div>
 
-                <div class="rounded-lg border border-border bg-surface">
+                <div class="rounded-2xl border border-border bg-surface shadow-sm">
                     <div class="border-b border-border px-4 py-3">
                         <h2 class="text-sm font-semibold text-ink">Notificaciones</h2>
                     </div>
@@ -543,12 +548,11 @@ new #[Layout('layouts.app')] class extends Component
                                     'danger' => 'bg-danger/10 text-danger',
                                     'warn' => 'bg-warn/10 text-warn',
                                     'info' => 'bg-info/10 text-info',
-                                    'gold' => 'bg-gold/10 text-gold',
                                     default => 'bg-ink-faint/10 text-ink-faint',
                                 };
                             @endphp
                             <div class="flex items-center gap-3 px-4 py-3 text-sm">
-                                <span class="shrink-0 rounded-full px-2 py-0.5 font-mono text-xs uppercase tracking-wide {{ $estiloPill }}">
+                                <span class="shrink-0 rounded-md px-2 py-1 font-mono text-xs font-semibold uppercase tracking-wide {{ $estiloPill }}">
                                     {{ $notificacion['pill'] }}
                                 </span>
                                 <span class="text-ink-dim">{{ $notificacion['texto'] }}</span>
@@ -562,7 +566,7 @@ new #[Layout('layouts.app')] class extends Component
         @endif
 
         @if ($esCoordinador && count($asistenciaPorGrado) > 0)
-            <div class="rounded-lg border border-border bg-surface p-4">
+            <div class="rounded-2xl border border-border bg-surface p-4 shadow-sm">
                 <h2 class="mb-3 text-sm font-semibold text-ink">Asistencia por grado (% presente/justificado)</h2>
                 <x-chart-canvas
                     type="bar"
@@ -576,21 +580,33 @@ new #[Layout('layouts.app')] class extends Component
 
         @if ($esDocente)
             <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                <a href="{{ route('asistencia.index') }}" wire:navigate class="rounded-lg border border-border bg-surface p-4 transition hover:border-accent">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Mis horarios</p>
-                    <p class="mt-1 font-display text-2xl text-ink">{{ $misHorarios }}</p>
+                <x-dashboard.stat-card
+                    href="{{ route('asistencia.index') }}"
+                    label="Mis horarios"
+                    :value="$misHorarios"
+                    icon="calendar-days"
+                    color="accent"
+                />
+                <x-dashboard.stat-card
+                    href="{{ route('aula-virtual.index') }}"
+                    label="Tareas por calificar"
+                    :value="$tareasPorCalificar"
+                    icon="pencil-square"
+                    :color="$tareasPorCalificar > 0 ? 'warn' : 'accent'"
+                />
+                <a href="{{ route('evaluaciones.index') }}" wire:navigate class="rounded-2xl border border-border bg-surface p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md">
+                    <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                        <x-heroicon-o-clipboard-document-check class="h-5 w-5" />
+                    </span>
+                    <p class="mt-3 font-mono text-xs uppercase tracking-wide text-ink-faint">Evaluaciones</p>
+                    <p class="mt-0.5 font-display text-sm text-accent">Registrar notas →</p>
                 </a>
-                <a href="{{ route('aula-virtual.index') }}" wire:navigate class="rounded-lg border border-border bg-surface p-4 transition hover:border-accent">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Tareas por calificar</p>
-                    <p class="mt-1 font-display text-2xl {{ $tareasPorCalificar > 0 ? 'text-warn' : 'text-ink' }}">{{ $tareasPorCalificar }}</p>
-                </a>
-                <a href="{{ route('evaluaciones.index') }}" wire:navigate class="rounded-lg border border-border bg-surface p-4 transition hover:border-accent">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Evaluaciones</p>
-                    <p class="mt-1 font-display text-sm text-accent">Registrar notas →</p>
-                </a>
-                <a href="{{ route('asistencia.index') }}" wire:navigate class="rounded-lg border border-border bg-surface p-4 transition hover:border-accent">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Asistencia</p>
-                    <p class="mt-1 font-display text-sm text-accent">Tomar asistencia →</p>
+                <a href="{{ route('asistencia.index') }}" wire:navigate class="rounded-2xl border border-border bg-surface p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md">
+                    <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                        <x-heroicon-o-clipboard-document-list class="h-5 w-5" />
+                    </span>
+                    <p class="mt-3 font-mono text-xs uppercase tracking-wide text-ink-faint">Asistencia</p>
+                    <p class="mt-0.5 font-display text-sm text-accent">Tomar asistencia →</p>
                 </a>
             </div>
         @endif
@@ -598,7 +614,7 @@ new #[Layout('layouts.app')] class extends Component
         @if ($esDocente && (count($asistenciaPorCurso) > 0 || array_sum(collect($distribucionNotas)->pluck('valor')->all()) > 0))
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 @if (array_sum(collect($distribucionNotas)->pluck('valor')->all()) > 0)
-                    <div class="rounded-lg border border-border bg-surface p-4">
+                    <div class="rounded-2xl border border-border bg-surface p-4 shadow-sm">
                         <h2 class="mb-3 text-sm font-semibold text-ink">Distribución de notas de mis evaluaciones</h2>
                         <x-chart-canvas
                             type="line"
@@ -610,7 +626,7 @@ new #[Layout('layouts.app')] class extends Component
                 @endif
 
                 @if (count($asistenciaPorCurso) > 0)
-                    <div class="rounded-lg border border-border bg-surface p-4">
+                    <div class="rounded-2xl border border-border bg-surface p-4 shadow-sm">
                         <h2 class="mb-3 text-sm font-semibold text-ink">Asistencia de mis cursos (% presente/justificado)</h2>
                         <x-chart-canvas
                             type="bar"
@@ -626,34 +642,43 @@ new #[Layout('layouts.app')] class extends Component
 
         @if ($esEstudianteConFicha)
             @if ($estoyBloqueado)
-                <div class="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+                <div class="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
                     Tienes cuotas vencidas sin pagar y tu libreta de notas no está disponible.
                     <a href="{{ route('pagos.mi-cuenta') }}" wire:navigate class="underline">Regulariza tu deuda aquí →</a>
                 </div>
             @endif
 
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <a href="{{ route('asistencia.marcar') }}" wire:navigate class="rounded-lg border border-accent/30 bg-accent-soft p-4 transition hover:border-accent">
-                    <p class="font-mono text-xs uppercase tracking-wide text-accent">Marcar asistencia</p>
-                    <p class="mt-1 font-display text-sm text-accent">Con tu DNI →</p>
+                <a href="{{ route('asistencia.marcar') }}" wire:navigate class="rounded-2xl border border-accent/30 bg-accent-soft p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-accent hover:shadow-md">
+                    <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-accent/15 text-accent">
+                        <x-heroicon-o-finger-print class="h-5 w-5" />
+                    </span>
+                    <p class="mt-3 font-mono text-xs uppercase tracking-wide text-accent">Marcar asistencia</p>
+                    <p class="mt-0.5 font-display text-sm text-accent">Con tu DNI →</p>
                 </a>
-                <a href="{{ route('pagos.mi-cuenta') }}" wire:navigate class="rounded-lg border border-border bg-surface p-4 transition hover:border-accent">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Próxima cuota</p>
+                <a href="{{ route('pagos.mi-cuenta') }}" wire:navigate class="rounded-2xl border border-border bg-surface p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md">
+                    <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl {{ $proximaCuota ? 'bg-warn/10 text-warn' : 'bg-ok/10 text-ok' }}">
+                        <x-heroicon-o-banknotes class="h-5 w-5" />
+                    </span>
+                    <p class="mt-3 font-mono text-xs uppercase tracking-wide text-ink-faint">Próxima cuota</p>
                     @if ($proximaCuota)
-                        <p class="mt-1 font-display text-2xl text-ink">S/ {{ number_format((float) $proximaCuota->monto, 2) }}</p>
+                        <p class="mt-0.5 font-display text-2xl text-ink">S/ {{ number_format((float) $proximaCuota->monto, 2) }}</p>
                         <p class="text-xs text-ink-faint">vence {{ $proximaCuota->fecha_vencimiento->format('d/m/Y') }}</p>
                     @else
-                        <p class="mt-1 font-display text-lg text-ok">Al día</p>
+                        <p class="mt-0.5 font-display text-lg text-ok">Al día</p>
                     @endif
                 </a>
-                <a href="{{ route('aula-virtual.index') }}" wire:navigate class="rounded-lg border border-border bg-surface p-4 transition hover:border-accent">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Mis cursos virtuales</p>
-                    <p class="mt-1 font-display text-2xl text-ink">{{ $misCursosVirtuales }}</p>
-                </a>
+                <x-dashboard.stat-card
+                    href="{{ route('aula-virtual.index') }}"
+                    label="Mis cursos virtuales"
+                    :value="$misCursosVirtuales"
+                    icon="play-circle"
+                    color="accent"
+                />
             </div>
 
             @if (array_sum($rendimientoMensualDatos) > 0)
-                <div class="rounded-lg border border-border bg-surface p-4">
+                <div class="rounded-2xl border border-border bg-surface p-4 shadow-sm">
                     <h2 class="mb-3 text-sm font-semibold text-ink">Mi rendimiento — promedio de notas por mes</h2>
                     <x-chart-canvas
                         type="line"
@@ -665,7 +690,7 @@ new #[Layout('layouts.app')] class extends Component
             @endif
 
             @if ($proximosVencimientos->isNotEmpty())
-                <div class="rounded-lg border border-border bg-surface">
+                <div class="rounded-2xl border border-border bg-surface shadow-sm">
                     <div class="border-b border-border px-4 py-3">
                         <h2 class="text-sm font-semibold text-ink">Próximos vencimientos</h2>
                     </div>
@@ -690,7 +715,7 @@ new #[Layout('layouts.app')] class extends Component
             @endif
 
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch">
-                <div class="flex flex-col rounded-lg border border-border bg-surface p-4 lg:h-[30rem]">
+                <div class="flex flex-col rounded-2xl border border-border bg-surface p-4 shadow-sm lg:h-[30rem]">
                     <div class="mb-4 flex shrink-0 items-center justify-between">
                         <h2 class="text-sm font-semibold text-ink">Mis tareas — {{ $this->nombreMesCalendarioTareas() }}</h2>
                         <div class="flex items-center gap-1">
@@ -758,7 +783,7 @@ new #[Layout('layouts.app')] class extends Component
                     @endif
                 </div>
 
-                <div class="flex flex-col rounded-lg border border-border bg-surface p-4 lg:h-[30rem]">
+                <div class="flex flex-col rounded-2xl border border-border bg-surface p-4 shadow-sm lg:h-[30rem]">
                     <h2 class="mb-4 shrink-0 text-sm font-semibold text-ink">Mis evaluaciones</h2>
                     <div class="min-h-0 flex-1 overflow-y-auto">
                         <x-evaluaciones.lista-calificaciones :por-ciclo="$misCalificacionesPorCiclo" :mi-estudiante-id="$miEstudianteId" />
@@ -769,27 +794,15 @@ new #[Layout('layouts.app')] class extends Component
 
         @if ($puedeVerUsuarios)
             <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                <div class="rounded-lg border border-border bg-surface p-4">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Usuarios totales</p>
-                    <p class="mt-1 font-display text-2xl text-ink">{{ $totalUsuarios }}</p>
-                </div>
-                <div class="rounded-lg border border-border bg-surface p-4">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Usuarios activos</p>
-                    <p class="mt-1 font-display text-2xl text-ok">{{ $usuariosActivos }}</p>
-                </div>
-                <div class="rounded-lg border border-border bg-surface p-4">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Roles configurados</p>
-                    <p class="mt-1 font-display text-2xl text-ink">{{ $totalRoles }}</p>
-                </div>
-                <div class="rounded-lg border border-border bg-surface p-4">
-                    <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Permisos totales</p>
-                    <p class="mt-1 font-display text-2xl text-ink">{{ $totalPermisos }}</p>
-                </div>
+                <x-dashboard.stat-card label="Usuarios totales" :value="$totalUsuarios" icon="users" color="accent" />
+                <x-dashboard.stat-card label="Usuarios activos" :value="$usuariosActivos" icon="check-circle" color="ok" />
+                <x-dashboard.stat-card label="Roles configurados" :value="$totalRoles" icon="shield-check" color="accent" />
+                <x-dashboard.stat-card label="Permisos totales" :value="$totalPermisos" icon="key" color="accent" />
             </div>
         @endif
 
         @if ($puedeVerAuditoria)
-            <div class="rounded-lg border border-border bg-surface">
+            <div class="rounded-2xl border border-border bg-surface shadow-sm">
                 <div class="border-b border-border px-4 py-3">
                     <h2 class="text-sm font-semibold text-ink">Actividad reciente</h2>
                 </div>
@@ -825,7 +838,7 @@ new #[Layout('layouts.app')] class extends Component
         @endif
 
         @unless ($puedeVerUsuarios || $puedeVerAuditoria || $esDocente || $esEstudianteConFicha || $esCoordinador || $esTesoreria || $esAdministrativo)
-            <div class="rounded-lg border border-border bg-surface p-6">
+            <div class="rounded-2xl border border-border bg-surface p-6 shadow-sm">
                 <h2 class="font-display text-lg text-ink">Bienvenido a CEBA</h2>
                 <p class="mt-2 max-w-prose text-sm text-ink-dim">
                     Tu panel se irá completando a medida que se habiliten los módulos correspondientes a tu rol.

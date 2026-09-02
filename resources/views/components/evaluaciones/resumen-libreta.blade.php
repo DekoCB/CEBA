@@ -5,7 +5,7 @@
     tanto "Mi libreta" (el estudiante viendo su propia libreta) como la
     libreta de un estudiante específico que consulta el personal.
 --}}
-<div class="overflow-hidden rounded-lg border border-border bg-surface">
+<div class="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
     <table class="min-w-full divide-y divide-border text-sm">
         <thead class="bg-surface-2">
             <tr>

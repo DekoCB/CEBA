@@ -32,7 +32,7 @@
         @endif
     </div>
 
-    <div class="rounded-lg border border-border bg-surface p-6">
+    <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
         <h2 class="text-sm font-semibold text-ink">Datos personales</h2>
         <dl class="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
             <div><dt class="text-ink-faint">Fecha de nacimiento</dt><dd class="text-ink">{{ $estudiante->fecha_nacimiento->format('d/m/Y') }}</dd></div>
@@ -48,7 +48,7 @@
         </dl>
     </div>
 
-    <div class="rounded-lg border border-border bg-surface p-6">
+    <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
         <h2 class="text-sm font-semibold text-ink">Observaciones</h2>
         <p class="mt-1 text-xs text-ink-faint">Acuerdos especiales, documentos pendientes de entregar, casos particulares (ej. examen de ubicación).</p>
         @can('matricula.editar')
@@ -64,7 +64,7 @@
     </div>
 
     @if ($estudiante->es_menor_edad && $estudiante->apoderado)
-        <div class="rounded-lg border border-border bg-surface p-6">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
             <h2 class="text-sm font-semibold text-ink">Apoderado</h2>
             <dl class="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
                 <div><dt class="text-ink-faint">Nombres</dt><dd class="text-ink">{{ $estudiante->apoderado->nombres }}</dd></div>
@@ -76,7 +76,7 @@
     @endif
 
     @if ($estudiante->institucionProcedencia)
-        <div class="rounded-lg border border-border bg-surface p-6">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
             <h2 class="text-sm font-semibold text-ink">Institución de procedencia</h2>
             <dl class="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
                 <div class="sm:col-span-2"><dt class="text-ink-faint">Colegio</dt><dd class="text-ink">{{ $estudiante->institucionProcedencia->nombre_colegio }}</dd></div>
@@ -86,7 +86,7 @@
         </div>
     @endif
 
-    <div class="rounded-lg border border-border bg-surface p-6">
+    <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
         <h2 class="text-sm font-semibold text-ink">Documentos</h2>
         <div class="mt-4 divide-y divide-border">
             @forelse ($documentos as $documento)
@@ -115,7 +115,7 @@
     </div>
 
     @if ($examenes->isNotEmpty())
-        <div class="rounded-lg border border-border bg-surface p-6">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
             <h2 class="text-sm font-semibold text-ink">Exámenes de ubicación</h2>
             <div class="mt-4 divide-y divide-border">
                 @foreach ($examenes as $examen)
@@ -128,7 +128,7 @@
         </div>
     @endif
 
-    <div class="rounded-lg border border-border bg-surface p-6">
+    <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
         <h2 class="text-sm font-semibold text-ink">Matrículas</h2>
         <div class="mt-4 divide-y divide-border">
             @forelse ($matriculas as $matricula)

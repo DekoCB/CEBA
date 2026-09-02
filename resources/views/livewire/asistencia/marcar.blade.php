@@ -72,7 +72,7 @@ new #[Layout('layouts.app')] class extends Component
                 <a href="{{ route('asistencia.index') }}" wire:navigate class="mt-4 inline-block text-sm font-medium text-accent hover:underline">Volver a Asistencia</a>
             </div>
         @elseif ($horarioEnCurso)
-            <div class="rounded-lg border border-border bg-surface p-6">
+            <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
                 <p class="text-xs uppercase tracking-wide text-ink-faint">Clase en curso</p>
                 <p class="mt-1 font-display text-xl text-ink">{{ $horarioEnCurso->curso->nombre }}</p>
                 @php $diaDeHoy = $horarioEnCurso->diaParaFecha(now()); @endphp
@@ -93,7 +93,7 @@ new #[Layout('layouts.app')] class extends Component
                 </form>
             </div>
         @else
-            <div class="rounded-lg border border-border bg-surface p-6 text-center">
+            <div class="rounded-2xl border border-border bg-surface shadow-sm p-6 text-center">
                 <x-heroicon-o-clock class="mx-auto h-10 w-10 text-ink-faint" />
                 <p class="mt-3 font-display text-lg text-ink">No tienes ninguna clase en este momento</p>
                 <p class="mt-1 text-sm text-ink-dim">Podrás marcar tu asistencia desde que empiece tu sesión y hasta que termine.</p>

@@ -419,7 +419,7 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     @if (session('status'))
-        <div class="mb-4 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">{{ session('status') }}</div>
+        <x-alert class="mb-4">{{ session('status') }}</x-alert>
     @endif
 
     {{-- Portada del curso: antes que nada, incluida la "Bienvenida" de cada pestaña. --}}
@@ -465,7 +465,7 @@ new #[Layout('layouts.app')] class extends Component
             <button
                 wire:click="$set('tab', '{{ $valor }}')"
                 @class([
-                    'border-b-2 px-4 py-2 text-sm font-medium transition',
+                    'border-b-2 px-4 py-2 font-display text-sm font-medium transition',
                     'border-accent text-accent' => $tab === $valor,
                     'border-transparent text-ink-faint hover:text-ink' => $tab !== $valor,
                 ])
@@ -485,7 +485,7 @@ new #[Layout('layouts.app')] class extends Component
             @endcan
 
             @if ($mostrarFormMaterial)
-                <form wire:submit="crearMaterial" class="rounded-lg border border-border bg-surface p-4 space-y-3">
+                <form wire:submit="crearMaterial" class="rounded-2xl border border-border bg-surface shadow-sm p-4 space-y-3">
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <x-input-label for="materialTipo" value="Tipo" />
@@ -536,7 +536,7 @@ new #[Layout('layouts.app')] class extends Component
                 @forelse ($materialesPorSemana as $numeroSemana => $materialesDeSemana)
                     <div>
                         <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $numeroSemana === 0 ? 'Bienvenida' : 'Semana '.$numeroSemana }}</p>
-                        <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+                        <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
                             @foreach ($materialesDeSemana as $material)
                                 <div class="flex items-center justify-between px-4 py-3 text-sm">
                                     <div class="flex items-center gap-3">
@@ -574,7 +574,7 @@ new #[Layout('layouts.app')] class extends Component
             @endcan
 
             @if ($mostrarFormGrabacion)
-                <form wire:submit="crearGrabacion" class="rounded-lg border border-border bg-surface p-4 space-y-3">
+                <form wire:submit="crearGrabacion" class="rounded-2xl border border-border bg-surface shadow-sm p-4 space-y-3">
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <x-input-label for="grabacionTipo" value="Tipo" />
@@ -625,7 +625,7 @@ new #[Layout('layouts.app')] class extends Component
                 @forelse ($clasesGrabadasPorSemana as $numeroSemana => $clasesDeSemana)
                     <div>
                         <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $numeroSemana === 0 ? 'Bienvenida' : 'Semana '.$numeroSemana }}</p>
-                        <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+                        <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
                             @foreach ($clasesDeSemana as $claseGrabada)
                                 <div class="flex items-center justify-between px-4 py-3 text-sm">
                                     <div class="flex items-center gap-3">
@@ -663,7 +663,7 @@ new #[Layout('layouts.app')] class extends Component
             @endcan
 
             @if ($mostrarFormTarea)
-                <form wire:submit="crearTarea" class="rounded-lg border border-border bg-surface p-4 space-y-3">
+                <form wire:submit="crearTarea" class="rounded-2xl border border-border bg-surface shadow-sm p-4 space-y-3">
                     <div>
                         <x-input-label for="tareaTitulo" value="Título" />
                         <x-text-input wire:model="tareaTitulo" id="tareaTitulo" class="mt-1 block w-full" />
@@ -704,7 +704,7 @@ new #[Layout('layouts.app')] class extends Component
                 @forelse ($tareasPorSemana as $numeroSemana => $tareasDeSemana)
                     <div>
                         <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $numeroSemana === 0 ? 'Bienvenida' : 'Semana '.$numeroSemana }}</p>
-                        <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+                        <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
                             @foreach ($tareasDeSemana as $tarea)
                                 <a href="{{ route('aula-virtual.tarea', [$curso, $tarea]) }}" wire:navigate class="flex items-center justify-between px-4 py-3 text-sm hover:bg-surface-2">
                                     <div>
@@ -712,7 +712,7 @@ new #[Layout('layouts.app')] class extends Component
                                         <p class="text-xs text-ink-faint">Vence {{ $tarea->fecha_limite->format('d/m/Y H:i') }} · {{ $tarea->puntaje_max }} pts</p>
                                     </div>
                                     @if ($tarea->estaVencida())
-                                        <span class="rounded-full bg-danger/10 px-2 py-0.5 text-xs text-danger">Vencida</span>
+                                        <x-badge variant="danger">Vencida</x-badge>
                                     @endif
                                 </a>
                             @endforeach
@@ -735,7 +735,7 @@ new #[Layout('layouts.app')] class extends Component
             @endcan
 
             @if ($mostrarFormPublicacion)
-                <form wire:submit="crearPublicacion" class="rounded-lg border border-border bg-surface p-4 space-y-3">
+                <form wire:submit="crearPublicacion" class="rounded-2xl border border-border bg-surface shadow-sm p-4 space-y-3">
                     <div>
                         <x-input-label for="publicacionTipo" value="Tipo" />
                         <x-select-input
@@ -760,9 +760,9 @@ new #[Layout('layouts.app')] class extends Component
 
             <div class="space-y-4">
                 @forelse ($publicaciones as $publicacion)
-                    <div class="rounded-lg border border-border bg-surface p-4">
+                    <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
                         <div class="flex items-center justify-between">
-                            <span class="rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent">{{ $publicacion->tipo->label() }}</span>
+                            <x-badge variant="accent">{{ $publicacion->tipo->label() }}</x-badge>
                             <span class="text-xs text-ink-faint">{{ $publicacion->autor->name }} · {{ $publicacion->created_at->diffForHumans() }}</span>
                         </div>
                         <p class="mt-3 text-sm text-ink">{{ $publicacion->contenido }}</p>
@@ -803,7 +803,7 @@ new #[Layout('layouts.app')] class extends Component
             @endcan
 
             @if ($mostrarFormForo)
-                <form wire:submit="crearForo" class="rounded-lg border border-border bg-surface p-4 space-y-3">
+                <form wire:submit="crearForo" class="rounded-2xl border border-border bg-surface shadow-sm p-4 space-y-3">
                     <div>
                         <x-input-label for="foroTitulo" value="Título" />
                         <x-text-input wire:model="foroTitulo" id="foroTitulo" class="mt-1 block w-full" />
@@ -835,7 +835,7 @@ new #[Layout('layouts.app')] class extends Component
                         <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $numeroSemana === 0 ? 'Bienvenida' : 'Semana '.$numeroSemana }}</p>
                         <div class="space-y-4">
                             @foreach ($forosDeSemana as $foro)
-                                <div class="rounded-lg border border-border bg-surface p-4">
+                                <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
                                     <p class="text-ink">{{ $foro->titulo }}</p>
                                     <p class="text-xs text-ink-faint">
                                         {{ $foro->autor->name }} · {{ $foro->respuestas->count() }} {{ Str::plural('respuesta', $foro->respuestas->count()) }}

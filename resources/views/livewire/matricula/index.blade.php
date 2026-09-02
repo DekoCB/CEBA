@@ -73,15 +73,15 @@ new #[Layout('layouts.app')] class extends Component
                 <x-heroicon-o-arrow-up-tray class="h-4 w-4" />
                 Matrícula masiva
             </a>
-            <button type="button" wire:click="$set('mostrarWizard', true)" class="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 font-display text-sm font-medium text-white hover:opacity-90">
+            <x-primary-button type="button" wire:click="$set('mostrarWizard', true)" class="gap-2">
                 <x-heroicon-o-plus class="h-4 w-4" />
                 Nueva matrícula
-            </button>
+            </x-primary-button>
         </div>
     @endcan
 
     @if (session('status'))
-        <div class="mb-4 flex items-center justify-between rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">
+        <x-alert class="mb-4 flex items-center justify-between">
             <span>{{ session('status') }}</span>
             @if (session('estudianteRegistradoId'))
                 <button
@@ -91,7 +91,7 @@ new #[Layout('layouts.app')] class extends Component
                     class="font-medium underline"
                 >Ver ficha →</button>
             @endif
-        </div>
+        </x-alert>
     @endif
 
     @if ($mostrarWizard)
@@ -114,7 +114,7 @@ new #[Layout('layouts.app')] class extends Component
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         @forelse ($estudiantes as $estudiante)
-            <div wire:key="estudiante-{{ $estudiante->id }}" class="relative overflow-hidden rounded-lg border border-border bg-surface transition hover:shadow-md">
+            <div wire:key="estudiante-{{ $estudiante->id }}" class="relative overflow-hidden rounded-2xl border border-border bg-surface shadow-sm transition hover:shadow-md">
                 <span @class([
                     'absolute left-3 top-3 rounded-full px-2 py-0.5 text-xs font-medium',
                     'bg-ok/10 text-ok' => $estudiante->estado->value === 'activo',

@@ -286,7 +286,7 @@ new #[Layout('layouts.app')] class extends Component
             <p class="mb-4 rounded-md bg-accent-soft px-3 py-2 text-sm text-accent">Asistencia guardada.</p>
         @endif
 
-        <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+        <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
             @forelse ($estudiantes as $estudiante)
                 <div class="px-4 py-3 text-sm" x-data="{ estado: @entangle('estados.'.$estudiante->id) }">
                     <div class="flex items-center justify-between gap-4">
@@ -357,12 +357,12 @@ new #[Layout('layouts.app')] class extends Component
         @endif
     @elseif ($miResumen)
         <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div class="rounded-lg border border-border bg-surface p-4">
+            <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
                 <p class="text-xs uppercase tracking-wide text-ink-faint">Asistencia</p>
                 <p class="mt-1 font-display text-3xl text-accent">{{ $miResumen['porcentaje'] }}%</p>
             </div>
             @foreach ($estadosDisponibles as $estado)
-                <div class="rounded-lg border border-border bg-surface p-4">
+                <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
                     <p class="text-xs uppercase tracking-wide text-ink-faint">{{ $estado->label() }}</p>
                     <p class="mt-1 font-display text-2xl text-ink">{{ $miResumen['por_estado'][$estado->value] }}</p>
                 </div>
@@ -374,7 +374,7 @@ new #[Layout('layouts.app')] class extends Component
         </p>
 
         @if ($miResumen['registros']->isNotEmpty())
-            <div class="mt-4 divide-y divide-border rounded-lg border border-border bg-surface">
+            <div class="mt-4 divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
                 @foreach ($miResumen['registros'] as $registro)
                     <div class="px-4 py-3 text-sm">
                         <div class="flex flex-wrap items-center justify-between gap-3">

@@ -295,9 +295,7 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     @if (session('status'))
-        <div class="mb-4 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">
-            {{ session('status') }}
-        </div>
+        <x-alert class="mb-4">{{ session('status') }}</x-alert>
     @endif
 
     <div class="mb-6 flex gap-1 border-b border-border">
@@ -326,14 +324,14 @@ new #[Layout('layouts.app')] class extends Component
 
     {{-- Solicitudes pendientes --}}
     @if ($tab === 'solicitudes' && $puedeEmitir)
-        <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+        <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
             @forelse ($solicitudesPendientes as $solicitud)
                 <div class="px-4 py-4 text-sm">
                     <div class="flex items-start justify-between gap-4">
                         <div>
                             <p class="text-ink">
                                 {{ $solicitud->estudiante?->nombreCompleto() ?? '—' }}
-                                <span class="ml-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs text-ink-dim">{{ $solicitud->tipo->label() }}</span>
+                                <x-badge variant="neutral" class="ml-1">{{ $solicitud->tipo->label() }}</x-badge>
                             </p>
                             <p class="text-xs text-ink-faint">
                                 {{ $solicitud->motivo }}
@@ -384,7 +382,7 @@ new #[Layout('layouts.app')] class extends Component
 
     {{-- Emitir documento directo --}}
     @if ($tab === 'emitir' && $puedeEmitir)
-        <div class="max-w-xl space-y-4 rounded-lg border border-border bg-surface p-6">
+        <div class="max-w-xl space-y-4 rounded-2xl border border-border bg-surface shadow-sm p-6">
             <div>
                 <x-input-label value="Estudiante" />
                 @if ($estudianteSeleccionadoId)
@@ -464,15 +462,15 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
             @endif
 
-            <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+            <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
                 @forelse ($historial as $certificado)
                     <div class="flex flex-wrap items-center justify-between gap-4 px-4 py-3 text-sm">
                         <div>
                             <p class="text-ink">
                                 {{ $certificado->estudiante?->nombreCompleto() ?? '—' }}
-                                <span class="ml-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs text-ink-dim">{{ $certificado->tipo->label() }}</span>
+                                <x-badge variant="neutral" class="ml-1">{{ $certificado->tipo->label() }}</x-badge>
                                 @if ($certificado->es_duplicado)
-                                    <span class="ml-1 rounded-full bg-warn/10 px-2 py-0.5 text-xs text-warn">Duplicado</span>
+                                    <x-badge variant="warn" class="ml-1">Duplicado</x-badge>
                                 @endif
                             </p>
                             <p class="text-xs text-ink-faint">
@@ -518,7 +516,7 @@ new #[Layout('layouts.app')] class extends Component
 
     {{-- Plantilla del documento --}}
     @if ($tab === 'plantilla' && $puedeGestionarPlantilla)
-        <div class="max-w-2xl space-y-4 rounded-lg border border-border bg-surface p-6">
+        <div class="max-w-2xl space-y-4 rounded-2xl border border-border bg-surface shadow-sm p-6">
             <div>
                 <x-input-label for="plantillaTipoSelector" value="Documento" />
                 <x-select-input

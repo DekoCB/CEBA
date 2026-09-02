@@ -108,13 +108,13 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     @if ($tarea->descripcion)
-        <div class="mb-6 rounded-lg border border-border bg-surface p-4 text-sm text-ink-dim">
+        <div class="mb-6 rounded-2xl border border-border bg-surface shadow-sm p-4 text-sm text-ink-dim">
             {{ $tarea->descripcion }}
         </div>
     @endif
 
     @if ($puedeGestionar)
-        <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+        <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
             @forelse ($entregas as $entrega)
                 <div class="flex items-center justify-between gap-4 px-4 py-3 text-sm">
                     <div>
@@ -150,7 +150,7 @@ new #[Layout('layouts.app')] class extends Component
             @endforelse
         </div>
     @else
-        <div class="rounded-lg border border-border bg-surface p-4">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
             @if ($miEntrega && $miEntrega->estado === EstadoEntregaEnum::CALIFICADO)
                 <p class="text-sm text-ink">Tu entrega ya fue calificada.</p>
                 <p class="mt-2 font-display text-3xl text-accent">{{ $miEntrega->nota }} <span class="text-base text-ink-faint">/ {{ $tarea->puntaje_max }}</span></p>

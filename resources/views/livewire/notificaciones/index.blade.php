@@ -115,7 +115,7 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     @if (session('status'))
-        <div class="mb-4 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">{{ session('status') }}</div>
+        <x-alert class="mb-4">{{ session('status') }}</x-alert>
     @endif
 
     <div class="mb-6 flex gap-1 border-b border-border">
@@ -135,7 +135,7 @@ new #[Layout('layouts.app')] class extends Component
 
     {{-- Nueva campaña --}}
     @if ($tab === 'nueva')
-        <div class="max-w-xl space-y-4 rounded-lg border border-border bg-surface p-6">
+        <div class="max-w-xl space-y-4 rounded-2xl border border-border bg-surface shadow-sm p-6">
             <div>
                 <x-input-label for="nombre" value="Nombre de la campaña" />
                 <x-text-input wire:model="nombre" id="nombre" class="mt-1 block w-full" placeholder="Ej. Recordatorio de cuotas — julio" />
@@ -197,7 +197,7 @@ new #[Layout('layouts.app')] class extends Component
 
     {{-- Historial --}}
     @if ($tab === 'historial')
-        <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+        <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
             @forelse ($campanias as $campania)
                 <div class="px-4 py-3 text-sm" wire:key="campania-{{ $campania->id }}">
                     <div class="flex items-center justify-between gap-4">
@@ -243,7 +243,7 @@ new #[Layout('layouts.app')] class extends Component
                 />
             </div>
 
-            <div class="overflow-hidden rounded-lg border border-border bg-surface">
+            <div class="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
                 <table class="min-w-full divide-y divide-border text-sm">
                     <thead class="bg-surface-2">
                         <tr>
@@ -265,7 +265,7 @@ new #[Layout('layouts.app')] class extends Component
                                     <span @class([
                                         'rounded-full px-2 py-0.5 text-xs font-medium',
                                         'bg-info/10 text-info' => $mensaje->tipo->value === 'campania',
-                                        'bg-gold/10 text-gold' => $mensaje->tipo->value === 'recordatorio',
+                                        'bg-warn/10 text-warn' => $mensaje->tipo->value === 'recordatorio',
                                         'bg-accent-soft text-accent' => $mensaje->tipo->value === 'entrante',
                                     ])>{{ $mensaje->tipo->label() }}</span>
                                 </td>

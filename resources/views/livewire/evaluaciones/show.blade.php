@@ -303,7 +303,7 @@ new #[Layout('layouts.app')] class extends Component
                 @endif
 
                 @if ($mostrarFormNueva)
-                    <form wire:submit="crear" class="mb-4 space-y-3 rounded-lg border border-border bg-surface p-4">
+                    <form wire:submit="crear" class="mb-4 space-y-3 rounded-2xl border border-border bg-surface shadow-sm p-4">
                         <div>
                             <x-input-label for="nuevoNombre" value="Nombre" />
                             <x-text-input wire:model="nuevoNombre" id="nuevoNombre" class="mt-1 block w-full" placeholder="Evaluación mensual — julio" />
@@ -343,7 +343,7 @@ new #[Layout('layouts.app')] class extends Component
                     @forelse ($evaluacionesPorSemana as $numeroSemana => $evaluacionesDeSemana)
                         <div>
                             <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $numeroSemana === 0 ? 'Bienvenida' : 'Semana '.$numeroSemana }}</p>
-                            <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+                            <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
                                 @foreach ($evaluacionesDeSemana as $evaluacion)
                                     <button
                                         type="button"
@@ -394,7 +394,7 @@ new #[Layout('layouts.app')] class extends Component
                     @endif
 
                     @if ($puedeRegistrar)
-                        <div class="mb-4 space-y-3 rounded-lg border border-border bg-surface p-4">
+                        <div class="mb-4 space-y-3 rounded-2xl border border-border bg-surface shadow-sm p-4">
                             @unless ($evaluacionSeleccionada->estaPublicada())
                                 <p class="text-xs text-ink-faint">El enlace no será visible para los estudiantes hasta que publiques esta evaluación.</p>
                             @endunless
@@ -429,7 +429,7 @@ new #[Layout('layouts.app')] class extends Component
                         </p>
                     @endif
 
-                    <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+                    <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
                         @forelse ($estudiantes as $estudiante)
                             <div class="flex items-center justify-between gap-4 px-4 py-3 text-sm">
                                 <p class="text-ink">{{ $estudiante->nombreCompleto() }}</p>
@@ -465,7 +465,7 @@ new #[Layout('layouts.app')] class extends Component
                     @endif
 
                     @if ($puedeRegistrar)
-                        <div class="mt-6 rounded-lg border border-border bg-surface p-4">
+                        <div class="mt-6 rounded-2xl border border-border bg-surface shadow-sm p-4">
                             <h3 class="font-display text-sm text-ink">Importar notas desde un archivo</h3>
                             <p class="mt-1 text-xs text-ink-faint">
                                 Para las evaluaciones rendidas por Google Forms: agrega una pregunta de DNI al formulario y exporta las respuestas a CSV o Excel.
@@ -532,7 +532,7 @@ new #[Layout('layouts.app')] class extends Component
     @else
         <div class="space-y-4">
             @if ($evaluacionesConEnlacePorSemana->isNotEmpty())
-                <div class="rounded-lg border border-border bg-surface p-4">
+                <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
                     <p class="text-xs uppercase tracking-wide text-ink-faint">Evaluaciones para rendir</p>
                     <div class="mt-3 space-y-4">
                         @foreach ($evaluacionesConEnlacePorSemana as $numeroSemana => $evaluacionesDeSemana)
@@ -560,12 +560,12 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
             @endif
 
-            <div class="rounded-lg border border-border bg-surface p-4">
+            <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
                 <p class="text-xs uppercase tracking-wide text-ink-faint">Promedio del curso</p>
                 <p class="mt-1 font-display text-3xl text-accent">{{ $promedio !== null ? number_format($promedio, 2) : '—' }}</p>
             </div>
 
-            <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+            <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
                 @forelse ($misCalificaciones as $calificacion)
                     <div class="flex items-center justify-between gap-4 px-4 py-3 text-sm">
                         <div>

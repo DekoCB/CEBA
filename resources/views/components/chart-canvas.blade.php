@@ -3,7 +3,7 @@
     'labels' => [],
     'data' => [],
     'label' => '',
-    'color' => '#DC2626',
+    'color' => '#38BDF8',
     'height' => 220,
 ])
 

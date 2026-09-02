@@ -328,9 +328,7 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     @if (session('status'))
-        <div class="mb-4 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">
-            {{ session('status') }}
-        </div>
+        <x-alert class="mb-4">{{ session('status') }}</x-alert>
     @endif
 
     <div class="mb-6 flex gap-1 border-b border-border">
@@ -367,7 +365,7 @@ new #[Layout('layouts.app')] class extends Component
 
     {{-- Cola de aprobación --}}
     @if ($tab === 'aprobacion' && $puedeAprobar)
-        <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+        <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
             @forelse ($colaAprobacion as $pago)
                 <div class="px-4 py-4 text-sm">
                     <div class="flex items-start justify-between gap-4">
@@ -414,7 +412,7 @@ new #[Layout('layouts.app')] class extends Component
 
     {{-- Registrar pago --}}
     @if ($tab === 'registrar' && $puedeRegistrar)
-        <div class="max-w-xl space-y-4 rounded-lg border border-border bg-surface p-6">
+        <div class="max-w-xl space-y-4 rounded-2xl border border-border bg-surface shadow-sm p-6">
             <div>
                 <x-input-label value="Estudiante" />
                 @if ($estudianteSeleccionadoId)
@@ -522,7 +520,7 @@ new #[Layout('layouts.app')] class extends Component
     @if ($tab === 'planes' && $puedeRegistrar)
         <div class="space-y-4">
             <p class="text-sm text-ink-dim">Matrículas aprobadas sin un plan de pago asignado este ciclo.</p>
-            <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+            <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
                 @forelse ($matriculasSinPlan as $matricula)
                     <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
                         <div>
@@ -574,7 +572,7 @@ new #[Layout('layouts.app')] class extends Component
                 ]"
             />
 
-            <div class="divide-y divide-border rounded-lg border border-border bg-surface">
+            <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
                 @forelse ($historial as $pago)
                     <div class="flex items-center justify-between gap-4 px-4 py-3 text-sm">
                         <div>
@@ -607,7 +605,7 @@ new #[Layout('layouts.app')] class extends Component
     {{-- Cobros --}}
     @if ($tab === 'cobros' && $puedeVerCobros)
         <div class="space-y-4">
-            <div class="flex w-fit gap-1 rounded-lg border border-border bg-surface p-1">
+            <div class="flex w-fit gap-1 rounded-2xl border border-border bg-surface shadow-sm p-1">
                 <button type="button" wire:click="$set('cobrosModo', 'individual')" @class(['rounded-md px-3 py-1.5 text-sm font-medium transition', 'bg-accent text-white' => $cobrosModo === 'individual', 'text-ink-dim hover:text-ink' => $cobrosModo !== 'individual'])>
                     Individual
                 </button>
@@ -618,7 +616,7 @@ new #[Layout('layouts.app')] class extends Component
 
             {{-- Cobros: individual --}}
             @if ($cobrosModo === 'individual')
-                <div class="max-w-xl space-y-4 rounded-lg border border-border bg-surface p-6">
+                <div class="max-w-xl space-y-4 rounded-2xl border border-border bg-surface shadow-sm p-6">
                     <div>
                         <x-input-label value="Estudiante" />
                         @if ($cobrosEstudianteId)
@@ -647,7 +645,7 @@ new #[Layout('layouts.app')] class extends Component
 
                 @if ($cobrosDeudaIndividual)
                     <div class="space-y-4">
-                        <div class="rounded-lg border border-border bg-surface">
+                        <div class="rounded-2xl border border-border bg-surface shadow-sm">
                             <div class="border-b border-border px-4 py-3">
                                 <h3 class="font-display text-sm text-ink">Cuotas pendientes</h3>
                             </div>
@@ -668,7 +666,7 @@ new #[Layout('layouts.app')] class extends Component
                             </div>
                         </div>
 
-                        <div class="rounded-lg border border-border bg-surface">
+                        <div class="rounded-2xl border border-border bg-surface shadow-sm">
                             <div class="border-b border-border px-4 py-3">
                                 <h3 class="font-display text-sm text-ink">Pagos pendientes o rechazados</h3>
                             </div>
@@ -689,7 +687,7 @@ new #[Layout('layouts.app')] class extends Component
                             </div>
                         </div>
 
-                        <div class="rounded-lg border border-border bg-surface">
+                        <div class="rounded-2xl border border-border bg-surface shadow-sm">
                             <div class="border-b border-border px-4 py-3">
                                 <h3 class="font-display text-sm text-ink">Pagos ya cobrados</h3>
                             </div>
@@ -723,7 +721,7 @@ new #[Layout('layouts.app')] class extends Component
 
             {{-- Cobros: grupal --}}
             @if ($cobrosModo === 'grupal')
-                <div class="space-y-4 rounded-lg border border-border bg-surface p-6">
+                <div class="space-y-4 rounded-2xl border border-border bg-surface shadow-sm p-6">
                     <div class="flex flex-wrap items-end gap-4">
                         <div>
                             <x-input-label for="cobrosCicloId" value="Grupo" />
@@ -785,9 +783,9 @@ new #[Layout('layouts.app')] class extends Component
                     </div>
                 </div>
 
-                <div class="overflow-x-auto rounded-lg border border-border bg-surface">
+                <div class="overflow-x-auto rounded-2xl border border-border bg-surface shadow-sm">
                     <table class="w-full text-left text-sm">
-                        <thead class="border-b border-border bg-surface-2">
+                        <thead class="bg-surface-2">
                             <tr>
                                 @foreach ($cobrosReporteGrupal['columnas'] as $columna)
                                     <th class="whitespace-nowrap px-4 py-2 font-mono text-xs uppercase tracking-wide text-ink-faint">{{ $columna }}</th>

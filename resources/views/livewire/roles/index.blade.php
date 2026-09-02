@@ -50,7 +50,7 @@ new #[Layout('layouts.app')] class extends Component
         <p class="mt-1 text-sm text-ink-dim">Activa o desactiva permisos por rol. Los cambios aplican de inmediato.</p>
     </x-slot>
 
-    <div class="overflow-x-auto rounded-lg border border-border bg-surface">
+    <div class="overflow-x-auto rounded-2xl border border-border bg-surface shadow-sm">
         <table class="min-w-full divide-y divide-border text-sm">
             <thead class="bg-surface-2">
                 <tr>

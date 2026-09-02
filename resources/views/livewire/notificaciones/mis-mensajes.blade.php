@@ -33,12 +33,12 @@ new #[Layout('layouts.app')] class extends Component
 
     <div class="space-y-3">
         @forelse ($mensajes as $mensaje)
-            <div class="rounded-lg border border-border bg-surface p-4" wire:key="mensaje-{{ $mensaje->id }}">
+            <div class="rounded-2xl border border-border bg-surface shadow-sm p-4" wire:key="mensaje-{{ $mensaje->id }}">
                 <div class="flex items-center justify-between gap-2">
                     <span @class([
                         'rounded-full px-2 py-0.5 text-xs font-medium',
                         'bg-info/10 text-info' => $mensaje->tipo->value === 'campania',
-                        'bg-gold/10 text-gold' => $mensaje->tipo->value === 'recordatorio',
+                        'bg-warn/10 text-warn' => $mensaje->tipo->value === 'recordatorio',
                     ])>{{ $mensaje->tipo->label() }}</span>
                     <span class="text-xs text-ink-faint">{{ ($mensaje->enviado_en ?? $mensaje->created_at)?->format('d/m/Y H:i') }}</span>
                 </div>

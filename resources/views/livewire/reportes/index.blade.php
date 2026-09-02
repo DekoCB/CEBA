@@ -241,7 +241,7 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     <div class="space-y-4">
-        <div class="flex flex-wrap items-end gap-4 rounded-lg border border-border bg-surface p-4">
+        <div class="flex flex-wrap items-end gap-4 rounded-2xl border border-border bg-surface shadow-sm p-4">
             <div>
                 <x-input-label for="tipo" value="Tipo de reporte" />
                 <x-select-input
@@ -309,9 +309,9 @@ new #[Layout('layouts.app')] class extends Component
             @endif
         </div>
 
-        <div class="overflow-x-auto rounded-lg border border-border bg-surface">
+        <div class="overflow-x-auto rounded-2xl border border-border bg-surface shadow-sm">
             <table class="w-full text-left text-sm">
-                <thead class="border-b border-border bg-surface-2">
+                <thead class="bg-surface-2">
                     <tr>
                         @foreach ($reporte['columnas'] as $columna)
                             <th class="whitespace-nowrap px-4 py-2 font-mono text-xs uppercase tracking-wide text-ink-faint">{{ $columna }}</th>

@@ -9,7 +9,7 @@
     $fechaInicio y $fechaFin.
 --}}
 <div class="space-y-6">
-    <div class="rounded-lg border border-border bg-surface p-6">
+    <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
         <h2 class="text-sm font-semibold text-ink">Periodos de matrícula</h2>
         <p class="mt-1 text-sm text-ink-dim">
             La ventana de matrícula debe caer entre 30 días antes del inicio del ciclo y su fecha de cierre.
@@ -49,7 +49,7 @@
         @endcan
     </div>
 
-    <div class="rounded-lg border border-border bg-surface p-6">
+    <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
         <h2 class="text-sm font-semibold text-ink">Horarios de este ciclo</h2>
         <div class="mt-4 divide-y divide-border">
             @forelse ($horarios as $horario)

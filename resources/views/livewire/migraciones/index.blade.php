@@ -236,21 +236,21 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     @if (session('status'))
-        <div class="mb-4 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">{{ session('status') }}</div>
+        <x-alert class="mb-4">{{ session('status') }}</x-alert>
     @endif
 
-    <div class="mb-6 flex w-fit gap-1 rounded-lg border border-border bg-surface p-1">
-        <button type="button" wire:click="$set('tab', 'individual')" @class(['rounded-md px-3 py-1.5 text-sm font-medium transition', 'bg-accent text-white' => $tab === 'individual', 'text-ink-dim hover:text-ink' => $tab !== 'individual'])>
+    <div class="mb-6 flex gap-1 border-b border-border">
+        <button type="button" wire:click="$set('tab', 'individual')" @class(['border-b-2 px-4 py-2 font-display text-sm font-medium transition', 'border-accent text-accent' => $tab === 'individual', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'individual'])>
             Individual
         </button>
-        <button type="button" wire:click="$set('tab', 'masivo')" @class(['rounded-md px-3 py-1.5 text-sm font-medium transition', 'bg-accent text-white' => $tab === 'masivo', 'text-ink-dim hover:text-ink' => $tab !== 'masivo'])>
+        <button type="button" wire:click="$set('tab', 'masivo')" @class(['border-b-2 px-4 py-2 font-display text-sm font-medium transition', 'border-accent text-accent' => $tab === 'masivo', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'masivo'])>
             Masivo
         </button>
     </div>
 
     {{-- Individual --}}
     @if ($tab === 'individual')
-        <div class="max-w-xl space-y-4 rounded-lg border border-border bg-surface p-6">
+        <div class="max-w-xl space-y-4 rounded-2xl border border-border bg-surface shadow-sm p-6">
             <div>
                 <x-input-label value="Estudiante" />
                 @if ($estudianteId)
@@ -322,7 +322,7 @@ new #[Layout('layouts.app')] class extends Component
     {{-- Masivo --}}
     @if ($tab === 'masivo')
         <div class="space-y-4">
-            <div class="rounded-lg border border-border bg-surface p-6">
+            <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
                 <h2 class="font-display text-sm text-ink">Origen</h2>
                 <p class="mt-1 text-xs text-ink-faint">Primero elige SIAGE — el de 6 meses se filtra por Grupo, el anual no tiene Grupos (no rota).</p>
                 <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -383,7 +383,7 @@ new #[Layout('layouts.app')] class extends Component
             </div>
 
             @if ($siageOrigen !== '' && $gradoOrigenId !== '')
-                <div class="rounded-lg border border-border bg-surface">
+                <div class="rounded-2xl border border-border bg-surface shadow-sm">
                     <div class="border-b border-border px-4 py-3">
                         <h3 class="font-display text-sm text-ink">{{ $cohorteMasiva->count() }} estudiante{{ $cohorteMasiva->count() === 1 ? '' : 's' }} coincide{{ $cohorteMasiva->count() === 1 ? '' : 'n' }}</h3>
                     </div>
@@ -399,7 +399,7 @@ new #[Layout('layouts.app')] class extends Component
                     </div>
                 </div>
 
-                <div class="rounded-lg border border-border bg-surface p-6">
+                <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
                     <h2 class="font-display text-sm text-ink">Destino</h2>
                     <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
@@ -437,12 +437,12 @@ new #[Layout('layouts.app')] class extends Component
             @endif
 
             @if ($resultado)
-                <div class="rounded-lg border border-border bg-surface p-6">
+                <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
                     <h2 class="font-display text-lg text-ink">Resultado</h2>
 
-                    <div class="mt-3 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">
+                    <x-alert class="mt-3">
                         {{ $resultado['exitosos'] }} estudiante{{ $resultado['exitosos'] === 1 ? '' : 's' }} migrado{{ $resultado['exitosos'] === 1 ? '' : 's' }} correctamente.
-                    </div>
+                    </x-alert>
 
                     @if (count($resultado['errores']) > 0)
                         <div class="mt-4">

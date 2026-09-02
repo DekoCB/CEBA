@@ -4,7 +4,7 @@
         wire:navigate
         @class([
             'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-            'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('dashboard'),
+            'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('dashboard'),
             'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('dashboard'),
         ])
     >
@@ -24,7 +24,7 @@
             wire:navigate
             @class([
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('matricula.*'),
+                'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('matricula.*'),
                 'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('matricula.*'),
             ])
         >
@@ -38,7 +38,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('migraciones.*'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('migraciones.*'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('migraciones.*'),
                 ])
             >
@@ -53,7 +53,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('vacaciones.*'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('vacaciones.*'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('vacaciones.*'),
                 ])
             >
@@ -75,7 +75,7 @@
             wire:navigate
             @class([
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('aula-virtual.index', 'aula-virtual.show', 'aula-virtual.tarea'),
+                'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('aula-virtual.index', 'aula-virtual.show', 'aula-virtual.tarea'),
                 'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('aula-virtual.index', 'aula-virtual.show', 'aula-virtual.tarea'),
             ])
         >
@@ -90,7 +90,7 @@
             wire:navigate
             @class([
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('asistencia.*'),
+                'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('asistencia.*'),
                 'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('asistencia.*'),
             ])
         >
@@ -105,7 +105,7 @@
             wire:navigate
             @class([
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('evaluaciones.index', 'evaluaciones.show', 'evaluaciones.libreta'),
+                'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('evaluaciones.index', 'evaluaciones.show', 'evaluaciones.libreta'),
                 'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('evaluaciones.index', 'evaluaciones.show', 'evaluaciones.libreta'),
             ])
         >
@@ -119,7 +119,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('evaluaciones.mi-libreta'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('evaluaciones.mi-libreta'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('evaluaciones.mi-libreta'),
                 ])
             >
@@ -135,7 +135,7 @@
             wire:navigate
             @class([
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('incidencias.*'),
+                'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('incidencias.*'),
                 'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('incidencias.*'),
             ])
         >
@@ -157,7 +157,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('pagos.index'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('pagos.index'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('pagos.index'),
                 ])
             >
@@ -174,7 +174,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('pagos.mi-cuenta'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('pagos.mi-cuenta'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('pagos.mi-cuenta'),
                 ])
             >
@@ -189,7 +189,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('pagos.conceptos'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('pagos.conceptos'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('pagos.conceptos'),
                 ])
             >
@@ -204,7 +204,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('pagos.cuentas-bancarias'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('pagos.cuentas-bancarias'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('pagos.cuentas-bancarias'),
                 ])
             >
@@ -219,7 +219,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('flujo-caja.*'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('flujo-caja.*'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('flujo-caja.*'),
                 ])
             >
@@ -242,7 +242,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('certificados.index'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('certificados.index'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('certificados.index'),
                 ])
             >
@@ -255,7 +255,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('constancias.index'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('constancias.index'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('constancias.index'),
                 ])
             >
@@ -273,7 +273,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('certificados.mis-certificados'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('certificados.mis-certificados'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('certificados.mis-certificados'),
                 ])
             >
@@ -286,7 +286,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('constancias.mis-constancias'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('constancias.mis-constancias'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('constancias.mis-constancias'),
                 ])
             >
@@ -315,7 +315,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs($enlace['prefix']),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs($enlace['prefix']),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs($enlace['prefix']),
                 ])
             >
@@ -332,7 +332,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('reportes.*'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('reportes.*'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('reportes.*'),
                 ])
             >
@@ -348,7 +348,7 @@
             wire:navigate
             @class([
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('historial-estudiante.*'),
+                'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('historial-estudiante.*'),
                 'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('historial-estudiante.*'),
             ])
         >
@@ -364,7 +364,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('notificaciones.*'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('notificaciones.*'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('notificaciones.*'),
                 ])
             >
@@ -381,7 +381,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('notificaciones.mis-mensajes'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('notificaciones.mis-mensajes'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('notificaciones.mis-mensajes'),
                 ])
             >
@@ -404,7 +404,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('usuarios.*'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('usuarios.*'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('usuarios.*'),
                 ])
             >
@@ -419,7 +419,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('roles.*'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('roles.*'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('roles.*'),
                 ])
             >
@@ -434,7 +434,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('auditoria.*'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('auditoria.*'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('auditoria.*'),
                 ])
             >
@@ -449,7 +449,7 @@
                 wire:navigate
                 @class([
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('historial-contrasenas.*'),
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('historial-contrasenas.*'),
                     'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('historial-contrasenas.*'),
                 ])
             >
@@ -459,7 +459,14 @@
         @endcan
     @endcanany
 
-    <div class="mt-auto border-t border-border pt-4">
+    <div class="sidebar-mascot mt-auto shrink-0 border-t border-border pt-4">
+        <div class="dashboard-hero-gradient relative h-20 overflow-hidden rounded-xl px-3 py-3">
+            <x-dashboard.mascot class="pointer-events-none absolute -bottom-4 -right-3 h-16 w-16 rotate-6" />
+            <p class="relative z-10 max-w-[7.5rem] font-display text-xs font-medium leading-snug text-white">¡Vamos, CEBA! 🚀</p>
+        </div>
+    </div>
+
+    <div class="shrink-0 border-t border-border pt-4">
         <button
             type="button"
             x-data

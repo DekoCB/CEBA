@@ -110,7 +110,7 @@ new #[Layout('layouts.app')] class extends Component
                     o comunícate con Cobranza para un compromiso de pago.</p>
             </div>
         @else
-            <div class="rounded-lg border border-border bg-surface p-6">
+            <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
                 @if ($libreta && $libreta->generado_en)
                     <p class="text-sm text-ink-dim">
                         Última libreta generada el {{ $libreta->generado_en->format('d/m/Y H:i') }}.

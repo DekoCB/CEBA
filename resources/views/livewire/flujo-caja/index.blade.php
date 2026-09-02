@@ -116,7 +116,7 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     @if (session('status'))
-        <div class="mb-4 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">{{ session('status') }}</div>
+        <x-alert class="mb-4">{{ session('status') }}</x-alert>
     @endif
 
     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
@@ -131,40 +131,40 @@ new #[Layout('layouts.app')] class extends Component
         </div>
 
         @can('flujo_caja.gestionar')
-            <button wire:click="abrirModal" class="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 font-display text-sm font-medium text-white hover:opacity-90">
+            <x-primary-button type="button" wire:click="abrirModal" class="gap-2">
                 <x-heroicon-o-plus class="h-4 w-4" />
                 Registrar egreso
-            </button>
+            </x-primary-button>
         @endcan
     </div>
 
     <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div class="rounded-lg border border-border bg-surface p-4">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
             <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Ingresos</p>
             <p class="mt-1 font-display text-2xl text-ok">S/ {{ number_format($ingresos, 2) }}</p>
         </div>
-        <div class="rounded-lg border border-border bg-surface p-4">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
             <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Egresos</p>
             <p class="mt-1 font-display text-2xl text-danger">S/ {{ number_format($egresos, 2) }}</p>
         </div>
-        <div class="rounded-lg border border-border bg-surface p-4">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
             <p class="font-mono text-xs uppercase tracking-wide text-ink-faint">Saldo neto</p>
             <p @class(['mt-1 font-display text-2xl', 'text-ok' => $saldoNeto >= 0, 'text-danger' => $saldoNeto < 0])>S/ {{ number_format($saldoNeto, 2) }}</p>
         </div>
     </div>
 
     <div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div class="rounded-lg border border-border bg-surface p-4">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
             <h2 class="mb-3 text-sm font-semibold text-ink">Ingresos — últimos 6 meses</h2>
             <x-chart-canvas type="line" :labels="$labelsIngresos" :data="$datosIngresos" label="Ingresos (S/)" color="#16A34A" />
         </div>
-        <div class="rounded-lg border border-border bg-surface p-4">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
             <h2 class="mb-3 text-sm font-semibold text-ink">Egresos — últimos 6 meses</h2>
             <x-chart-canvas type="line" :labels="$labelsEgresos" :data="$datosEgresos" label="Egresos (S/)" color="#DC2626" />
         </div>
     </div>
 
-    <div class="rounded-lg border border-border bg-surface">
+    <div class="rounded-2xl border border-border bg-surface shadow-sm">
         <div class="border-b border-border px-4 py-3">
             <h2 class="font-display text-sm text-ink">Movimientos de {{ $mesLabel }}</h2>
         </div>
@@ -213,7 +213,7 @@ new #[Layout('layouts.app')] class extends Component
     >
         <div
             x-show="$wire.mostrarModal"
-            class="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-lg"
+            class="w-full max-w-md rounded-2xl border border-border bg-surface-elevated p-6 shadow-lg"
             x-transition:enter="ease-out duration-300"
             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"

@@ -106,12 +106,10 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     @if (session('status'))
-        <div class="rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">
-            {{ session('status') }}
-        </div>
+        <x-alert>{{ session('status') }}</x-alert>
     @endif
 
-    <div class="rounded-lg border border-border bg-surface p-6">
+    <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
         <h2 class="text-sm font-semibold text-ink">Solicitar un documento</h2>
 
         @if ($tieneDeudaCicloActual)
@@ -166,7 +164,7 @@ new #[Layout('layouts.app')] class extends Component
         @endif
     </div>
 
-    <div class="rounded-lg border border-border bg-surface p-6">
+    <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
         <h2 class="text-sm font-semibold text-ink">Mis certificados</h2>
         <div class="mt-4 divide-y divide-border">
             @forelse ($misCertificados as $certificado)
@@ -175,7 +173,7 @@ new #[Layout('layouts.app')] class extends Component
                         <p class="text-ink">
                             {{ $certificado->tipo->label() }} N.° {{ $certificado->numero }}
                             @if ($certificado->es_duplicado)
-                                <span class="ml-1 rounded-full bg-warn/10 px-2 py-0.5 text-xs text-warn">Duplicado</span>
+                                <x-badge variant="warn" class="ml-1">Duplicado</x-badge>
                             @endif
                         </p>
                         <p class="text-xs text-ink-faint">
@@ -202,7 +200,7 @@ new #[Layout('layouts.app')] class extends Component
         </div>
     </div>
 
-    <div class="rounded-lg border border-border bg-surface p-6">
+    <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
         <h2 class="text-sm font-semibold text-ink">Mis libretas de notas</h2>
         <div class="mt-4 divide-y divide-border">
             @forelse ($misLibretas as $libreta)
@@ -228,7 +226,7 @@ new #[Layout('layouts.app')] class extends Component
         </div>
     </div>
 
-    <div class="rounded-lg border border-border bg-surface p-6">
+    <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
         <h2 class="text-sm font-semibold text-ink">Mis solicitudes</h2>
         <div class="mt-4 divide-y divide-border">
             @forelse ($misSolicitudes as $solicitud)

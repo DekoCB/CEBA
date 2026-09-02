@@ -90,7 +90,7 @@ new class extends Component
                     >
                         <x-heroicon-o-bell class="h-5 w-5" />
                         @if ($this->notificacionesNoLeidas > 0)
-                            <span class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 font-display text-[10px] font-bold text-white">
+                            <span class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 font-display text-[10px] font-bold text-white">
                                 {{ $this->notificacionesNoLeidas > 9 ? '9+' : $this->notificacionesNoLeidas }}
                             </span>
                         @endif
@@ -143,8 +143,8 @@ new class extends Component
                         x-on:profile-updated.window="name = $event.detail.name; avatarUrl = $event.detail.avatarUrl"
                         class="inline-flex items-center gap-2 rounded-md py-1.5 pl-1.5 pr-3 font-display text-sm font-medium text-ink-dim transition hover:bg-surface-2 hover:text-ink focus:outline-none"
                     >
-                        <img x-show="avatarUrl" :src="avatarUrl" alt="" class="h-7 w-7 shrink-0 rounded-full object-cover">
-                        <span x-show="! avatarUrl" x-text="iniciales()" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent"></span>
+                        <img x-show="avatarUrl" :src="avatarUrl" alt="" class="h-7 w-7 shrink-0 rounded-full object-cover ring-2 ring-accent/40">
+                        <span x-show="! avatarUrl" x-text="iniciales()" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-white"></span>
                         <span x-text="name"></span>
                         <x-heroicon-o-chevron-down class="h-4 w-4" />
                     </button>
@@ -176,27 +176,27 @@ new class extends Component
         </div>
 
         <div class="max-h-[75vh] space-y-6 overflow-y-auto p-6">
-            <div class="rounded-lg border border-border bg-surface-2 p-4 sm:p-6">
+            <div class="rounded-2xl border border-border bg-surface-2 p-4 sm:p-6">
                 <div class="max-w-xl">
                     <livewire:profile.update-profile-information-form />
                 </div>
             </div>
 
-            <div class="rounded-lg border border-border bg-surface-2 p-4 sm:p-6">
+            <div class="rounded-2xl border border-border bg-surface-2 p-4 sm:p-6">
                 <div class="max-w-xl">
                     <livewire:profile.update-password-form />
                 </div>
             </div>
 
-            <div class="rounded-lg border border-border bg-surface-2 p-4 sm:p-6">
+            <div class="rounded-2xl border border-border bg-surface-2 p-4 sm:p-6">
                 <livewire:profile.active-sessions-form />
             </div>
 
-            <div class="rounded-lg border border-border bg-surface-2 p-4 sm:p-6">
+            <div class="rounded-2xl border border-border bg-surface-2 p-4 sm:p-6">
                 <livewire:profile.two-factor-authentication-form />
             </div>
 
-            <div class="rounded-lg border border-border bg-surface-2 p-4 sm:p-6">
+            <div class="rounded-2xl border border-border bg-surface-2 p-4 sm:p-6">
                 <div class="max-w-xl">
                     <livewire:profile.delete-user-form />
                 </div>

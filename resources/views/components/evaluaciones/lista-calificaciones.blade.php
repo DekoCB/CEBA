@@ -26,7 +26,7 @@
 
             <div class="space-y-4">
                 @foreach ($grupo['cursos'] as $item)
-                    <div class="rounded-lg border border-border bg-surface p-4">
+                    <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
                         <div class="flex items-center justify-between gap-4">
                             <div>
                                 <p class="text-ink">{{ $item['horario']->curso->nombre }}</p>

@@ -106,7 +106,7 @@ new #[Layout('layouts.app')] class extends Component
                 <button
                     type="button"
                     wire:click="seleccionarGrupo({{ $grupo->id }})"
-                    class="block rounded-lg border border-border bg-surface p-4 text-left transition hover:border-accent"
+                    class="block rounded-2xl border border-border bg-surface shadow-sm p-4 text-left transition hover:border-accent"
                 >
                     <p class="font-display text-lg text-ink">{{ $grupo->nombre }}</p>
                     <p class="mt-1 text-sm text-ink-dim">{{ $grupo->fecha_inicio->format('d/m/Y') }} – {{ $grupo->fecha_fin->format('d/m/Y') }}</p>
@@ -131,7 +131,7 @@ new #[Layout('layouts.app')] class extends Component
                 <button
                     type="button"
                     wire:click="seleccionarGrado({{ $grado->id }})"
-                    class="block rounded-lg border border-border bg-surface p-6 text-center transition hover:border-accent"
+                    class="block rounded-2xl border border-border bg-surface shadow-sm p-6 text-center transition hover:border-accent"
                 >
                     <p class="font-display text-lg text-ink">{{ $grado->nombre }}</p>
                 </button>
@@ -147,7 +147,7 @@ new #[Layout('layouts.app')] class extends Component
                     <a
                         href="{{ route('evaluaciones.show', $primero) }}"
                         wire:navigate
-                        class="block rounded-lg border border-border bg-surface p-4 transition hover:border-accent"
+                        class="block rounded-2xl border border-border bg-surface shadow-sm p-4 transition hover:border-accent"
                     >
                         <x-curso-portada :curso="$primero->curso" class="mb-3" />
                         <p class="font-display text-lg text-ink">{{ $primero->curso->nombre }}</p>
@@ -159,7 +159,7 @@ new #[Layout('layouts.app')] class extends Component
                         </p>
                     </a>
                 @else
-                    <div class="rounded-lg border border-border bg-surface p-4">
+                    <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
                         <x-curso-portada :curso="$primero->curso" class="mb-3" />
                         <p class="font-display text-lg text-ink">{{ $primero->curso->nombre }}</p>
 

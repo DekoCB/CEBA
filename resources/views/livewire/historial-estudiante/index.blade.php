@@ -119,7 +119,7 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     <div class="space-y-6">
-        <div class="rounded-lg border border-border bg-surface p-4">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
             <x-input-label for="terminoBusqueda" value="Buscar estudiante" />
 
             @if ($estudianteSeleccionadoId)
@@ -161,17 +161,17 @@ new #[Layout('layouts.app')] class extends Component
         </div>
 
         @if ($estudianteSeleccionadoId === null)
-            <p class="rounded-lg border border-border bg-surface px-4 py-8 text-center text-sm text-ink-faint">
+            <p class="rounded-2xl border border-border bg-surface shadow-sm px-4 py-8 text-center text-sm text-ink-faint">
                 Busca un estudiante por nombre o DNI para ver su historial.
             </p>
         @elseif (! $historial)
-            <p class="rounded-lg border border-border bg-surface px-4 py-8 text-center text-sm text-ink-faint">
+            <p class="rounded-2xl border border-border bg-surface shadow-sm px-4 py-8 text-center text-sm text-ink-faint">
                 No se encontró el estudiante seleccionado.
             </p>
         @else
             @php $estudiante = $historial['estudiante']; @endphp
 
-            <div class="rounded-lg border border-border bg-surface p-6">
+            <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
                 <div class="flex items-center justify-between">
                     <div>
                         <h2 class="font-display text-lg text-ink">{{ $estudiante->nombreCompleto() }}</h2>
@@ -187,7 +187,7 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
             </div>
 
-            <div class="rounded-lg border border-border bg-surface p-6">
+            <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
                 <h2 class="text-sm font-semibold text-ink">Grados cursados</h2>
                 <div class="mt-4 divide-y divide-border">
                     @forelse ($historial['matriculas'] as $matricula)
@@ -216,7 +216,7 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
             </div>
 
-            <div class="rounded-lg border border-border bg-surface p-6">
+            <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
                 <h2 class="text-sm font-semibold text-ink">Situación de pagos</h2>
                 <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div class="rounded-md bg-ok/10 p-3">
@@ -280,7 +280,7 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
             </div>
 
-            <div class="rounded-lg border border-border bg-surface p-6">
+            <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
                 <h2 class="text-sm font-semibold text-ink">Documentos</h2>
 
                 <h3 class="mt-4 text-xs font-semibold uppercase tracking-wide text-ink-faint">Subidos al matricularse</h3>
@@ -322,7 +322,7 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
             </div>
 
-            <div class="rounded-lg border border-border bg-surface p-6">
+            <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
                 <h2 class="text-sm font-semibold text-ink">Exámenes y notas</h2>
 
                 @if ($historial['examenesUbicacion']->isNotEmpty())

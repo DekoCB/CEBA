@@ -90,9 +90,7 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     @if (session('status'))
-        <div class="rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">
-            {{ session('status') }}
-        </div>
+        <x-alert>{{ session('status') }}</x-alert>
     @endif
 
     @if ($estaBloqueado)
@@ -103,7 +101,7 @@ new #[Layout('layouts.app')] class extends Component
     @endif
 
     @foreach ($matriculas as $item)
-        <div class="rounded-lg border border-border bg-surface p-6">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
             <h2 class="text-sm font-semibold text-ink">{{ $item['matricula']->grado->nombre }} · {{ $item['matricula']->ciclo->nombre }}</h2>
 
             @if (! $item['plan'])
@@ -152,7 +150,7 @@ new #[Layout('layouts.app')] class extends Component
         </div>
     @endforeach
 
-    <div class="rounded-lg border border-border bg-surface p-6">
+    <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
         <h2 class="text-sm font-semibold text-ink">Historial de pagos</h2>
         <div class="mt-4 divide-y divide-border">
             @forelse ($misPagos as $pago)
@@ -180,7 +178,7 @@ new #[Layout('layouts.app')] class extends Component
         </div>
     </div>
 
-    <div class="rounded-lg border border-border bg-surface p-6">
+    <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
         <h2 class="text-sm font-semibold text-ink">Cuentas para pagar</h2>
         <div class="mt-4 space-y-3">
             @forelse ($cuentasBancarias as $cuenta)

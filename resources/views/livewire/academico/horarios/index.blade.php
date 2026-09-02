@@ -209,15 +209,15 @@ new #[Layout('layouts.app')] class extends Component
     {{-- Ver academico/grados/index.blade.php: el botón no puede vivir en x-slot="header". --}}
     @can('academico.gestionar')
         <div class="mb-4 flex justify-end">
-            <button wire:click="abrirModal" class="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 font-display text-sm font-medium text-white hover:opacity-90">
+            <x-primary-button type="button" wire:click="abrirModal" class="gap-2">
                 <x-heroicon-o-plus class="h-4 w-4" />
                 Nuevo horario
-            </button>
+            </x-primary-button>
         </div>
     @endcan
 
     @if (session('status'))
-        <div class="mb-4 rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">{{ session('status') }}</div>
+        <x-alert class="mb-4">{{ session('status') }}</x-alert>
     @endif
 
     <div class="mb-4">
@@ -234,7 +234,7 @@ new #[Layout('layouts.app')] class extends Component
             <h2 class="mb-2 font-display text-lg text-ink">{{ $grupoFranja['label'] }}</h2>
 
             @foreach ($grupoFranja['porGrado'] as $nombreGrado => $horariosDelGrado)
-                <div class="mb-4 overflow-hidden rounded-lg border border-border bg-surface">
+                <div class="mb-4 overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
                     <div class="border-b border-border bg-surface-2 px-4 py-2 font-display text-sm text-ink">{{ $nombreGrado }}</div>
                     <table class="min-w-full divide-y divide-border text-sm">
                         <thead class="bg-surface-2">
@@ -260,7 +260,7 @@ new #[Layout('layouts.app')] class extends Component
             @endforeach
         </div>
     @empty
-        <div class="rounded-lg border border-border bg-surface px-4 py-8 text-center text-sm text-ink-faint">
+        <div class="rounded-2xl border border-border bg-surface shadow-sm px-4 py-8 text-center text-sm text-ink-faint">
             {{ $cicloFiltro ? 'Este ciclo no tiene horarios todavía.' : 'Selecciona un ciclo para ver sus horarios.' }}
         </div>
     @endforelse
@@ -279,7 +279,7 @@ new #[Layout('layouts.app')] class extends Component
     >
         <div
             x-show="$wire.mostrarModal"
-            class="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-lg border border-border bg-surface p-6 shadow-lg"
+            class="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-border bg-surface-elevated p-6 shadow-lg"
             x-transition:enter="ease-out duration-300"
             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"

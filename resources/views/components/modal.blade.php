@@ -67,7 +67,7 @@ $maxWidth = [
     <div class="flex min-h-full items-center justify-center px-4 py-6 sm:px-0">
         <div
             x-show="show"
-            class="w-full bg-surface rounded-lg overflow-hidden shadow-xl transform transition-all {{ $maxWidth }}"
+            class="w-full bg-surface-elevated rounded-2xl overflow-hidden shadow-xl transform transition-all {{ $maxWidth }}"
             @if ($tv)
                 x-transition:enter="tv-on"
                 x-transition:leave="tv-off"
