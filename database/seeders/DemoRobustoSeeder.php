@@ -585,7 +585,7 @@ class DemoRobustoSeeder extends Seeder
 
     private function pagarCuota(PagoService $service, Estudiante $estudiante, ConceptoPago $concepto, Cuota $cuota, ?int $registradoPor, ?int $aprobadoPor): void
     {
-        $pago = $service->registrar($estudiante, $concepto, (float) $cuota->monto, MetodoPagoEnum::YAPE->value, $cuota, null, $registradoPor);
+        $pago = $service->registrar($estudiante, $concepto, [['monto' => (float) $cuota->monto, 'metodo' => MetodoPagoEnum::YAPE->value]], $cuota, null, $registradoPor);
 
         if ($aprobadoPor) {
             $service->aprobar($pago, $aprobadoPor);
@@ -598,7 +598,7 @@ class DemoRobustoSeeder extends Seeder
             return;
         }
 
-        $service->registrar($estudiante, $concepto, (float) $cuota->monto, MetodoPagoEnum::TRANSFERENCIA->value, $cuota, null, $registradoPor);
+        $service->registrar($estudiante, $concepto, [['monto' => (float) $cuota->monto, 'metodo' => MetodoPagoEnum::TRANSFERENCIA->value]], $cuota, null, $registradoPor);
     }
 
     private function rechazarPago(PagoService $service, Estudiante $estudiante, ConceptoPago $concepto, ?Cuota $cuota, ?int $registradoPor, ?int $aprobadoPor): void
@@ -607,7 +607,7 @@ class DemoRobustoSeeder extends Seeder
             return;
         }
 
-        $pago = $service->registrar($estudiante, $concepto, (float) $cuota->monto, MetodoPagoEnum::EFECTIVO->value, $cuota, null, $registradoPor);
+        $pago = $service->registrar($estudiante, $concepto, [['monto' => (float) $cuota->monto, 'metodo' => MetodoPagoEnum::EFECTIVO->value]], $cuota, null, $registradoPor);
         $service->rechazar($pago, $aprobadoPor, 'El comprobante no corresponde al monto de la cuota.');
     }
 

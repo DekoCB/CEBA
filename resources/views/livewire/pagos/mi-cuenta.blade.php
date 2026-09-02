@@ -36,7 +36,7 @@ new #[Layout('layouts.app')] class extends Component
         abort_unless($estudiante !== null, 403);
 
         $this->validate([
-            "metodoPorCuota.{$cuotaId}" => 'required|string|in:'.implode(',', array_column(MetodoPagoEnum::cases(), 'value')),
+            "metodoPorCuota.{$cuotaId}" => 'required|string|in:'.implode(',', array_column(MetodoPagoEnum::seleccionables(), 'value')),
             "comprobantePorCuota.{$cuotaId}" => 'required|file|max:5120',
         ]);
 
@@ -49,8 +49,7 @@ new #[Layout('layouts.app')] class extends Component
         $service->registrar(
             $estudiante,
             $concepto,
-            (float) $cuota->monto,
-            $this->metodoPorCuota[$cuotaId],
+            [['monto' => (float) $cuota->monto, 'metodo' => $this->metodoPorCuota[$cuotaId]]],
             $cuota,
             $this->comprobantePorCuota[$cuotaId],
             null,
@@ -138,7 +137,7 @@ new #[Layout('layouts.app')] class extends Component
                                         wire:model="metodoPorCuota.{{ $cuota->id }}"
                                         placeholder="Método…"
                                         class="text-xs"
-                                        :options="collect(\App\Modules\Pagos\Enums\MetodoPagoEnum::cases())->mapWithKeys(fn ($metodoOpcion) => [$metodoOpcion->value => $metodoOpcion->label()])"
+                                        :options="collect(\App\Modules\Pagos\Enums\MetodoPagoEnum::seleccionables())->mapWithKeys(fn ($metodoOpcion) => [$metodoOpcion->value => $metodoOpcion->label()])"
                                     />
                                     <input wire:model="comprobantePorCuota.{{ $cuota->id }}" type="file" class="text-xs text-ink-dim file:mr-2 file:rounded-md file:border-0 file:bg-surface-2 file:px-2 file:py-1 file:text-xs file:text-ink">
                                     <button type="submit" class="text-xs font-medium text-accent hover:underline">Enviar comprobante</button>

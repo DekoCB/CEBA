@@ -10,9 +10,11 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Pagos\Database\Factories\PagoFactory;
 use App\Modules\Pagos\Enums\EstadoPagoEnum;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Spatie\MediaLibrary\HasMedia;
@@ -33,6 +35,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property-read Estudiante|null $estudiante
  * @property-read ConceptoPago $concepto
  * @property-read Cuota|null $cuota
+ * @property-read Collection<int, PagoParte> $partes
  */
 class Pago extends Model implements HasMedia
 {
@@ -108,5 +111,18 @@ class Pago extends Model implements HasMedia
     public function recibo(): HasOne
     {
         return $this->hasOne(Recibo::class);
+    }
+
+    /**
+     * Los montos+métodos con los que se cubrió este pago -- un pago
+     * "simple" tiene una sola parte; uno cubierto con más de un medio a la
+     * vez (ej. efectivo + Yape) tiene varias, y su suma siempre es igual a
+     * $monto. Ver PagoService::registrar().
+     *
+     * @return HasMany<PagoParte, $this>
+     */
+    public function partes(): HasMany
+    {
+        return $this->hasMany(PagoParte::class);
     }
 }

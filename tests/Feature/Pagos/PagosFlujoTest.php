@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use App\Modules\Pagos\Enums\NumeroCuotasEnum;
 use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Pago;
@@ -43,8 +44,8 @@ class PagosFlujoTest extends TestCase
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
             ->set('conceptoId', (string) $concepto->id)
-            ->set('monto', '150')
-            ->set('metodo', 'yape')
+            ->set('partes.0.monto', '150')
+            ->set('partes.0.metodo', 'yape')
             ->call('registrarPago')
             ->assertHasNoErrors();
 
@@ -81,8 +82,8 @@ class PagosFlujoTest extends TestCase
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
             ->set('conceptoId', (string) $concepto->id)
-            ->set('monto', '25')
-            ->set('metodo', 'efectivo')
+            ->set('partes.0.monto', '25')
+            ->set('partes.0.metodo', 'efectivo')
             ->call('registrarPago')
             ->assertHasErrors('detalle');
 
@@ -92,8 +93,8 @@ class PagosFlujoTest extends TestCase
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
             ->set('conceptoId', (string) $concepto->id)
             ->set('detalle', 'Duplicado de constancia de matrícula')
-            ->set('monto', '25')
-            ->set('metodo', 'efectivo')
+            ->set('partes.0.monto', '25')
+            ->set('partes.0.metodo', 'efectivo')
             ->call('registrarPago')
             ->assertHasNoErrors();
 
@@ -101,6 +102,64 @@ class PagosFlujoTest extends TestCase
             'estudiante_id' => $estudiante->id,
             'detalle' => 'Duplicado de constancia de matrícula',
         ]);
+    }
+
+    public function test_registrar_un_pago_en_varias_partes_con_distinto_metodo_queda_como_un_solo_registro(): void
+    {
+        $administrativo = User::factory()->create();
+        $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+
+        $this->actingAs($administrativo);
+
+        Volt::test('pagos.index')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->set('conceptoId', (string) $concepto->id)
+            ->set('partes.0.monto', '60')
+            ->set('partes.0.metodo', 'efectivo')
+            ->call('agregarParte')
+            ->set('partes.1.monto', '40')
+            ->set('partes.1.metodo', 'yape')
+            ->call('registrarPago')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseCount('pagos', 1);
+        $pago = Pago::query()->where('estudiante_id', $estudiante->id)->firstOrFail();
+        $this->assertSame('100.00', $pago->monto);
+        $this->assertSame(MetodoPagoEnum::MIXTO, $pago->metodo);
+        $this->assertDatabaseCount('pago_partes', 2);
+        $this->assertDatabaseHas('pago_partes', ['pago_id' => $pago->id, 'monto' => 60, 'metodo' => 'efectivo']);
+        $this->assertDatabaseHas('pago_partes', ['pago_id' => $pago->id, 'monto' => 40, 'metodo' => 'yape']);
+    }
+
+    public function test_quitar_una_parte_del_formulario_de_registrar_pago(): void
+    {
+        $administrativo = User::factory()->create();
+        $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+
+        $this->actingAs($administrativo);
+
+        Volt::test('pagos.index')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->set('conceptoId', (string) $concepto->id)
+            ->set('partes.0.monto', '60')
+            ->set('partes.0.metodo', 'efectivo')
+            ->call('agregarParte')
+            ->set('partes.1.monto', '40')
+            ->set('partes.1.metodo', 'yape')
+            ->call('quitarParte', 1)
+            ->call('registrarPago')
+            ->assertHasNoErrors();
+
+        $pago = Pago::query()->where('estudiante_id', $estudiante->id)->firstOrFail();
+        $this->assertSame('60.00', $pago->monto);
+        $this->assertSame(MetodoPagoEnum::EFECTIVO, $pago->metodo);
+        $this->assertDatabaseCount('pago_partes', 1);
     }
 
     public function test_tesoreria_rechaza_un_pago_con_motivo(): void
@@ -111,7 +170,7 @@ class PagosFlujoTest extends TestCase
         $estudiante = Estudiante::factory()->create();
         $concepto = ConceptoPago::factory()->create();
         $pago = $this->app->make(PagoService::class)
-            ->registrar($estudiante, $concepto, 100.0, 'efectivo', null, null, null);
+            ->registrar($estudiante, $concepto, [['monto' => 100.0, 'metodo' => 'efectivo']], null, null, null);
 
         $this->actingAs($tesoreria);
 
@@ -135,7 +194,7 @@ class PagosFlujoTest extends TestCase
         $estudiante = Estudiante::factory()->create();
         $concepto = ConceptoPago::factory()->create();
         $pago = $this->app->make(PagoService::class)
-            ->registrar($estudiante, $concepto, 100.0, 'efectivo', null, null, null);
+            ->registrar($estudiante, $concepto, [['monto' => 100.0, 'metodo' => 'efectivo']], null, null, null);
 
         $this->actingAs($administrativo);
 

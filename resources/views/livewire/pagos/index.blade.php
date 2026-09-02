@@ -40,9 +40,14 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $detalle = '';
 
-    public string $monto = '';
-
-    public string $metodo = '';
+    // Un pago puede cubrirse con más de un medio a la vez (ej. una parte en
+    // efectivo y otra por Yape): cada elemento es un monto+método
+    // independiente, pero todas juntas quedan como un solo registro de
+    // Pago (ver PagoService::registrar()).
+    /** @var array<int, array{monto: string, metodo: string}> */
+    public array $partes = [
+        ['monto' => '', 'metodo' => ''],
+    ];
 
     public $comprobante = null;
 
@@ -126,6 +131,21 @@ new #[Layout('layouts.app')] class extends Component
         $this->cobrosCursoId = '';
     }
 
+    public function agregarParte(): void
+    {
+        $this->partes[] = ['monto' => '', 'metodo' => ''];
+    }
+
+    public function quitarParte(int $indice): void
+    {
+        if (count($this->partes) <= 1) {
+            return;
+        }
+
+        unset($this->partes[$indice]);
+        $this->partes = array_values($this->partes);
+    }
+
     public function registrarPago(PagoService $service): void
     {
         abort_unless(Auth::user()->hasAnyPermission(['pagos.registrar', 'pagos.gestionar']), 403);
@@ -133,8 +153,9 @@ new #[Layout('layouts.app')] class extends Component
         $this->validate([
             'estudianteSeleccionadoId' => 'required|integer',
             'conceptoId' => 'required|integer|exists:conceptos_pago,id',
-            'monto' => 'required|numeric|min:0.01',
-            'metodo' => 'required|string|in:'.implode(',', array_column(MetodoPagoEnum::cases(), 'value')),
+            'partes' => 'required|array|min:1',
+            'partes.*.monto' => 'required|numeric|min:0.01',
+            'partes.*.metodo' => 'required|string|in:'.implode(',', array_column(MetodoPagoEnum::seleccionables(), 'value')),
             'comprobante' => 'nullable|file|max:5120',
         ]);
 
@@ -147,9 +168,14 @@ new #[Layout('layouts.app')] class extends Component
             return;
         }
 
-        $service->registrar($estudiante, $concepto, (float) $this->monto, $this->metodo, null, $this->comprobante, Auth::id(), $this->detalle ?: null);
+        $partes = collect($this->partes)->map(fn (array $parte) => [
+            'monto' => (float) $parte['monto'],
+            'metodo' => $parte['metodo'],
+        ])->all();
 
-        $this->reset(['estudianteSeleccionadoId', 'estudianteSeleccionadoNombre', 'conceptoId', 'detalle', 'monto', 'metodo', 'comprobante']);
+        $service->registrar($estudiante, $concepto, $partes, null, $this->comprobante, Auth::id(), $this->detalle ?: null);
+
+        $this->reset(['estudianteSeleccionadoId', 'estudianteSeleccionadoNombre', 'conceptoId', 'detalle', 'partes', 'comprobante']);
         session()->flash('status', 'Pago registrado. Queda pendiente de aprobación de Tesorería.');
     }
 
@@ -282,7 +308,8 @@ new #[Layout('layouts.app')] class extends Component
             'conceptosActivos' => $conceptosActivos,
             'mostrarDetalleLibre' => $conceptosActivos->firstWhere('id', (int) $this->conceptoId)?->tipo === TipoConceptoEnum::OTRO,
             'numerosCuotas' => NumeroCuotasEnum::cases(),
-            'metodosPago' => MetodoPagoEnum::cases(),
+            'metodosPago' => MetodoPagoEnum::seleccionables(),
+            'totalPartes' => collect($this->partes)->sum(fn (array $parte) => (float) ($parte['monto'] ?: 0)),
             'cobrosResultadosBusqueda' => $cobrosResultadosBusqueda,
             'cobrosDeudaIndividual' => $cobrosDeudaIndividual,
             'cobrosReporteGrupal' => $cobrosReporteGrupal,
@@ -353,6 +380,11 @@ new #[Layout('layouts.app')] class extends Component
                                 @endif
                                 · {{ $pago->metodo->label() }} · {{ $pago->fecha_pago->format('d/m/Y') }}
                             </p>
+                            @if ($pago->partes->count() > 1)
+                                <p class="text-xs text-ink-faint">
+                                    {{ $pago->partes->map(fn ($parte) => 'S/ '.number_format((float) $parte->monto, 2).' '.$parte->metodo->label())->implode(' + ') }}
+                                </p>
+                            @endif
                             @if ($pago->getFirstMedia('comprobante'))
                                 <a href="{{ $pago->getFirstMediaUrl('comprobante') }}" target="_blank" class="mt-1 inline-block text-xs font-medium text-accent hover:underline">Ver comprobante</a>
                             @endif
@@ -428,22 +460,50 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
             @endif
 
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <x-input-label for="monto" value="Monto (S/)" />
-                    <x-text-input wire:model="monto" id="monto" type="number" step="0.01" min="0" class="mt-1 block w-full" />
-                    <x-input-error :messages="$errors->get('monto')" class="mt-1" />
+            <div>
+                <div class="flex items-center justify-between">
+                    <x-input-label value="Monto y método" />
+                    {{--
+                        wire:loading.attr="disabled" (sin wire:target, así
+                        que aplica mientras CUALQUIER petición del
+                        componente esté en curso) evita que se dispare esta
+                        acción mientras otra sigue en vuelo -- elegir un
+                        select propio (x-select-input, que llama a $wire.set
+                        directo desde Alpine) y hacer clic aquí casi
+                        seguido puede mandar dos peticiones que no se
+                        serializan entre sí, y la que responde después
+                        "revierte" visualmente a la parte recién agregada
+                        aunque sí quedó guardada en el servidor.
+                    --}}
+                    <button type="button" wire:click="agregarParte" wire:loading.attr="disabled" class="text-xs font-medium text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50">+ Agregar parte</button>
                 </div>
-                <div>
-                    <x-input-label for="metodo" value="Método" />
-                    <x-select-input
-                        wire:model="metodo"
-                        id="metodo"
-                        class="mt-1 block w-full"
-                        :options="collect($metodosPago)->mapWithKeys(fn ($metodoOpcion) => [$metodoOpcion->value => $metodoOpcion->label()])"
-                    />
-                    <x-input-error :messages="$errors->get('metodo')" class="mt-1" />
+                <p class="mt-1 text-xs text-ink-faint">Si paga con más de un medio (ej. una parte en efectivo y otra por Yape), agrega una parte por cada uno — queda como un solo registro.</p>
+
+                <div class="mt-2 space-y-2" wire:key="partes-contenedor-{{ count($partes) }}">
+                    @foreach ($partes as $indice => $parte)
+                        <div class="flex items-start gap-2" wire:key="parte-{{ $indice }}">
+                            <div class="flex-1">
+                                <x-text-input wire:model.live.debounce.400ms="partes.{{ $indice }}.monto" type="number" step="0.01" min="0" placeholder="Monto (S/)" class="block w-full" />
+                                <x-input-error :messages="$errors->get('partes.'.$indice.'.monto')" class="mt-1" />
+                            </div>
+                            <div class="flex-1">
+                                <x-select-input
+                                    wire:model.live="partes.{{ $indice }}.metodo"
+                                    placeholder="Método…"
+                                    class="block w-full"
+                                    :options="collect($metodosPago)->mapWithKeys(fn ($metodoOpcion) => [$metodoOpcion->value => $metodoOpcion->label()])"
+                                />
+                                <x-input-error :messages="$errors->get('partes.'.$indice.'.metodo')" class="mt-1" />
+                            </div>
+                            @if (count($partes) > 1)
+                                <button type="button" wire:click="quitarParte({{ $indice }})" wire:loading.attr="disabled" class="mt-2 shrink-0 text-xs text-danger hover:underline disabled:cursor-not-allowed disabled:opacity-50">Quitar</button>
+                            @endif
+                        </div>
+                    @endforeach
                 </div>
+
+                <x-input-error :messages="$errors->get('partes')" class="mt-1" />
+                <p class="mt-2 text-right text-sm font-display text-ink">Total: S/ {{ number_format($totalPartes, 2) }}</p>
             </div>
 
             <div>

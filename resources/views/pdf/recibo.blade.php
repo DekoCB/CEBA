@@ -35,6 +35,18 @@
         <tr><td class="etiqueta">Fecha de aprobación</td><td>{{ $pago->fecha_aprobacion?->format('d/m/Y H:i') }}</td></tr>
     </table>
 
+    @if ($pago->partes->count() > 1)
+        <div class="seccion">Partes del pago</div>
+        <table>
+            @foreach ($pago->partes as $parte)
+                <tr>
+                    <td class="etiqueta">{{ $parte->metodo->label() }}</td>
+                    <td>S/ {{ number_format((float) $parte->monto, 2) }}</td>
+                </tr>
+            @endforeach
+        </table>
+    @endif
+
     <p class="monto">Monto pagado: S/ {{ number_format((float) $pago->monto, 2) }}</p>
 
     <p class="codigo">Recibo N.° {{ $recibo->numero_recibo }} · emitido el {{ $recibo->emitido_en->format('d/m/Y H:i') }}</p>
