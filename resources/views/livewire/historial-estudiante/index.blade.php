@@ -202,6 +202,40 @@ new #[Layout('layouts.app')] class extends Component
                         @endforeach
                     </div>
                 @endif
+
+                <h3 class="mt-4 text-xs font-semibold uppercase tracking-wide text-ink-faint">Detalle de pagos</h3>
+                <div class="mt-2 divide-y divide-border">
+                    @forelse ($historial['pagos'] as $pago)
+                        <div class="flex items-center justify-between gap-4 py-3 text-sm">
+                            <div>
+                                <p class="text-ink">{{ $pago->concepto->nombre }}{{ $pago->detalle ? " — {$pago->detalle}" : '' }}</p>
+                                <p class="text-xs text-ink-faint">{{ $pago->fecha_pago->format('d/m/Y') }} · {{ $pago->metodo->label() }}</p>
+                                @if ($pago->partes->count() > 1)
+                                    <p class="text-xs text-ink-faint">
+                                        {{ $pago->partes->map(fn ($parte) => 'S/ '.number_format((float) $parte->monto, 2).' '.$parte->metodo->label())->implode(' + ') }}
+                                    </p>
+                                @endif
+                                @if ($pago->estado->value === 'rechazado' && $pago->motivo_rechazo)
+                                    <p class="text-xs text-danger">{{ $pago->motivo_rechazo }}</p>
+                                @endif
+                            </div>
+                            <div class="text-right">
+                                <p class="font-display text-ink">S/ {{ number_format((float) $pago->monto, 2) }}</p>
+                                <span @class([
+                                    'rounded-full px-2 py-0.5 text-xs',
+                                    'bg-ok/10 text-ok' => $pago->estado->value === 'aprobado',
+                                    'bg-warn/10 text-warn' => $pago->estado->value === 'pendiente',
+                                    'bg-danger/10 text-danger' => $pago->estado->value === 'rechazado',
+                                ])>{{ $pago->estado->label() }}</span>
+                                @if ($pago->recibo && $pago->recibo->getFirstMedia('pdf'))
+                                    <a href="{{ $pago->recibo->getFirstMediaUrl('pdf') }}" target="_blank" class="block text-xs font-medium text-accent hover:underline">Recibo</a>
+                                @endif
+                            </div>
+                        </div>
+                    @empty
+                        <p class="py-4 text-sm text-ink-faint">Sin pagos registrados.</p>
+                    @endforelse
+                </div>
             </div>
 
             <div class="rounded-lg border border-border bg-surface p-6">

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Migraciones;
 
+use App\Modules\Academico\Enums\ModalidadCicloEnum;
 use App\Modules\Academico\Enums\TipoCicloEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
@@ -100,7 +101,7 @@ class MigracionServiceTest extends TestCase
         $estudianteC = $this->estudianteMatriculado($cicloOrigen, $gradoOrigen);
         $this->app->make(MatriculaService::class)->matricular($estudianteC, new RegistrarMatriculaData($cicloDestino->id, $gradoDestino->id, null, null));
 
-        $origenes = $this->service()->matriculasVigentes($cicloOrigen->id, null, $gradoOrigen->id);
+        $origenes = $this->service()->matriculasVigentes(null, $cicloOrigen->id, null, $gradoOrigen->id);
         $this->assertCount(3, $origenes);
 
         $resultado = $this->service()->migrarMasivo($origenes, $cicloDestino->id, $gradoDestino->id, null);
@@ -119,10 +120,33 @@ class MigracionServiceTest extends TestCase
         $this->estudianteMatriculado($ciclo, $gradoSeccionA);
         $this->estudianteMatriculado($ciclo, $gradoSeccionB);
 
-        $this->assertCount(1, $this->service()->matriculasVigentes($ciclo->id, 'A', null));
-        $this->assertCount(1, $this->service()->matriculasVigentes($ciclo->id, 'B', null));
-        $this->assertCount(2, $this->service()->matriculasVigentes($ciclo->id, null, null));
-        $this->assertCount(1, $this->service()->matriculasVigentes($ciclo->id, null, $gradoSeccionA->id));
+        $this->assertCount(1, $this->service()->matriculasVigentes(null, $ciclo->id, 'A', null));
+        $this->assertCount(1, $this->service()->matriculasVigentes(null, $ciclo->id, 'B', null));
+        $this->assertCount(2, $this->service()->matriculasVigentes(null, $ciclo->id, null, null));
+        $this->assertCount(1, $this->service()->matriculasVigentes(null, $ciclo->id, null, $gradoSeccionA->id));
+    }
+
+    public function test_matriculas_vigentes_filtra_por_modalidad_siage(): void
+    {
+        $grado = Grado::factory()->create(['orden' => 1]);
+        $cicloSeisMeses = $this->cicloConPeriodoAbierto();
+        $cicloAnual = $this->cicloConPeriodoAbierto(['modalidad' => ModalidadCicloEnum::ANUAL, 'tipo' => null]);
+
+        $this->estudianteMatriculado($cicloSeisMeses, $grado);
+        $this->estudianteMatriculado($cicloAnual, $grado);
+
+        $this->assertCount(1, $this->service()->matriculasVigentes(ModalidadCicloEnum::SEIS_MESES, null, null, $grado->id));
+        $this->assertCount(1, $this->service()->matriculasVigentes(ModalidadCicloEnum::ANUAL, null, null, $grado->id));
+        $this->assertCount(2, $this->service()->matriculasVigentes(null, null, null, $grado->id));
+    }
+
+    public function test_ciclo_anual_vigente_devuelve_el_mas_reciente(): void
+    {
+        Ciclo::factory()->anual()->create(['anio' => 2025, 'fecha_inicio' => '2025-03-01', 'fecha_fin' => '2025-12-20']);
+        $masReciente = Ciclo::factory()->anual()->create(['anio' => 2027, 'fecha_inicio' => '2027-03-01', 'fecha_fin' => '2027-12-20']);
+        Ciclo::factory()->anual()->create(['anio' => 2026, 'fecha_inicio' => '2026-03-01', 'fecha_fin' => '2026-12-20']);
+
+        $this->assertSame($masReciente->id, $this->service()->cicloAnualVigente()->id);
     }
 
     public function test_grado_siguiente_devuelve_el_de_orden_inmediato_superior(): void

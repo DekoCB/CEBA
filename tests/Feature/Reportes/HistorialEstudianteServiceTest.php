@@ -11,7 +11,9 @@ use App\Modules\Matricula\Models\DocumentoEstudiante;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Enums\EstadoCuotaEnum;
+use App\Modules\Pagos\Enums\EstadoPagoEnum;
 use App\Modules\Pagos\Models\Cuota;
+use App\Modules\Pagos\Models\Pago;
 use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Reportes\Services\HistorialEstudianteService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -65,6 +67,18 @@ class HistorialEstudianteServiceTest extends TestCase
         $this->assertSame(50.0, $historial['resumenPagos']['totalExonerado']);
         $this->assertCount(1, $historial['resumenPagos']['cuotasVencidas']);
         $this->assertSame(150.0, (float) $historial['resumenPagos']['cuotasVencidas']->first()->monto);
+    }
+
+    public function test_pagos_trae_el_detalle_de_cada_pago_sin_importar_su_estado(): void
+    {
+        $estudiante = Estudiante::factory()->create(['dni' => '55556666']);
+        Pago::factory()->aprobado()->create(['estudiante_id' => $estudiante->id, 'monto' => 100]);
+        Pago::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => EstadoPagoEnum::PENDIENTE, 'monto' => 50]);
+        Pago::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => EstadoPagoEnum::RECHAZADO, 'monto' => 30]);
+
+        $historial = $this->service()->porDni('55556666');
+
+        $this->assertCount(3, $historial['pagos']);
     }
 
     public function test_los_documentos_de_las_3_fuentes_aparecen_separados(): void

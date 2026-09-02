@@ -688,6 +688,35 @@ new #[Layout('layouts.app')] class extends Component
                                 @endforelse
                             </div>
                         </div>
+
+                        <div class="rounded-lg border border-border bg-surface">
+                            <div class="border-b border-border px-4 py-3">
+                                <h3 class="font-display text-sm text-ink">Pagos ya cobrados</h3>
+                            </div>
+                            <div class="divide-y divide-border">
+                                @forelse ($cobrosDeudaIndividual['pagosAprobados'] as $pago)
+                                    <div class="flex items-center justify-between px-4 py-3 text-sm">
+                                        <div>
+                                            <p class="text-ink">{{ $pago->concepto->nombre }}{{ $pago->detalle ? " — {$pago->detalle}" : '' }}</p>
+                                            <p class="text-xs text-ink-faint">
+                                                {{ $pago->fecha_pago->format('d/m/Y') }} · {{ $pago->metodo->label() }}
+                                            </p>
+                                            @if ($pago->partes->count() > 1)
+                                                <p class="text-xs text-ink-faint">
+                                                    {{ $pago->partes->map(fn ($parte) => 'S/ '.number_format((float) $parte->monto, 2).' '.$parte->metodo->label())->implode(' + ') }}
+                                                </p>
+                                            @endif
+                                            @if ($pago->recibo && $pago->recibo->getFirstMedia('pdf'))
+                                                <a href="{{ $pago->recibo->getFirstMediaUrl('pdf') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Recibo</a>
+                                            @endif
+                                        </div>
+                                        <p class="font-display text-ink">S/ {{ number_format((float) $pago->monto, 2) }}</p>
+                                    </div>
+                                @empty
+                                    <p class="px-4 py-6 text-center text-sm text-ink-faint">Sin pagos cobrados todavía.</p>
+                                @endforelse
+                            </div>
+                        </div>
                     </div>
                 @endif
             @endif

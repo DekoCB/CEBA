@@ -222,6 +222,23 @@ class PagosPermisosTest extends TestCase
             ->assertSee('150.00');
     }
 
+    public function test_cobros_individual_muestra_tambien_lo_ya_cobrado(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create(['nombres' => 'Betty', 'apellidos' => 'Cruz Reyes']);
+        Pago::factory()->aprobado()->create(['estudiante_id' => $estudiante->id, 'monto' => 90]);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('pagos.index')
+            ->set('tab', 'cobros')
+            ->call('cobrosSeleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->assertSee('Pagos ya cobrados')
+            ->assertSee('90.00');
+    }
+
     public function test_cobros_grupal_lista_a_los_estudiantes_que_deben_el_concepto_elegido(): void
     {
         $coordinador = User::factory()->create();

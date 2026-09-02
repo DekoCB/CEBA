@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Migraciones\Services;
 
+use App\Modules\Academico\Enums\EstadoCicloEnum;
 use App\Modules\Academico\Enums\ModalidadCicloEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
@@ -32,20 +33,48 @@ class MigracionService
 
     /**
      * Cohorte de origen: matrículas vigentes (aprobadas) que coinciden con
-     * los filtros elegidos. $seccion es 'A'/'B' (ver Grado::scopeDeSeccion());
-     * cualquiera de los 3 filtros es opcional.
+     * los filtros elegidos. El primer filtro es siempre la modalidad SIAGE
+     * (6 meses vs anual) -- ver el comentario de la vista sobre por qué
+     * SIAGE anual no tiene un filtro de "Grupo" propio, a diferencia de 6
+     * meses. $seccion es 'A'/'B' (ver Grado::scopeDeSeccion()); todos los
+     * filtros salvo $modalidad son opcionales.
      *
      * @return Collection<int, Matricula>
      */
-    public function matriculasVigentes(?int $cicloId, ?string $seccion, ?int $gradoId): Collection
+    public function matriculasVigentes(?ModalidadCicloEnum $modalidad, ?int $cicloId, ?string $seccion, ?int $gradoId): Collection
     {
         return Matricula::query()
             ->where('estado', EstadoMatriculaEnum::APROBADA)
+            ->when($modalidad !== null, fn ($q) => $q->whereHas('ciclo', fn ($qq) => $qq->where('modalidad', $modalidad)))
             ->when($cicloId !== null, fn ($q) => $q->where('ciclo_id', $cicloId))
             ->when($gradoId !== null, fn ($q) => $q->where('grado_id', $gradoId))
             ->when($seccion !== null, fn ($q) => $q->whereHas('grado', fn ($qq) => $seccion === 'A' ? $qq->where('orden', '<=', 2) : $qq->where('orden', '>', 2)))
             ->with(['estudiante', 'grado', 'ciclo'])
             ->get();
+    }
+
+    /**
+     * SIAGE anual no rota entre Grupos como el de 6 meses (ver
+     * ModalidadCicloEnum) -- a lo sumo hay un ciclo anual "vigente" a la
+     * vez: el que esté marcado Activo (mismo criterio que ya usa
+     * DemoRobustoSeeder para encontrar "el" ciclo actual). Si por lo que
+     * sea todavía no hay ninguno activo, cae al más reciente por fecha de
+     * inicio en vez de no encontrar nada. Sirve tanto para acotar la
+     * cohorte de origen en modo masivo como para sugerir destino, sin
+     * pedirle al usuario que elija un "Grupo" que no existe en esa
+     * modalidad.
+     */
+    public function cicloAnualVigente(): ?Ciclo
+    {
+        return Ciclo::query()
+            ->where('modalidad', ModalidadCicloEnum::ANUAL)
+            ->where('estado', EstadoCicloEnum::ACTIVO)
+            ->orderByDesc('fecha_inicio')
+            ->first()
+            ?? Ciclo::query()
+                ->where('modalidad', ModalidadCicloEnum::ANUAL)
+                ->orderByDesc('fecha_inicio')
+                ->first();
     }
 
     public function migrar(Matricula $origen, int $cicloDestinoId, int $gradoDestinoId, ?int $registradoPor): Matricula

@@ -15,6 +15,8 @@ use App\Modules\Matricula\Models\ExamenUbicacion;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Enums\EstadoCuotaEnum;
 use App\Modules\Pagos\Models\Cuota;
+use App\Modules\Pagos\Models\Pago;
+use App\Modules\Pagos\Services\PagoService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
 
@@ -28,6 +30,7 @@ class HistorialEstudianteService
 {
     public function __construct(
         private readonly LibretaService $libretas,
+        private readonly PagoService $pagos,
     ) {}
 
     public function porDni(string $dni): ?array
@@ -45,6 +48,7 @@ class HistorialEstudianteService
      *     estudiante: Estudiante,
      *     matriculas: Collection<int, Matricula>,
      *     resumenPagos: array{totalPagado: float, totalPendiente: float, totalExonerado: float, cuotasVencidas: Collection<int, Cuota>},
+     *     pagos: Collection<int, Pago>,
      *     documentosSubidos: Collection<int, DocumentoEstudiante>,
      *     documentosEmitidos: Collection<int, Certificado>,
      *     libretas: Collection<int, Libreta>,
@@ -67,6 +71,7 @@ class HistorialEstudianteService
             'estudiante' => $estudiante,
             'matriculas' => $matriculas,
             'resumenPagos' => $this->resumenPagos($estudiante),
+            'pagos' => $this->pagos->misPagos($estudiante),
             'documentosSubidos' => $estudiante->documentos()->with('media')->get(),
             'documentosEmitidos' => Certificado::query()->where('estudiante_id', $estudiante->id)->with('media')->latest('fecha_emision')->get(),
             'libretas' => $this->libretas->misLibretas($estudiante),

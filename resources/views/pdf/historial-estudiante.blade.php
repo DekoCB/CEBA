@@ -72,6 +72,26 @@
         </table>
     @endif
 
+    <div class="subseccion">Detalle de pagos</div>
+    <table>
+        <thead>
+            <tr><th>Fecha</th><th>Concepto</th><th>Método</th><th>Estado</th><th>Monto</th></tr>
+        </thead>
+        <tbody>
+            @forelse ($pagos as $pago)
+                <tr>
+                    <td>{{ $pago->fecha_pago->format('d/m/Y') }}</td>
+                    <td>{{ $pago->concepto->nombre }}{{ $pago->detalle ? " — {$pago->detalle}" : '' }}</td>
+                    <td>{{ $pago->metodo->label() }}</td>
+                    <td>{{ $pago->estado->label() }}{{ $pago->estado->value === 'rechazado' && $pago->motivo_rechazo ? " — {$pago->motivo_rechazo}" : '' }}</td>
+                    <td>S/ {{ number_format((float) $pago->monto, 2) }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="5">Sin pagos registrados.</td></tr>
+            @endforelse
+        </tbody>
+    </table>
+
     <div class="seccion">Documentos</div>
     <div class="subseccion">Subidos al matricularse</div>
     <table>

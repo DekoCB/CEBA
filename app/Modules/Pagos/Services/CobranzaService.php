@@ -34,7 +34,7 @@ use Illuminate\Support\Collection;
 class CobranzaService
 {
     /**
-     * @return array{cuotasPendientes: Collection<int, Cuota>, pagosPendientes: Collection<int, Pago>}
+     * @return array{cuotasPendientes: Collection<int, Cuota>, pagosPendientes: Collection<int, Pago>, pagosAprobados: Collection<int, Pago>}
      */
     public function deudaDeEstudiante(Estudiante $estudiante): array
     {
@@ -52,9 +52,19 @@ class CobranzaService
             ->latest('fecha_pago')
             ->get();
 
+        // Lo ya cobrado (aprobado): el detalle completo de "ya pagado", a
+        // diferencia de las dos colecciones de arriba que son deuda.
+        $pagosAprobados = Pago::query()
+            ->where('estudiante_id', $estudiante->id)
+            ->where('estado', EstadoPagoEnum::APROBADO)
+            ->with(['concepto', 'recibo', 'partes'])
+            ->latest('fecha_pago')
+            ->get();
+
         return [
             'cuotasPendientes' => $cuotasPendientes,
             'pagosPendientes' => $pagosPendientes,
+            'pagosAprobados' => $pagosAprobados,
         ];
     }
 

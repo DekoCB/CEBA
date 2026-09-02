@@ -3,6 +3,7 @@
 namespace Tests\Feature\Migraciones;
 
 use App\Models\User;
+use App\Modules\Academico\Enums\ModalidadCicloEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
@@ -32,6 +33,25 @@ class MigracionesPermisosTest extends TestCase
         $ciclo = Ciclo::factory()->activo()->create([
             'fecha_inicio' => now()->subDays(20),
             'fecha_fin' => now()->addMonths(5),
+        ]);
+
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+
+        return $ciclo;
+    }
+
+    private function cicloAnualConPeriodoAbierto(int $anio, bool $activo = true): Ciclo
+    {
+        $ciclo = Ciclo::factory()->create([
+            'modalidad' => ModalidadCicloEnum::ANUAL,
+            'tipo' => null,
+            'anio' => $anio,
+            'fecha_inicio' => "{$anio}-03-01",
+            'fecha_fin' => "{$anio}-12-20",
+            'estado' => $activo ? 'activo' : 'planificado',
         ]);
 
         $ciclo->periodosMatricula()->create([
@@ -122,6 +142,7 @@ class MigracionesPermisosTest extends TestCase
 
         Volt::test('migraciones.index')
             ->set('tab', 'masivo')
+            ->set('siageOrigen', 'seis_meses')
             ->set('cicloOrigenId', (string) $cicloOrigen->id)
             ->set('gradoOrigenId', (string) $gradoOrigen->id)
             ->set('masivoCicloDestinoId', (string) $cicloDestino->id)
@@ -131,5 +152,36 @@ class MigracionesPermisosTest extends TestCase
             ->assertSet('resultado.exitosos', 2);
 
         $this->assertDatabaseCount('matriculas', 4);
+    }
+
+    public function test_migrar_de_forma_masiva_en_siage_anual_no_pide_grupo_y_usa_el_ciclo_vigente(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $gradoOrigen = Grado::factory()->create(['orden' => 1]);
+        $gradoDestino = Grado::factory()->create(['orden' => 2]);
+        $cicloAnualOrigen = $this->cicloAnualConPeriodoAbierto(now()->year);
+        $cicloAnualDestino = $this->cicloAnualConPeriodoAbierto(now()->year + 1, activo: false);
+        $this->estudianteMatriculado($cicloAnualOrigen, $gradoOrigen, '55667755');
+
+        $this->actingAs($usuario);
+
+        Volt::test('migraciones.index')
+            ->set('tab', 'masivo')
+            ->set('siageOrigen', 'anual')
+            ->assertDontSee('Todos los grupos')
+            ->assertSee($cicloAnualOrigen->nombre)
+            ->set('gradoOrigenId', (string) $gradoOrigen->id)
+            ->assertSet('masivoCicloDestinoId', (string) $cicloAnualDestino->id)
+            ->set('masivoGradoDestinoId', (string) $gradoDestino->id)
+            ->call('migrarMasivo')
+            ->assertHasNoErrors()
+            ->assertSet('resultado.exitosos', 1);
+
+        $this->assertDatabaseHas('matriculas', [
+            'ciclo_id' => $cicloAnualDestino->id,
+            'grado_id' => $gradoDestino->id,
+        ]);
     }
 }

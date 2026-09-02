@@ -32,13 +32,14 @@ class CobranzaServiceTest extends TestCase
 
         Pago::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => EstadoPagoEnum::PENDIENTE]);
         Pago::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => EstadoPagoEnum::RECHAZADO]);
-        // No debería contar: ya fue aprobado.
+        // Ya fue aprobado: no cuenta como deuda, pero sí debe aparecer en pagosAprobados.
         Pago::factory()->aprobado()->create(['estudiante_id' => $estudiante->id]);
 
         $deuda = app(CobranzaService::class)->deudaDeEstudiante($estudiante);
 
         $this->assertCount(1, $deuda['cuotasPendientes']);
         $this->assertCount(2, $deuda['pagosPendientes']);
+        $this->assertCount(1, $deuda['pagosAprobados']);
     }
 
     public function test_deuda_de_estudiante_no_incluye_cuotas_ni_pagos_de_otro_estudiante(): void
@@ -49,11 +50,13 @@ class CobranzaServiceTest extends TestCase
         $planOtro = PlanPago::factory()->create(['matricula_id' => Matricula::factory()->create(['estudiante_id' => $otro->id])->id]);
         Cuota::factory()->create(['plan_pago_id' => $planOtro->id]);
         Pago::factory()->create(['estudiante_id' => $otro->id, 'estado' => EstadoPagoEnum::PENDIENTE]);
+        Pago::factory()->aprobado()->create(['estudiante_id' => $otro->id]);
 
         $deuda = app(CobranzaService::class)->deudaDeEstudiante($estudiante);
 
         $this->assertCount(0, $deuda['cuotasPendientes']);
         $this->assertCount(0, $deuda['pagosPendientes']);
+        $this->assertCount(0, $deuda['pagosAprobados']);
     }
 
     public function test_deudores_por_concepto_mensualidad_filtra_por_grupo_y_grado(): void

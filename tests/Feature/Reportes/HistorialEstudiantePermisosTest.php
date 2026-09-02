@@ -7,6 +7,7 @@ use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Pagos\Models\Pago;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
@@ -152,6 +153,23 @@ class HistorialEstudiantePermisosTest extends TestCase
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
             ->assertHasNoErrors()
             ->assertSee('SIAGE anual');
+    }
+
+    public function test_el_historial_muestra_el_detalle_de_pagos_ya_cobrados(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $estudiante = Estudiante::factory()->create(['dni' => '55667700', 'nombres' => 'Elmer', 'apellidos' => 'Palomino Ochoa']);
+        Pago::factory()->aprobado()->create(['estudiante_id' => $estudiante->id, 'monto' => 120]);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('historial-estudiante.index')
+            ->set('terminoBusqueda', 'Palomino Ochoa')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->assertHasNoErrors()
+            ->assertSee('Detalle de pagos')
+            ->assertSee('S/ 120.00');
     }
 
     public function test_el_enlace_de_historial_aparece_en_el_menu_para_coordinador(): void

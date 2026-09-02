@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Academico\Enums\ModalidadCicloEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Services\CicloService;
@@ -7,6 +8,7 @@ use App\Modules\Matricula\Enums\EstadoMatriculaEnum;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Migraciones\Services\MigracionService;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
@@ -28,6 +30,8 @@ new #[Layout('layouts.app')] class extends Component
     public string $gradoDestinoId = '';
 
     // Masivo
+    public string $siageOrigen = '';
+
     public string $cicloOrigenId = '';
 
     public string $seccionOrigen = '';
@@ -91,6 +95,15 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('status', 'Estudiante migrado correctamente.');
     }
 
+    public function updatedSiageOrigen(): void
+    {
+        $this->cicloOrigenId = '';
+        $this->seccionOrigen = '';
+        $this->gradoOrigenId = '';
+        $this->masivoCicloDestinoId = '';
+        $this->masivoGradoDestinoId = '';
+    }
+
     public function updatedSeccionOrigen(): void
     {
         $this->gradoOrigenId = '';
@@ -109,9 +122,10 @@ new #[Layout('layouts.app')] class extends Component
         $gradoSugerido = $grado ? $service->gradoSiguiente($grado) : null;
         $this->masivoGradoDestinoId = $gradoSugerido ? (string) $gradoSugerido->id : '';
 
-        if ($this->cicloOrigenId !== '') {
-            $ciclo = Ciclo::query()->find($this->cicloOrigenId);
-            $cicloSugerido = $ciclo ? $service->cicloDestinoSugerido($ciclo, $ciclos) : null;
+        $cicloOrigen = $this->cicloOrigenParaSugerencia($service);
+
+        if ($cicloOrigen) {
+            $cicloSugerido = $service->cicloDestinoSugerido($cicloOrigen, $ciclos);
             $this->masivoCicloDestinoId = $cicloSugerido ? (string) $cicloSugerido->id : '';
         }
     }
@@ -121,16 +135,13 @@ new #[Layout('layouts.app')] class extends Component
         Gate::authorize('migraciones.gestionar');
 
         $this->validate([
+            'siageOrigen' => 'required|string|in:seis_meses,anual',
             'gradoOrigenId' => 'required|integer|exists:grados,id',
             'masivoCicloDestinoId' => 'required|integer|exists:ciclos,id',
             'masivoGradoDestinoId' => 'required|integer|exists:grados,id',
         ]);
 
-        $origenes = $service->matriculasVigentes(
-            $this->cicloOrigenId !== '' ? (int) $this->cicloOrigenId : null,
-            $this->seccionOrigen !== '' ? $this->seccionOrigen : null,
-            (int) $this->gradoOrigenId,
-        );
+        $origenes = $this->cohorteMasivaActual($service);
 
         $this->resultado = $service->migrarMasivo($origenes, (int) $this->masivoCicloDestinoId, (int) $this->masivoGradoDestinoId, Auth::id());
     }
@@ -143,6 +154,44 @@ new #[Layout('layouts.app')] class extends Component
             ->latest('fecha_matricula')
             ->with(['ciclo', 'grado'])
             ->first();
+    }
+
+    /**
+     * El "Grupo" con el que se sugiere el destino: para 6 meses es el que
+     * el usuario eligió; SIAGE anual no tiene selector de Grupo (ver
+     * MigracionService::cicloAnualVigente()), así que se usa ese
+     * automáticamente.
+     */
+    private function cicloOrigenParaSugerencia(MigracionService $service): ?Ciclo
+    {
+        if ($this->siageOrigen === ModalidadCicloEnum::ANUAL->value) {
+            return $service->cicloAnualVigente();
+        }
+
+        return $this->cicloOrigenId !== '' ? Ciclo::query()->find($this->cicloOrigenId) : null;
+    }
+
+    /**
+     * @return Collection<int, Matricula>
+     */
+    private function cohorteMasivaActual(MigracionService $service): Collection
+    {
+        if ($this->siageOrigen === '' || $this->gradoOrigenId === '') {
+            return new Collection;
+        }
+
+        $modalidad = ModalidadCicloEnum::from($this->siageOrigen);
+
+        $cicloId = $this->siageOrigen === ModalidadCicloEnum::ANUAL->value
+            ? $service->cicloAnualVigente()?->id
+            : ($this->cicloOrigenId !== '' ? (int) $this->cicloOrigenId : null);
+
+        return $service->matriculasVigentes(
+            $modalidad,
+            $cicloId,
+            $this->seccionOrigen !== '' ? $this->seccionOrigen : null,
+            (int) $this->gradoOrigenId,
+        );
     }
 
     public function with(MigracionService $service): array
@@ -167,21 +216,15 @@ new #[Layout('layouts.app')] class extends Component
             ->orderBy('orden')
             ->get();
 
-        $cohorteMasiva = $this->gradoOrigenId !== ''
-            ? $service->matriculasVigentes(
-                $this->cicloOrigenId !== '' ? (int) $this->cicloOrigenId : null,
-                $this->seccionOrigen !== '' ? $this->seccionOrigen : null,
-                (int) $this->gradoOrigenId,
-            )
-            : collect();
-
         return [
             'resultadosBusqueda' => $resultadosBusqueda,
             'matriculaOrigenIndividual' => $this->estudianteId ? $this->matriculaVigenteDe($this->estudianteId) : null,
             'ciclos' => Ciclo::query()->orderByDesc('fecha_inicio')->get(),
+            'ciclosSeisMeses' => Ciclo::query()->where('modalidad', ModalidadCicloEnum::SEIS_MESES)->orderByDesc('fecha_inicio')->get(),
+            'cicloAnualVigente' => $service->cicloAnualVigente(),
             'grados' => Grado::query()->where('activo', true)->orderBy('orden')->get(),
             'gradosOrigenDisponibles' => $gradosOrigenDisponibles,
-            'cohorteMasiva' => $cohorteMasiva,
+            'cohorteMasiva' => $this->cohorteMasivaActual($service),
         ];
     }
 }; ?>
@@ -189,7 +232,7 @@ new #[Layout('layouts.app')] class extends Component
 <div>
     <x-slot name="header">
         <h1 class="font-display text-2xl text-ink">Migraciones</h1>
-        <p class="mt-1 text-sm text-ink-dim">Pasar de grado a un estudiante, o a varios a la vez filtrados por Grupo/Sección/Grado.</p>
+        <p class="mt-1 text-sm text-ink-dim">Pasar de grado a un estudiante, o a varios a la vez filtrados por SIAGE/Grupo/Sección/Grado.</p>
     </x-slot>
 
     @if (session('status'))
@@ -281,39 +324,65 @@ new #[Layout('layouts.app')] class extends Component
         <div class="space-y-4">
             <div class="rounded-lg border border-border bg-surface p-6">
                 <h2 class="font-display text-sm text-ink">Origen</h2>
-                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <p class="mt-1 text-xs text-ink-faint">Primero elige SIAGE — el de 6 meses se filtra por Grupo, el anual no tiene Grupos (no rota).</p>
+                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <div>
-                        <x-input-label for="cicloOrigenId" value="Grupo" />
+                        <x-input-label for="siageOrigen" value="SIAGE" />
                         <x-select-input
-                            wire:model.live="cicloOrigenId"
-                            id="cicloOrigenId"
+                            wire:model.live="siageOrigen"
+                            id="siageOrigen"
                             class="mt-1 block w-full"
-                            :options="collect($ciclos)->mapWithKeys(fn ($ciclo) => [$ciclo->id => $ciclo->nombre])->prepend('Todos los grupos', '')"
+                            :options="['' => 'Selecciona…', 'seis_meses' => 'SIAGE 6 meses (Grupo rotativo)', 'anual' => 'SIAGE anual']"
                         />
+                        <x-input-error :messages="$errors->get('siageOrigen')" class="mt-1" />
                     </div>
-                    <div>
-                        <x-input-label for="seccionOrigen" value="Sección" />
-                        <x-select-input
-                            wire:model.live="seccionOrigen"
-                            id="seccionOrigen"
-                            class="mt-1 block w-full"
-                            :options="['' => 'Todas', 'A' => 'Aula A', 'B' => 'Aula B']"
-                        />
-                    </div>
-                    <div>
-                        <x-input-label for="gradoOrigenId" value="Grado" />
-                        <x-select-input
-                            wire:model.live="gradoOrigenId"
-                            id="gradoOrigenId"
-                            class="mt-1 block w-full"
-                            :options="collect($gradosOrigenDisponibles)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])->prepend('Selecciona…', '')"
-                        />
-                        <x-input-error :messages="$errors->get('gradoOrigenId')" class="mt-1" />
-                    </div>
+
+                    @if ($siageOrigen === 'seis_meses')
+                        <div>
+                            <x-input-label for="cicloOrigenId" value="Grupo" />
+                            <x-select-input
+                                wire:model.live="cicloOrigenId"
+                                id="cicloOrigenId"
+                                class="mt-1 block w-full"
+                                :options="collect($ciclosSeisMeses)->mapWithKeys(fn ($ciclo) => [$ciclo->id => $ciclo->nombre])->prepend('Todos los grupos', '')"
+                            />
+                        </div>
+                    @elseif ($siageOrigen === 'anual')
+                        <div>
+                            <x-input-label value="Ciclo SIAGE anual" />
+                            @if ($cicloAnualVigente)
+                                <p class="mt-1 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-ink">{{ $cicloAnualVigente->nombre }}</p>
+                            @else
+                                <p class="mt-1 text-xs text-danger">No hay ningún ciclo SIAGE anual registrado todavía.</p>
+                            @endif
+                        </div>
+                    @endif
+
+                    @if ($siageOrigen !== '')
+                        <div>
+                            <x-input-label for="seccionOrigen" value="Sección" />
+                            <x-select-input
+                                wire:model.live="seccionOrigen"
+                                id="seccionOrigen"
+                                class="mt-1 block w-full"
+                                :options="['' => 'Todas', 'A' => 'Aula A', 'B' => 'Aula B']"
+                            />
+                        </div>
+                        <div>
+                            <x-input-label for="gradoOrigenId" value="Grado" />
+                            <x-select-input
+                                wire:model.live="gradoOrigenId"
+                                id="gradoOrigenId"
+                                class="mt-1 block w-full"
+                                :options="collect($gradosOrigenDisponibles)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])->prepend('Selecciona…', '')"
+                            />
+                            <x-input-error :messages="$errors->get('gradoOrigenId')" class="mt-1" />
+                        </div>
+                    @endif
                 </div>
             </div>
 
-            @if ($gradoOrigenId !== '')
+            @if ($siageOrigen !== '' && $gradoOrigenId !== '')
                 <div class="rounded-lg border border-border bg-surface">
                     <div class="border-b border-border px-4 py-3">
                         <h3 class="font-display text-sm text-ink">{{ $cohorteMasiva->count() }} estudiante{{ $cohorteMasiva->count() === 1 ? '' : 's' }} coincide{{ $cohorteMasiva->count() === 1 ? '' : 'n' }}</h3>
