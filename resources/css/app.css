@@ -160,6 +160,46 @@
 }
 
 /*
+ * Confeti del apartado de la mascota: piezas sueltas que caen en loop
+ * dentro de la caja (recortadas por su propio overflow-hidden, como si
+ * lloviera confeti adentro). Cada <span> trae su color/posición/retraso
+ * inline (ver sidebar-nav.blade.php) para que no caigan todas sincronizadas.
+ */
+.confetti-piece {
+    position: absolute;
+    top: -10%;
+    width: 5px;
+    height: 9px;
+    border-radius: 1px;
+    animation: confetti-fall 3.6s linear infinite;
+    will-change: transform;
+}
+
+@keyframes confetti-fall {
+    0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 0;
+    }
+    12% {
+        opacity: 0.9;
+    }
+    85% {
+        opacity: 0.9;
+    }
+    100% {
+        transform: translateY(6rem) rotate(200deg);
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .confetti-piece {
+        animation: none;
+        display: none;
+    }
+}
+
+/*
  * Los enlaces y títulos de sección del sidebar usan la fuente "display"
  * (texto de interfaz), en vez del font-sans del resto del contenido.
  */

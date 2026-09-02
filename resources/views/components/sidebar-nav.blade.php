@@ -461,6 +461,15 @@
 
     <div class="sidebar-mascot mt-auto shrink-0 border-t border-border pt-4">
         <div class="dashboard-hero-gradient relative h-20 overflow-hidden rounded-xl px-3 py-3">
+            <span class="confetti-piece" style="left: 8%; background: #FCD34D; animation-delay: 0s; animation-duration: 3.2s;" aria-hidden="true"></span>
+            <span class="confetti-piece" style="left: 22%; background: #F472B6; animation-delay: 0.6s; animation-duration: 4s;" aria-hidden="true"></span>
+            <span class="confetti-piece" style="left: 38%; background: #4ADE80; animation-delay: 1.4s; animation-duration: 3.6s;" aria-hidden="true"></span>
+            <span class="confetti-piece" style="left: 52%; background: #60A5FA; animation-delay: 0.2s; animation-duration: 4.4s;" aria-hidden="true"></span>
+            <span class="confetti-piece" style="left: 65%; background: #FDE68A; animation-delay: 2s; animation-duration: 3.4s;" aria-hidden="true"></span>
+            <span class="confetti-piece" style="left: 78%; background: #C4B5FD; animation-delay: 1s; animation-duration: 3.8s;" aria-hidden="true"></span>
+            <span class="confetti-piece" style="left: 90%; background: #FCD34D; animation-delay: 2.6s; animation-duration: 3.3s;" aria-hidden="true"></span>
+            <span class="confetti-piece" style="left: 15%; background: #F472B6; animation-delay: 3.1s; animation-duration: 4.1s;" aria-hidden="true"></span>
+
             <x-dashboard.mascot class="pointer-events-none absolute -bottom-4 -right-3 h-16 w-16 rotate-6" />
             <p class="relative z-10 max-w-[7.5rem] font-display text-xs font-medium leading-snug text-white">¡Vamos, CEBA! 🚀</p>
         </div>
