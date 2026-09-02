@@ -6,6 +6,7 @@ use App\Modules\AulaVirtual\Providers\AulaVirtualServiceProvider;
 use App\Modules\Certificados\Providers\CertificadosServiceProvider;
 use App\Modules\Dashboard\Providers\DashboardServiceProvider;
 use App\Modules\Evaluaciones\Providers\EvaluacionesServiceProvider;
+use App\Modules\FlujoCaja\Providers\FlujoCajaServiceProvider;
 use App\Modules\Identidad\Providers\IdentidadServiceProvider;
 use App\Modules\Incidencias\Providers\IncidenciasServiceProvider;
 use App\Modules\Landing\Providers\LandingServiceProvider;
@@ -38,4 +39,5 @@ return [
     IncidenciasServiceProvider::class,
     MigracionesServiceProvider::class,
     VacacionesServiceProvider::class,
+    FlujoCajaServiceProvider::class,
 ];

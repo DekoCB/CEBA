@@ -212,6 +212,21 @@
                 <span class="sidebar-label">Cuentas bancarias</span>
             </a>
         @endcan
+
+        @can('flujo_caja.ver')
+            <a
+                href="{{ route('flujo-caja.index') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-[#0f1b3d] text-white dark:bg-white dark:text-[#0f1b3d] border border-border shadow-sm' => request()->routeIs('flujo-caja.*'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('flujo-caja.*'),
+                ])
+            >
+                <x-heroicon-o-banknotes class="h-5 w-5 shrink-0" />
+                <span class="sidebar-label">Flujo de caja</span>
+            </a>
+        @endcan
     @endcanany
 
     @canany(['certificados.ver', 'certificados.emitir', 'certificados.duplicar', 'certificados.solicitar'])

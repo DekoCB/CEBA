@@ -41,6 +41,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'certificados.ver', 'certificados.emitir', 'certificados.duplicar', 'certificados.gestionar_plantilla',
             'reportes.academicos', 'reportes.matricula', 'reportes.financieros', 'reportes.morosos', 'reportes.certificados', 'reportes.historial_estudiante', 'reportes.exportar',
             'whatsapp.ver', 'whatsapp.enviar',
+            'flujo_caja.ver',
         ],
 
         RolEnum::ADMINISTRATIVO->value => [
@@ -58,6 +59,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'pagos.ver', 'pagos.aprobar', 'pagos.rechazar',
             'tesoreria.gestionar',
             'reportes.financieros', 'reportes.morosos', 'reportes.exportar',
+            'flujo_caja.ver', 'flujo_caja.gestionar',
         ],
 
         RolEnum::DOCENTE->value => [
@@ -98,6 +100,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'reportes.academicos', 'reportes.operativos', 'reportes.financieros', 'reportes.morosos',
         'reportes.matricula', 'reportes.certificados', 'reportes.propios', 'reportes.historial_estudiante', 'reportes.exportar',
         'whatsapp.enviar', 'whatsapp.ver', 'notificaciones.ver_propio',
+        'flujo_caja.ver', 'flujo_caja.gestionar',
         'roles.gestionar', 'auditoria.ver',
         'usuarios.ver', 'usuarios.crear', 'usuarios.editar', 'usuarios.gestionar_sesiones',
     ];
