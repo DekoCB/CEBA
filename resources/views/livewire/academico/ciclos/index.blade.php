@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Academico\Enums\ModalidadCicloEnum;
 use App\Modules\Academico\Enums\TipoCicloEnum;
 use App\Modules\Academico\Services\CicloService;
 use Illuminate\Support\Facades\Gate;
@@ -11,6 +12,8 @@ new #[Layout('layouts.app')] class extends Component
     public bool $mostrarModal = false;
 
     public string $nombre = '';
+
+    public string $modalidad = 'seis_meses';
 
     public string $tipo = '';
 
@@ -31,7 +34,7 @@ new #[Layout('layouts.app')] class extends Component
         Gate::authorize('academico.gestionar');
 
         $this->resetValidation();
-        $this->reset(['nombre', 'tipo', 'fechaInicio', 'fechaFin']);
+        $this->reset(['nombre', 'modalidad', 'tipo', 'fechaInicio', 'fechaFin']);
         $this->anio = (string) now()->year;
         $this->mostrarModal = true;
     }
@@ -40,9 +43,14 @@ new #[Layout('layouts.app')] class extends Component
     {
         Gate::authorize('academico.gestionar');
 
+        $esSeisMeses = $this->modalidad === ModalidadCicloEnum::SEIS_MESES->value;
+
         $this->validate([
             'nombre' => 'required|string|max:100',
-            'tipo' => 'required|string|in:'.implode(',', array_column(TipoCicloEnum::cases(), 'value')),
+            'modalidad' => 'required|string|in:'.implode(',', array_column(ModalidadCicloEnum::cases(), 'value')),
+            'tipo' => $esSeisMeses
+                ? 'required|string|in:'.implode(',', array_column(TipoCicloEnum::cases(), 'value'))
+                : 'nullable',
             'anio' => 'required|integer|min:2020|max:2100',
             'fechaInicio' => 'required|date',
             'fechaFin' => 'required|date',
@@ -50,20 +58,22 @@ new #[Layout('layouts.app')] class extends Component
 
         $service->crear([
             'nombre' => $this->nombre,
-            'tipo' => TipoCicloEnum::from($this->tipo),
+            'modalidad' => ModalidadCicloEnum::from($this->modalidad),
+            'tipo' => $esSeisMeses ? TipoCicloEnum::from($this->tipo) : null,
             'anio' => (int) $this->anio,
             'fecha_inicio' => $this->fechaInicio,
             'fecha_fin' => $this->fechaFin,
         ]);
 
         $this->mostrarModal = false;
-        session()->flash('status', 'Grupo creado correctamente.');
+        session()->flash('status', $esSeisMeses ? 'Grupo creado correctamente.' : 'Ciclo SIAGE anual creado correctamente.');
     }
 
     public function with(CicloService $service): array
     {
         return [
             'ciclos' => $service->listar(),
+            'modalidades' => ModalidadCicloEnum::cases(),
             'tipos' => TipoCicloEnum::cases(),
         ];
     }
@@ -72,7 +82,7 @@ new #[Layout('layouts.app')] class extends Component
 <div>
     <x-slot name="header">
         <h1 class="font-display text-2xl text-ink">Grupos</h1>
-        <p class="mt-1 text-sm text-ink-dim">4 ventanas de admisión rotativas al año: Grupo 1 (ene-jun), Grupo 2 (may-oct), Grupo 3 (jul-dic), Grupo 4 (nov-abr).</p>
+        <p class="mt-1 text-sm text-ink-dim">4 ventanas de admisión rotativas al año (Grupo 1 ene-jun, Grupo 2 may-oct, Grupo 3 jul-dic, Grupo 4 nov-abr), o un ciclo SIAGE anual independiente.</p>
     </x-slot>
 
     {{-- Ver academico/grados/index.blade.php: el botón no puede vivir en x-slot="header". --}}
@@ -94,7 +104,7 @@ new #[Layout('layouts.app')] class extends Component
             <thead class="bg-surface-2">
                 <tr>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Nombre</th>
-                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Tipo</th>
+                    <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Modalidad</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Fechas</th>
                     <th class="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Estado</th>
                     <th class="px-4 py-3"></th>
@@ -104,7 +114,7 @@ new #[Layout('layouts.app')] class extends Component
                 @forelse ($ciclos as $ciclo)
                     <tr wire:key="ciclo-{{ $ciclo->id }}">
                         <td class="px-4 py-3 font-medium text-ink">{{ $ciclo->nombre }}</td>
-                        <td class="px-4 py-3 text-ink-dim">{{ $ciclo->tipo->label() }}</td>
+                        <td class="px-4 py-3 text-ink-dim">{{ $ciclo->modalidad->label() }}{{ $ciclo->tipo ? ' · '.$ciclo->tipo->label() : '' }}</td>
                         <td class="px-4 py-3 text-ink-dim">{{ $ciclo->fecha_inicio->format('d/m/Y') }} – {{ $ciclo->fecha_fin->format('d/m/Y') }}</td>
                         <td class="px-4 py-3">
                             <span @class([
@@ -165,17 +175,30 @@ new #[Layout('layouts.app')] class extends Component
                     <x-input-error :messages="$errors->get('nombre')" class="mt-1" />
                 </div>
 
+                <div>
+                    <x-input-label for="modalidad" value="Modalidad" />
+                    <x-select-input
+                        wire:model.live="modalidad"
+                        id="modalidad"
+                        class="mt-1 block w-full"
+                        :options="collect($modalidades)->mapWithKeys(fn ($modalidadOpcion) => [$modalidadOpcion->value => $modalidadOpcion->label()])"
+                    />
+                    <x-input-error :messages="$errors->get('modalidad')" class="mt-1" />
+                </div>
+
                 <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <x-input-label for="tipo" value="Tipo" />
-                        <x-select-input
-                            wire:model="tipo"
-                            id="tipo"
-                            class="mt-1 block w-full"
-                            :options="collect($tipos)->mapWithKeys(fn ($tipoOpcion) => [$tipoOpcion->value => $tipoOpcion->label()])"
-                        />
-                        <x-input-error :messages="$errors->get('tipo')" class="mt-1" />
-                    </div>
+                    @if ($modalidad === 'seis_meses')
+                        <div>
+                            <x-input-label for="tipo" value="Tipo" />
+                            <x-select-input
+                                wire:model="tipo"
+                                id="tipo"
+                                class="mt-1 block w-full"
+                                :options="collect($tipos)->mapWithKeys(fn ($tipoOpcion) => [$tipoOpcion->value => $tipoOpcion->label()])"
+                            />
+                            <x-input-error :messages="$errors->get('tipo')" class="mt-1" />
+                        </div>
+                    @endif
                     <div>
                         <x-input-label for="anio" value="Año" />
                         <x-text-input wire:model="anio" id="anio" type="number" class="mt-1 block w-full" />

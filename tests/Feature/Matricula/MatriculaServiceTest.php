@@ -223,6 +223,21 @@ class MatriculaServiceTest extends TestCase
         $this->assertTrue($matricula->fecha_matricula->addMonths(8)->isSameDay($matricula->fecha_fin_estudio));
     }
 
+    public function test_matricular_en_un_ciclo_anual_usa_la_fecha_fin_del_ciclo_como_fecha_fin_de_estudio(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $ciclo = Ciclo::factory()->anual()->activo()->create();
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+
+        $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
+
+        $this->assertTrue($ciclo->fecha_fin->isSameDay($matricula->fecha_fin_estudio));
+    }
+
     public function test_reasignar_fecha_fin_estudio_la_actualiza(): void
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());

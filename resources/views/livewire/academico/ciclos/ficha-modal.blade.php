@@ -65,7 +65,7 @@ new class extends Component
             <div>
                 <h2 class="font-display text-lg text-ink">{{ $ciclo?->nombre ?? 'Ciclo' }}</h2>
                 @if ($ciclo)
-                    <p class="text-sm text-ink-dim">{{ $ciclo->tipo->label() }} · {{ $ciclo->fecha_inicio->format('d/m/Y') }} – {{ $ciclo->fecha_fin->format('d/m/Y') }}</p>
+                    <p class="text-sm text-ink-dim">{{ $ciclo->modalidad->label() }}{{ $ciclo->tipo ? ' · '.$ciclo->tipo->label() : '' }} · {{ $ciclo->fecha_inicio->format('d/m/Y') }} – {{ $ciclo->fecha_fin->format('d/m/Y') }}</p>
                 @endif
             </div>
             <button type="button" x-on:click="$dispatch('close')" class="rounded-md p-1.5 text-ink-faint transition hover:bg-surface-2 hover:text-ink" aria-label="Cerrar">

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Matricula\Services;
 
 use App\Models\User;
+use App\Modules\Academico\Enums\ModalidadCicloEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
@@ -146,7 +147,9 @@ class MatriculaService
         }
 
         $fechaMatricula = now();
-        $fechaFinEstudio = $fechaMatricula->clone()->addMonths($estudiante->es_menor_edad ? 8 : 6);
+        $fechaFinEstudio = $ciclo->modalidad === ModalidadCicloEnum::ANUAL
+            ? $ciclo->fecha_fin
+            : $fechaMatricula->clone()->addMonths($estudiante->es_menor_edad ? 8 : 6);
 
         return DB::transaction(function () use ($estudiante, $ciclo, $grado, $data, $fechaMatricula, $fechaFinEstudio) {
             $matricula = $this->matriculas->create([

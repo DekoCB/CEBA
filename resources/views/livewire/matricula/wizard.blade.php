@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Academico\Enums\ModalidadCicloEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Matricula\DTOs\RegistrarApoderadoData;
@@ -97,6 +98,8 @@ new class extends Component
     public string $examenObservaciones = '';
 
     // Paso 5 — matrícula
+    public string $modalidadCiclo = 'seis_meses';
+
     public string $cicloId = '';
 
     public string $gradoId = '';
@@ -163,7 +166,44 @@ new class extends Component
 
         $this->esRematricula = true;
         $this->resetValidation();
+
+        $ultimaMatricula = Matricula::query()
+            ->where('estudiante_id', $this->estudianteEncontradoId)
+            ->latest('fecha_matricula')
+            ->with('ciclo')
+            ->first();
+
+        $this->modalidadCiclo = $ultimaMatricula?->ciclo?->modalidad->value ?? 'seis_meses';
+
         $this->paso = 5;
+    }
+
+    /**
+     * Al cambiar de modalidad se limpia el ciclo elegido; para SIAGE anual
+     * no hay selector -- se autoasigna el único ciclo anual con periodo de
+     * matrícula abierto hoy, si existe (ver with()).
+     */
+    public function updatedModalidadCiclo(): void
+    {
+        $this->cicloId = '';
+
+        if ($this->modalidadCiclo === ModalidadCicloEnum::ANUAL->value) {
+            $cicloAnual = $this->cicloAnualAbierto();
+            $this->cicloId = $cicloAnual !== null ? (string) $cicloAnual->id : '';
+        }
+    }
+
+    private function cicloAnualAbierto(): ?Ciclo
+    {
+        return Ciclo::query()
+            ->where('modalidad', ModalidadCicloEnum::ANUAL)
+            ->whereHas('periodosMatricula', function ($query) {
+                $query->where('estado', 'abierto')
+                    ->where('fecha_inicio', '<=', now())
+                    ->where('fecha_fin', '>=', now());
+            })
+            ->orderByDesc('fecha_inicio')
+            ->first();
     }
 
     public function avanzar(MatriculaService $service): void
@@ -239,6 +279,7 @@ new class extends Component
 
         if ($this->paso === 5) {
             $this->validate([
+                'modalidadCiclo' => 'required|string|in:seis_meses,anual',
                 'cicloId' => 'required|integer|exists:ciclos,id',
                 'gradoId' => 'required|integer|exists:grados,id',
             ]);
@@ -461,6 +502,7 @@ new class extends Component
         $grados = Grado::query()->where('activo', true)->orderBy('orden')->get();
 
         $ciclosConMatriculaAbierta = Ciclo::query()
+            ->where('modalidad', ModalidadCicloEnum::SEIS_MESES)
             ->whereHas('periodosMatricula', function ($query) {
                 $query->where('estado', 'abierto')
                     ->where('fecha_inicio', '<=', now())
@@ -473,7 +515,9 @@ new class extends Component
             'estadosCiviles' => EstadoCivilEnum::cases(),
             'gradosCompatibles' => $grados,
             'todosLosGrados' => $grados,
+            'modalidadesCiclo' => ModalidadCicloEnum::cases(),
             'ciclosDisponibles' => $ciclosConMatriculaAbierta,
+            'cicloAnualAbierto' => $this->cicloAnualAbierto(),
             'numerosCuotas' => NumeroCuotasEnum::cases(),
         ];
     }
@@ -752,19 +796,41 @@ new class extends Component
                 </p>
             @endif
             <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                    <x-input-label for="cicloId" value="Ciclo" />
+                <div class="sm:col-span-2">
+                    <x-input-label for="modalidadCiclo" value="SIAGE" />
                     <x-select-input
-                        wire:model.live="cicloId"
-                        id="cicloId"
+                        wire:model.live="modalidadCiclo"
+                        id="modalidadCiclo"
                         class="mt-1 block w-full"
-                        :options="collect($ciclosDisponibles)->mapWithKeys(fn ($ciclo) => [$ciclo->id => $ciclo->nombre])"
+                        :options="collect($modalidadesCiclo)->mapWithKeys(fn ($modalidad) => [$modalidad->value => $modalidad->label()])"
                     />
-                    @if ($ciclosDisponibles->isEmpty())
-                        <p class="mt-1 text-xs text-danger">No hay ciclos con periodo de matrícula abierto hoy.</p>
-                    @endif
-                    <x-input-error :messages="$errors->get('cicloId')" class="mt-1" />
+                    <x-input-error :messages="$errors->get('modalidadCiclo')" class="mt-1" />
                 </div>
+                @if ($modalidadCiclo === 'anual')
+                    <div>
+                        <x-input-label value="Ciclo SIAGE anual" />
+                        @if ($cicloAnualAbierto)
+                            <p class="mt-1 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-ink">{{ $cicloAnualAbierto->anio }}</p>
+                        @else
+                            <p class="mt-1 text-xs text-danger">No hay un ciclo SIAGE anual con periodo de matrícula abierto hoy.</p>
+                        @endif
+                        <x-input-error :messages="$errors->get('cicloId')" class="mt-1" />
+                    </div>
+                @else
+                    <div>
+                        <x-input-label for="cicloId" value="Grupo" />
+                        <x-select-input
+                            wire:model.live="cicloId"
+                            id="cicloId"
+                            class="mt-1 block w-full"
+                            :options="collect($ciclosDisponibles)->mapWithKeys(fn ($ciclo) => [$ciclo->id => $ciclo->nombre])"
+                        />
+                        @if ($ciclosDisponibles->isEmpty())
+                            <p class="mt-1 text-xs text-danger">No hay grupos con periodo de matrícula abierto hoy.</p>
+                        @endif
+                        <x-input-error :messages="$errors->get('cicloId')" class="mt-1" />
+                    </div>
+                @endif
                 <div>
                     <x-input-label for="gradoId" value="Grado" />
                     <x-select-input

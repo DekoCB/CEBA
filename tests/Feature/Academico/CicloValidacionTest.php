@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Academico;
 
+use App\Modules\Academico\Enums\ModalidadCicloEnum;
 use App\Modules\Academico\Enums\TipoCicloEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Services\CicloService;
@@ -181,6 +182,88 @@ class CicloValidacionTest extends TestCase
     public function test_siguiente_ciclo_es_null_si_todavia_no_se_ha_creado(): void
     {
         $actual = Ciclo::factory()->create(['tipo' => TipoCicloEnum::GRUPO_1, 'anio' => 2026]);
+
+        $this->assertNull($this->service()->siguienteCiclo($actual));
+    }
+
+    public function test_un_ciclo_anual_no_exige_tipo_ni_mes_de_inicio_fijo(): void
+    {
+        $ciclo = $this->service()->crear([
+            'nombre' => 'SIAGE Anual - 2026',
+            'modalidad' => ModalidadCicloEnum::ANUAL,
+            'tipo' => null,
+            'anio' => 2026,
+            'fecha_inicio' => '2026-03-01',
+            'fecha_fin' => '2026-12-20',
+        ]);
+
+        $this->assertDatabaseHas('ciclos', ['id' => $ciclo->id, 'modalidad' => 'anual', 'tipo' => null]);
+    }
+
+    public function test_un_ciclo_anual_debe_durar_entre_9_y_12_meses(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $this->service()->crear([
+            'nombre' => 'SIAGE Anual - 2026 (corto)',
+            'modalidad' => ModalidadCicloEnum::ANUAL,
+            'tipo' => null,
+            'anio' => 2026,
+            'fecha_inicio' => '2026-03-01',
+            'fecha_fin' => '2026-06-01',
+        ]);
+    }
+
+    public function test_no_permite_dos_ciclos_anuales_con_fechas_cruzadas(): void
+    {
+        $this->service()->crear([
+            'nombre' => 'SIAGE Anual - 2026',
+            'modalidad' => ModalidadCicloEnum::ANUAL,
+            'tipo' => null,
+            'anio' => 2026,
+            'fecha_inicio' => '2026-03-01',
+            'fecha_fin' => '2026-12-20',
+        ]);
+
+        $this->expectException(ValidationException::class);
+
+        $this->service()->crear([
+            'nombre' => 'SIAGE Anual - 2026 (duplicado)',
+            'modalidad' => ModalidadCicloEnum::ANUAL,
+            'tipo' => null,
+            'anio' => 2026,
+            'fecha_inicio' => '2026-04-01',
+            'fecha_fin' => '2027-01-15',
+        ]);
+    }
+
+    public function test_un_ciclo_anual_puede_solaparse_con_un_grupo_rotativo_sin_problema(): void
+    {
+        // Son modalidades independientes: un Grupo 1 y un SIAGE anual con
+        // fechas que se cruzan no es un error de carga.
+        $this->service()->crear([
+            'nombre' => 'Grupo 1 - 2026',
+            'tipo' => TipoCicloEnum::GRUPO_1,
+            'anio' => 2026,
+            'fecha_inicio' => '2026-01-01',
+            'fecha_fin' => '2026-06-30',
+        ]);
+
+        $ciclo = $this->service()->crear([
+            'nombre' => 'SIAGE Anual - 2026',
+            'modalidad' => ModalidadCicloEnum::ANUAL,
+            'tipo' => null,
+            'anio' => 2026,
+            'fecha_inicio' => '2026-03-01',
+            'fecha_fin' => '2026-12-20',
+        ]);
+
+        $this->assertDatabaseHas('ciclos', ['id' => $ciclo->id]);
+    }
+
+    public function test_siguiente_ciclo_es_null_para_un_ciclo_anual(): void
+    {
+        $actual = Ciclo::factory()->anual()->create();
 
         $this->assertNull($this->service()->siguienteCiclo($actual));
     }

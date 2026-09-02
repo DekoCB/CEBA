@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Academico\Database\Factories;
 
 use App\Modules\Academico\Enums\EstadoCicloEnum;
+use App\Modules\Academico\Enums\ModalidadCicloEnum;
 use App\Modules\Academico\Enums\TipoCicloEnum;
 use App\Modules\Academico\Models\Ciclo;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -49,5 +50,20 @@ class CicloFactory extends Factory
     public function activo(): static
     {
         return $this->state(['estado' => EstadoCicloEnum::ACTIVO]);
+    }
+
+    public function anual(): static
+    {
+        return $this->state(function (array $attributes) {
+            $anio = $attributes['anio'];
+
+            return [
+                'nombre' => "SIAGE Anual - {$anio}",
+                'modalidad' => ModalidadCicloEnum::ANUAL,
+                'tipo' => null,
+                'fecha_inicio' => "{$anio}-03-01",
+                'fecha_fin' => "{$anio}-12-20",
+            ];
+        });
     }
 }

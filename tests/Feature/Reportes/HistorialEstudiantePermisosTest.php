@@ -3,8 +3,10 @@
 namespace Tests\Feature\Reportes;
 
 use App\Models\User;
+use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Matricula\Models\Matricula;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
@@ -133,6 +135,23 @@ class HistorialEstudiantePermisosTest extends TestCase
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
             ->assertHasNoErrors()
             ->assertSee('DNI 55667788');
+    }
+
+    public function test_el_historial_muestra_la_modalidad_siage_de_cada_matricula(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $estudiante = Estudiante::factory()->create(['dni' => '55667799', 'nombres' => 'Marco', 'apellidos' => 'Villar Soto']);
+        $cicloAnual = Ciclo::factory()->anual()->create();
+        Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'ciclo_id' => $cicloAnual->id]);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('historial-estudiante.index')
+            ->set('terminoBusqueda', 'Villar Soto')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->assertHasNoErrors()
+            ->assertSee('SIAGE anual');
     }
 
     public function test_el_enlace_de_historial_aparece_en_el_menu_para_coordinador(): void

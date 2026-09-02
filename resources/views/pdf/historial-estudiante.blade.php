@@ -30,19 +30,20 @@
     <div class="seccion">Grados cursados</div>
     <table>
         <thead>
-            <tr><th>Grado</th><th>Ciclo</th><th>Fecha de matrícula</th><th>Fin de estudios</th><th>Estado</th></tr>
+            <tr><th>Grado</th><th>Ciclo</th><th>Modalidad</th><th>Fecha de matrícula</th><th>Fin de estudios</th><th>Estado</th></tr>
         </thead>
         <tbody>
             @forelse ($matriculas as $matricula)
                 <tr>
                     <td>{{ $matricula->grado->nombre }}</td>
                     <td>{{ $matricula->ciclo->nombre }}</td>
+                    <td>{{ $matricula->ciclo->modalidad->label() }}</td>
                     <td>{{ $matricula->fecha_matricula->format('d/m/Y') }}</td>
                     <td>{{ $matricula->fecha_fin_estudio?->format('d/m/Y') ?? '—' }}</td>
                     <td>{{ $matricula->estado->label() }}</td>
                 </tr>
             @empty
-                <tr><td colspan="5">Sin matrículas registradas.</td></tr>
+                <tr><td colspan="6">Sin matrículas registradas.</td></tr>
             @endforelse
         </tbody>
     </table>

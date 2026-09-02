@@ -96,6 +96,45 @@ class MatriculaPermisosTest extends TestCase
         $this->assertSame('Pendiente entregar certificado de estudios del colegio anterior.', $estudiante->observaciones);
     }
 
+    public function test_elegir_modalidad_anual_en_el_wizard_autoselecciona_el_ciclo_abierto(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $cicloAnual = Ciclo::factory()->anual()->activo()->create();
+        $cicloAnual->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Marisol')
+            ->set('apellidos', 'Peña Ríos')
+            ->set('dni', '55667950')
+            ->set('fechaNacimiento', now()->subYears(28)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertSet('paso', 3)
+            ->set('dniEstudianteArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->call('avanzar')
+            ->assertSet('paso', 4)
+            ->call('avanzar')
+            ->assertSet('paso', 5)
+            ->set('modalidadCiclo', 'anual')
+            ->assertSet('cicloId', (string) $cicloAnual->id)
+            ->set('gradoId', (string) $grado->id)
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $estudiante = Estudiante::query()->where('dni', '55667950')->firstOrFail();
+        $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'ciclo_id' => $cicloAnual->id]);
+    }
+
     public function test_el_wizard_detecta_un_dni_existente_y_permite_rematricular_sin_repetir_los_datos(): void
     {
         $usuario = User::factory()->create();
