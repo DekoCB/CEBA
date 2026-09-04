@@ -1,5 +1,6 @@
 import './bootstrap';
 import Chart from 'chart.js/auto';
+import { VortexScene, VORTEX_LOGIN_CONFIG } from './vortex-dust';
 
 /**
  * Los tokens de color de la app viven como custom properties "R G B"
@@ -78,6 +79,34 @@ document.addEventListener('alpine:init', () => {
         },
         destroy() {
             this.chart?.destroy();
+        },
+    }));
+
+    /**
+     * Fondo del panel de la mascota en el login (ver layouts/guest.blade.php
+     * y vortex-dust.js). Se omite con "menos movimiento" del sistema, igual
+     * criterio que el resto de animaciones de la app.
+     */
+    Alpine.data('vortexDust', () => ({
+        scene: null,
+        ro: null,
+        init() {
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                return;
+            }
+
+            this.scene = new VortexScene(this.$el, VORTEX_LOGIN_CONFIG);
+            this.scene.setSize(this.$el.clientWidth, this.$el.clientHeight);
+            this.scene.start();
+
+            this.ro = new ResizeObserver(() => {
+                this.scene.setSize(this.$el.clientWidth, this.$el.clientHeight);
+            });
+            this.ro.observe(this.$el);
+        },
+        destroy() {
+            this.ro?.disconnect();
+            this.scene?.dispose();
         },
     }));
 

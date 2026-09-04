@@ -34,6 +34,8 @@
                 mascota oficial del login (ver conversación).
             --}}
             <div class="dashboard-hero-gradient relative hidden w-1/2 items-center justify-center overflow-hidden lg:flex">
+                <div x-data="vortexDust()" class="absolute inset-0" aria-hidden="true"></div>
+
                 <div class="hero-glow absolute h-72 w-72 rounded-full bg-white/10 blur-3xl" aria-hidden="true"></div>
 
                 <x-dashboard.mascot class="mascot-float relative h-72 w-72 -rotate-3 drop-shadow-2xl xl:h-80 xl:w-80" />
