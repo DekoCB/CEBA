@@ -48,8 +48,8 @@ new #[Layout('layouts.guest')] class extends Component
 <div>
     @if (! $categoria)
         <div class="text-center">
-            <h2 class="font-sans text-lg font-bold text-white">¿Cómo deseas ingresar?</h2>
-            <p class="mt-1 text-sm text-gray-400">Elige tu tipo de acceso para continuar.</p>
+            <h2 class="font-sans text-lg font-bold text-ink">¿Cómo deseas ingresar?</h2>
+            <p class="mt-1 text-sm text-ink-faint">Elige tu tipo de acceso para continuar.</p>
         </div>
 
         <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -57,17 +57,17 @@ new #[Layout('layouts.guest')] class extends Component
                 <button
                     type="button"
                     wire:click="elegirCategoria('{{ $opcion->value }}')"
-                    class="group rounded-2xl border border-white/10 bg-white/5 p-6 text-center transition hover:-translate-y-0.5 hover:border-red-500/40 hover:bg-white/10"
+                    class="group rounded-2xl border border-border bg-surface-2 p-6 text-center transition hover:-translate-y-0.5 hover:border-accent/40 hover:bg-accent-soft"
                 >
-                    <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-red-400 transition duration-300 group-hover:scale-110">
+                    <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent transition duration-300 group-hover:scale-110">
                         @if ($opcion === CategoriaAccesoEnum::ESTUDIANTE)
                             <x-heroicon-o-academic-cap class="h-6 w-6" />
                         @else
                             <x-heroicon-o-briefcase class="h-6 w-6" />
                         @endif
                     </span>
-                    <span class="mt-3 block font-sans text-sm font-bold text-white">{{ $opcion->label() }}</span>
-                    <span class="mt-1 block text-xs text-gray-500">
+                    <span class="mt-3 block font-sans text-sm font-bold text-ink">{{ $opcion->label() }}</span>
+                    <span class="mt-1 block text-xs text-ink-faint">
                         @if ($opcion === CategoriaAccesoEnum::ESTUDIANTE)
                             Matrícula, notas y asistencia
                         @else
@@ -81,7 +81,7 @@ new #[Layout('layouts.guest')] class extends Component
         <button
             type="button"
             wire:click="cambiarCategoria"
-            class="mb-5 inline-flex items-center gap-1.5 text-sm text-gray-400 transition hover:text-white"
+            class="mb-5 inline-flex items-center gap-1.5 text-sm text-ink-faint transition hover:text-ink"
         >
             <x-heroicon-o-arrow-left class="h-4 w-4" />
             Cambiar tipo de acceso · {{ CategoriaAccesoEnum::from($categoria)->label() }}
