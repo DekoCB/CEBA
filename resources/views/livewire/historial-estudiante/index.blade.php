@@ -72,10 +72,9 @@ new #[Layout('layouts.app')] class extends Component
         abort_if($ciclo === null, 404);
 
         $estudiante = $historial['estudiante'];
-        $cursos = $libretas->resumenPorCursos($estudiante, $ciclo);
 
         return response()->streamDownload(
-            fn () => print (Pdf::loadView('pdf.libreta', ['estudiante' => $estudiante, 'ciclo' => $ciclo, 'cursos' => $cursos])->output()),
+            fn () => print (Pdf::loadView('pdf.libreta', $libretas->datosParaPdf($estudiante, $ciclo))->output()),
             "libreta-{$estudiante->dni}-{$ciclo->anio}.pdf",
             ['Content-Type' => 'application/pdf'],
         );
@@ -101,13 +100,15 @@ new #[Layout('layouts.app')] class extends Component
         $historial = $this->estudianteSeleccionadoId !== null ? $servicio->porId($this->estudianteSeleccionadoId) : null;
 
         $cicloLibreta = $historial ? $historial['matriculas']->first(fn ($matricula) => $matricula->ciclo_id === $this->cicloLibretaId)?->ciclo : null;
+        $cursosLibreta = ($historial && $cicloLibreta) ? $libretas->resumenPorCursos($historial['estudiante'], $cicloLibreta) : collect();
 
         return [
             'resultadosBusqueda' => $resultadosBusqueda,
             'historial' => $historial,
             'puedeExportar' => Auth::user()->hasPermissionTo('reportes.exportar'),
             'cicloLibreta' => $cicloLibreta,
-            'cursosLibreta' => ($historial && $cicloLibreta) ? $libretas->resumenPorCursos($historial['estudiante'], $cicloLibreta) : collect(),
+            'cursosLibreta' => $cursosLibreta,
+            'situacionFinalLibreta' => $cursosLibreta->isNotEmpty() ? $libretas->calcularSituacionFinal($cursosLibreta) : null,
         ];
     }
 }; ?>
@@ -355,7 +356,7 @@ new #[Layout('layouts.app')] class extends Component
 
                     @if ($cicloLibreta)
                         <div class="mt-2">
-                            <x-evaluaciones.resumen-libreta :cursos="$cursosLibreta" />
+                            <x-evaluaciones.resumen-libreta :cursos="$cursosLibreta" :situacion-final="$situacionFinalLibreta" />
                         </div>
                     @endif
                 @endif

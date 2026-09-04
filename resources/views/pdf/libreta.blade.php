@@ -4,68 +4,117 @@
     <meta charset="utf-8">
     <style>
         body { font-family: 'Helvetica', sans-serif; font-size: 12px; color: #1B1F27; }
-        h1 { font-size: 18px; margin-bottom: 4px; }
-        .subtitulo { color: #5B6472; margin-bottom: 24px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
-        thead td { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; color: #5B6472; border-bottom: 1px solid #DBDFE6; padding: 6px 8px; }
-        tbody td { padding: 7px 8px; border-bottom: 1px solid #EEF0F3; }
-        .seccion { font-size: 13px; font-weight: bold; margin-top: 18px; margin-bottom: 6px; border-bottom: 1px solid #DBDFE6; padding-bottom: 4px; }
-        .etiqueta { color: #5B6472; width: 35%; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
-        .codigo { margin-top: 40px; font-size: 10px; color: #8891A0; }
+
+        table.encabezado { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+        table.encabezado td { vertical-align: middle; }
+        .logo-celda { width: 78px; padding-right: 14px; }
+        .logo-celda img { width: 70px; }
+        .institucion { font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: #5B6472; margin: 0 0 2px; }
+        .colegio-nombre { font-size: 18px; font-weight: bold; color: #12225C; margin: 0; line-height: 1.15; }
+        .colegio-nombre span { display: block; font-size: 25px; }
+        .colegio-subtitulo { font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6472; margin: 2px 0 0; }
+
+        hr.regla { border: none; border-top: 2px solid #12225C; margin: 8px 0 22px; }
+
+        h1 { text-align: center; font-size: 20px; margin: 0 0 22px; letter-spacing: 0.05em; text-transform: uppercase; color: #12225C; }
+
+        table.datos { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        table.datos td { padding: 4px 0; font-size: 11.5px; }
+        table.datos td.etiqueta { color: #5B6472; width: 32%; text-transform: uppercase; letter-spacing: 0.03em; font-size: 10px; }
+        table.datos td.valor { font-weight: bold; color: #1B1F27; }
+
+        .seccion { font-size: 13px; font-weight: bold; margin-top: 8px; margin-bottom: 6px; border-bottom: 1px solid #DBDFE6; padding-bottom: 4px; color: #12225C; }
+
+        table.calificaciones { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+        table.calificaciones thead td { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; color: #5B6472; border-bottom: 1px solid #DBDFE6; padding: 6px 8px; }
+        table.calificaciones tbody td { padding: 8px; border-bottom: 1px solid #EEF0F3; }
+        table.calificaciones td.nota { text-align: center; font-weight: bold; width: 140px; }
         .sin-datos { color: #8891A0; font-style: italic; }
+
+        .situacion { margin: 22px 0; padding: 10px 14px; text-align: center; font-size: 13px; font-weight: bold; letter-spacing: 0.04em; text-transform: uppercase; border-radius: 4px; }
+        .situacion.aprobado { background: #DCFCE7; color: #15803D; }
+        .situacion.desaprobado { background: #FEE2E2; color: #B91C1C; }
+
+        p.cierre { text-align: right; margin: 24px 0 0; }
+
+        .firma { margin-top: 56px; text-align: center; }
+        .firma .linea { border-top: 1px solid #1B1F27; width: 220px; margin: 0 auto; }
+        .firma p { margin: 4px 0 0; text-align: center; }
+        .firma .nombre { font-weight: bold; }
+
+        .pie-codigo { margin-top: 18px; font-size: 10px; color: #8891A0; }
     </style>
 </head>
 <body>
-    <h1>Libreta de Notas</h1>
-    <p class="subtitulo">CEBA · {{ $ciclo->nombre }}</p>
+    <table class="encabezado">
+        <tr>
+            <td class="logo-celda"><img src="{{ public_path('images/Logo.png') }}" alt="CEBA Peruano Británico"></td>
+            <td>
+                <p class="colegio-nombre">CEBA<span>PERUANO BRITÁNICO</span></p>
+                <p class="colegio-subtitulo">Centro de Educación Básica Alternativa</p>
+            </td>
+        </tr>
+    </table>
+    <hr class="regla">
 
-    <div class="seccion">Datos del estudiante</div>
-    <table>
-        <tr><td class="etiqueta">Nombres y apellidos</td><td>{{ $estudiante->nombreCompleto() }}</td></tr>
-        <tr><td class="etiqueta">DNI</td><td>{{ $estudiante->dni }}</td></tr>
+    <h1>Libreta de Notas</h1>
+
+    <table class="datos">
+        <tr>
+            <td class="etiqueta">Estudiante</td>
+            <td class="valor">{{ $estudiante->nombreCompleto() }}</td>
+            <td class="etiqueta">DNI</td>
+            <td class="valor">{{ $estudiante->dni }}</td>
+        </tr>
+        <tr>
+            <td class="etiqueta">Modalidad</td>
+            <td class="valor">{{ $modalidadTexto }}</td>
+            <td class="etiqueta">Grado</td>
+            <td class="valor">{{ $matricula?->grado?->nombre ?? '—' }}</td>
+        </tr>
+        <tr>
+            <td class="etiqueta">Periodo promocional</td>
+            <td class="valor">{{ $periodoPromocional }}</td>
+            <td class="etiqueta">Ciclo</td>
+            <td class="valor">{{ $ciclo->nombre }}</td>
+        </tr>
     </table>
 
-    <div class="seccion">Promedios por curso</div>
-    <table>
+    <div class="seccion">Calificaciones</div>
+    <table class="calificaciones">
         <thead>
-            <tr><td>Curso</td><td>Promedio</td><td>Escala</td></tr>
+            <tr>
+                <td>Asignatura o actividades de aprendizaje</td>
+                <td class="nota">Calificación final (Nota)</td>
+            </tr>
         </thead>
         <tbody>
             @forelse ($cursos as $curso)
                 <tr>
                     <td>{{ $curso['nombre'] }}</td>
-                    <td>{{ $curso['promedio'] !== null ? number_format($curso['promedio'], 2) : '—' }}</td>
-                    <td>{{ $curso['letra'] ?? '—' }}</td>
+                    <td class="nota">{{ $curso['letra'] ?? '—' }}</td>
                 </tr>
             @empty
-                <tr><td colspan="3" class="sin-datos">No hay cursos registrados para este ciclo.</td></tr>
+                <tr><td colspan="2" class="sin-datos">No hay cursos registrados para este ciclo.</td></tr>
             @endforelse
         </tbody>
     </table>
 
     @if ($cursos->isNotEmpty())
-        <div class="seccion">Desglose mensual</div>
-        <table>
-            <thead>
-                <tr><td>Curso</td><td>Mes</td><td>Promedio</td></tr>
-            </thead>
-            <tbody>
-                @forelse ($cursos as $curso)
-                    @forelse ($curso['porMes'] as $mes)
-                        <tr>
-                            <td>{{ $curso['nombre'] }}</td>
-                            <td>{{ ucfirst($mes['mes']) }}</td>
-                            <td>{{ number_format($mes['promedio'], 2) }}</td>
-                        </tr>
-                    @empty
-                        <tr><td>{{ $curso['nombre'] }}</td><td colspan="2" class="sin-datos">Sin calificaciones registradas por mes.</td></tr>
-                    @endforelse
-                @empty
-                @endforelse
-            </tbody>
-        </table>
+        <div class="situacion {{ $situacionFinal === 'APROBADO' ? 'aprobado' : 'desaprobado' }}">
+            Situación final: {{ $situacionFinal }}
+        </div>
     @endif
 
-    <p class="codigo">Generada el {{ now()->format('d/m/Y H:i') }}</p>
+    <p class="cierre">San Juan de Lurigancho, {{ now()->translatedFormat('d \d\e F \d\e Y') }}</p>
+
+    <div class="firma">
+        <div class="linea"></div>
+        <p class="nombre">LIC. ALCIDES MARLO PAICIC</p>
+        <p>DIRECTOR</p>
+        <p>CEBA PERUANO BRITÁNICO</p>
+    </div>
+
+    <p class="pie-codigo">Generada el {{ now()->format('d/m/Y H:i') }}</p>
 </body>
 </html>

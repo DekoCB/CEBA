@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Evaluaciones\Services;
 
+use App\Modules\Academico\Enums\ModalidadCicloEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Evaluaciones\Enums\NotaLetraEnum;
@@ -17,6 +18,12 @@ use Illuminate\Validation\ValidationException;
 
 class LibretaService
 {
+    /**
+     * Texto oficial de la modalidad EBA, igual para todos los estudiantes
+     * y ciclos -- no depende del grado ni del tipo/modalidad del Ciclo.
+     */
+    private const MODALIDAD_EBA = 'Educación Básica Alternativa – Ciclo Avanzado';
+
     public function __construct(
         private readonly EvaluacionService $evaluaciones,
     ) {}
@@ -49,7 +56,7 @@ class LibretaService
 
         $horarios = Horario::query()
             ->deLaMatricula($matricula)
-            ->with('curso')
+            ->with(['curso', 'ciclo'])
             ->get();
 
         return $horarios->map(function (Horario $horario) use ($estudiante) {
@@ -62,6 +69,68 @@ class LibretaService
                 'porMes' => $this->evaluaciones->promedioMensualDelEstudiante($estudiante, $horario),
             ];
         });
+    }
+
+    /**
+     * DESAPROBADO si algún curso quedó con letra C ("En inicio"); un curso
+     * todavía sin calificar (letra null) no cuenta como C -- no hay nota
+     * final que reprobar todavía.
+     *
+     * @param  SupportCollection<int, array{letra: ?string}>  $cursos
+     */
+    public function calcularSituacionFinal(SupportCollection $cursos): string
+    {
+        $tieneC = $cursos->contains(fn (array $curso) => $curso['letra'] === NotaLetraEnum::C->value);
+
+        return $tieneC ? 'DESAPROBADO' : 'APROBADO';
+    }
+
+    /**
+     * El "periodo promocional" tal como lo pide SIAGIE: "{año}-1"/"{año}-2"
+     * para los Grupos de 6 meses (según si el Grupo arranca en la primera
+     * o segunda mitad del año calendario), o "ANUAL" para SIAGE anual --
+     * a diferencia de Ciclo::nombre (texto libre tipo "Grupo 1 (Enero -
+     * Junio)"), esto es el formato exigido en la libreta oficial.
+     */
+    public function periodoPromocional(Ciclo $ciclo): string
+    {
+        if ($ciclo->modalidad === ModalidadCicloEnum::ANUAL) {
+            return 'ANUAL';
+        }
+
+        $semestre = ($ciclo->tipo?->mesInicioFijo() ?? 1) > 6 ? 2 : 1;
+
+        return "{$ciclo->anio}-{$semestre}";
+    }
+
+    /**
+     * Todo lo que necesita la plantilla pdf.libreta -- separado de
+     * generar() para que exportarLibretaPdf() en historial-estudiante (que
+     * exporta sin persistir un registro Libreta) arme exactamente los
+     * mismos datos, sin duplicar el cálculo de situación final/periodo.
+     *
+     * @return array{estudiante: Estudiante, ciclo: Ciclo, matricula: ?Matricula, cursos: SupportCollection, situacionFinal: string, periodoPromocional: string, modalidadTexto: string}
+     */
+    public function datosParaPdf(Estudiante $estudiante, Ciclo $ciclo): array
+    {
+        $matricula = Matricula::query()
+            ->where('estudiante_id', $estudiante->id)
+            ->where('ciclo_id', $ciclo->id)
+            ->where('estado', 'aprobada')
+            ->with('grado')
+            ->first();
+
+        $cursos = $this->resumenPorCursos($estudiante, $ciclo);
+
+        return [
+            'estudiante' => $estudiante,
+            'ciclo' => $ciclo,
+            'matricula' => $matricula,
+            'cursos' => $cursos,
+            'situacionFinal' => $this->calcularSituacionFinal($cursos),
+            'periodoPromocional' => $this->periodoPromocional($ciclo),
+            'modalidadTexto' => self::MODALIDAD_EBA,
+        ];
     }
 
     public function generar(Estudiante $estudiante, Ciclo $ciclo): Libreta
@@ -78,13 +147,7 @@ class LibretaService
             ]);
         }
 
-        $cursos = $this->resumenPorCursos($estudiante, $ciclo);
-
-        $pdf = Pdf::loadView('pdf.libreta', [
-            'estudiante' => $estudiante,
-            'ciclo' => $ciclo,
-            'cursos' => $cursos,
-        ]);
+        $pdf = Pdf::loadView('pdf.libreta', $this->datosParaPdf($estudiante, $ciclo));
 
         /** @var Libreta $libreta */
         $libreta = Libreta::query()->updateOrCreate(

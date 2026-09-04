@@ -23,4 +23,17 @@ enum ModalidadCicloEnum: string
             self::ANUAL => 'SIAGE anual',
         };
     }
+
+    /**
+     * Cuántos exámenes mensuales entran en el promedio final de un curso
+     * (los últimos N por fecha, ver EvaluacionService::promedioDelEstudiante()):
+     * 6 para un Grupo de 6 meses, 8 para SIAGE anual (8 meses de clases).
+     */
+    public function examenesQueCuentan(): int
+    {
+        return match ($this) {
+            self::SEIS_MESES => 6,
+            self::ANUAL => 8,
+        };
+    }
 }

@@ -53,10 +53,13 @@ new #[Layout('layouts.app')] class extends Component
             ->where('ciclo_id', $this->ciclo->id)
             ->first();
 
+        $cursos = $service->resumenPorCursos($this->estudiante, $this->ciclo);
+
         return [
             'libreta' => $libreta,
             'urlPdf' => $libreta?->getFirstMediaUrl('pdf'),
-            'cursos' => $service->resumenPorCursos($this->estudiante, $this->ciclo),
+            'cursos' => $cursos,
+            'situacionFinal' => $cursos->isNotEmpty() ? $service->calcularSituacionFinal($cursos) : null,
         ];
     }
 }; ?>
@@ -98,7 +101,7 @@ new #[Layout('layouts.app')] class extends Component
         </div>
 
         <div class="mt-6">
-            <x-evaluaciones.resumen-libreta :cursos="$cursos" />
+            <x-evaluaciones.resumen-libreta :cursos="$cursos" :situacion-final="$situacionFinal" />
         </div>
     @endif
 </div>

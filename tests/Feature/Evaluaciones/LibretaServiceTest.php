@@ -137,4 +137,83 @@ class LibretaServiceTest extends TestCase
         $this->assertSame(14.0, $porMes[0]['promedio']);
         $this->assertSame(18.0, $porMes[1]['promedio']);
     }
+
+    public function test_calcular_situacion_final_es_aprobado_sin_ningun_curso_con_letra_c(): void
+    {
+        $cursos = collect([
+            ['letra' => 'AD'],
+            ['letra' => 'A'],
+            ['letra' => 'B'],
+        ]);
+
+        $this->assertSame('APROBADO', $this->libretaService()->calcularSituacionFinal($cursos));
+    }
+
+    public function test_calcular_situacion_final_es_desaprobado_si_algun_curso_tiene_letra_c(): void
+    {
+        $cursos = collect([
+            ['letra' => 'AD'],
+            ['letra' => 'C'],
+        ]);
+
+        $this->assertSame('DESAPROBADO', $this->libretaService()->calcularSituacionFinal($cursos));
+    }
+
+    public function test_calcular_situacion_final_no_cuenta_un_curso_sin_calificar_como_c(): void
+    {
+        $cursos = collect([
+            ['letra' => 'AD'],
+            ['letra' => null],
+        ]);
+
+        $this->assertSame('APROBADO', $this->libretaService()->calcularSituacionFinal($cursos));
+    }
+
+    public function test_periodo_promocional_es_anual_para_un_ciclo_anual(): void
+    {
+        $ciclo = Ciclo::factory()->anual()->create();
+
+        $this->assertSame('ANUAL', $this->libretaService()->periodoPromocional($ciclo));
+    }
+
+    public function test_periodo_promocional_es_1_para_un_grupo_que_arranca_en_la_primera_mitad_del_anio(): void
+    {
+        // Ciclo::factory() por defecto es Grupo 1 (mesInicioFijo = 1).
+        $ciclo = Ciclo::factory()->create(['anio' => 2026]);
+
+        $this->assertSame('2026-1', $this->libretaService()->periodoPromocional($ciclo));
+    }
+
+    public function test_periodo_promocional_es_2_para_un_grupo_que_arranca_en_la_segunda_mitad_del_anio(): void
+    {
+        $ciclo = Ciclo::factory()->grupo3()->create(['anio' => 2026]);
+
+        $this->assertSame('2026-2', $this->libretaService()->periodoPromocional($ciclo));
+    }
+
+    public function test_datos_para_pdf_incluye_situacion_final_y_periodo_promocional(): void
+    {
+        $ciclo = Ciclo::factory()->create(['anio' => 2026]);
+        $estudiante = Estudiante::factory()->create();
+        $horario = Horario::factory()->create(['ciclo_id' => $ciclo->id]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => $horario->grado_id,
+        ]);
+
+        $evaluacionService = $this->app->make(EvaluacionService::class);
+        $evaluacion = $evaluacionService->crear($horario, 'Evaluación', '2026-07-15');
+        $evaluacionService->calificar($evaluacion, $estudiante, 18.0, null, null);
+        $evaluacionService->publicar($evaluacion);
+
+        $datos = $this->libretaService()->datosParaPdf($estudiante, $ciclo);
+
+        $this->assertSame('APROBADO', $datos['situacionFinal']);
+        $this->assertSame('2026-1', $datos['periodoPromocional']);
+        $this->assertSame($estudiante->id, $datos['estudiante']->id);
+        $this->assertSame($ciclo->id, $datos['ciclo']->id);
+        $this->assertNotNull($datos['matricula']);
+        $this->assertCount(1, $datos['cursos']);
+    }
 }

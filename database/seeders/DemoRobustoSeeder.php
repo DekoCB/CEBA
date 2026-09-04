@@ -132,21 +132,36 @@ class DemoRobustoSeeder extends Seeder
     /**
      * @param  Collection<int, Grado>  $grados
      */
+    /**
+     * Las 8 asignaturas oficiales de la libreta de notas de CEBA (mismo
+     * orden en que aparecen impresas) -- ver LibretaService/pdf.libreta.
+     * firstOrCreate() por grado_id+nombre en vez de por posición: así, si
+     * un grado ya tiene algún curso del catálogo anterior, no se duplica,
+     * y sigue siendo seguro volver a correr el seeder.
+     */
     private function asegurarCursos(Collection $grados): void
     {
-        $catalogo = ['Comunicación', 'Matemática', 'Ciencias Sociales'];
+        $catalogo = [
+            'Matemática',
+            'Ciencia Tecnología y Salud',
+            'Comunicación',
+            'Desarrollo personal y ciudadano',
+            'Inglés',
+            'Religión',
+            'Educación para el trabajo',
+            'Educación física',
+        ];
         $horasPorCurso = 80;
 
         foreach ($grados as $grado) {
-            $existentes = Curso::query()->where('grado_id', $grado->id)->count();
-
-            for ($indice = $existentes; $indice < count($catalogo); $indice++) {
-                Curso::query()->create([
-                    'nombre' => $catalogo[$indice],
-                    'codigo' => "G{$grado->id}-".str_pad((string) ($indice + 1), 2, '0', STR_PAD_LEFT),
-                    'grado_id' => $grado->id,
-                    'horas' => $horasPorCurso,
-                ]);
+            foreach ($catalogo as $indice => $nombre) {
+                Curso::query()->firstOrCreate(
+                    ['grado_id' => $grado->id, 'nombre' => $nombre],
+                    [
+                        'codigo' => "G{$grado->id}-".str_pad((string) ($indice + 1), 2, '0', STR_PAD_LEFT),
+                        'horas' => $horasPorCurso,
+                    ],
+                );
             }
         }
     }

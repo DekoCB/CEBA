@@ -79,12 +79,14 @@ class Curso extends Model implements HasMedia
             str_contains($nombre, 'comunicac') => 'chat-bubble-left-right',
             str_contains($nombre, 'ingles'), str_contains($nombre, 'idioma') => 'language',
             str_contains($nombre, 'ciencias sociales'), str_contains($nombre, 'historia'), str_contains($nombre, 'geografia') => 'globe-americas',
-            str_contains($nombre, 'ciencia y tecnolog'), str_contains($nombre, 'ciencias naturales') => 'beaker',
+            str_contains($nombre, 'tecnolog'), str_contains($nombre, 'ciencias naturales') => 'beaker',
             str_contains($nombre, 'computo'), str_contains($nombre, 'computacion'), str_contains($nombre, 'informatica') => 'computer-desktop',
             str_contains($nombre, 'arte') => 'paint-brush',
             str_contains($nombre, 'musica') => 'musical-note',
             str_contains($nombre, 'educacion fisica'), str_contains($nombre, 'deporte') => 'trophy',
             str_contains($nombre, 'religio') => 'academic-cap',
+            str_contains($nombre, 'desarrollo personal'), str_contains($nombre, 'ciudadano') => 'user-circle',
+            str_contains($nombre, 'para el trabajo') => 'briefcase',
             default => 'book-open',
         };
     }

@@ -18,7 +18,16 @@ class CursoFactory extends Factory
     public function definition(): array
     {
         return [
-            'nombre' => $this->faker->randomElement(['Comunicación', 'Matemática', 'Ciencias Sociales', 'Ciencia y Tecnología', 'Inglés']),
+            'nombre' => $this->faker->randomElement([
+                'Matemática',
+                'Ciencia Tecnología y Salud',
+                'Comunicación',
+                'Desarrollo personal y ciudadano',
+                'Inglés',
+                'Religión',
+                'Educación para el trabajo',
+                'Educación física',
+            ]),
             'codigo' => strtoupper($this->faker->unique()->bothify('CUR-###')),
             'grado_id' => Grado::factory(),
             'horas' => $this->faker->numberBetween(60, 120),
