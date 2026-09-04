@@ -255,6 +255,30 @@
 }
 
 /*
+ * Mascota del panel izquierdo del login (ver layouts/guest.blade.php):
+ * flotación suave para que no se sienta estática junto al degradado
+ * animado (.hero-glow) de atrás.
+ */
+@keyframes mascot-float {
+    0%, 100% {
+        transform: translateY(0) rotate(-3deg);
+    }
+    50% {
+        transform: translateY(-14px) rotate(-1deg);
+    }
+}
+
+.mascot-float {
+    animation: mascot-float 5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mascot-float {
+        animation: none;
+    }
+}
+
+/*
  * Fondo del área de contenido de los módulos (dentro de <main>, ver
  * layouts/app.blade.php) -- reemplaza las ilustraciones tipo cuaderno que
  * había antes (fondo-modulo) por resplandores ambientales lisos en los
