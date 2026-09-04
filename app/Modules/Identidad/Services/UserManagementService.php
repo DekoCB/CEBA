@@ -17,6 +17,7 @@ class UserManagementService
 {
     public function __construct(
         private readonly UserRepositoryInterface $usuarios,
+        private readonly SessionControlService $sesiones,
     ) {}
 
     public function listar(?string $termino, ?string $rol, int $perPage = 15): LengthAwarePaginator
@@ -46,13 +47,25 @@ class UserManagementService
 
     public function actualizar(User $usuario, ActualizarUsuarioData $data): User
     {
-        return $this->usuarios->update($usuario, [
-            'name' => $data->name,
-            'email' => $data->email,
-            'dni' => $data->dni->valor(),
-            'phone' => $data->phone?->numero(),
-            'estado' => $data->estado,
-        ]);
+        return DB::transaction(function () use ($usuario, $data) {
+            $usuario = $this->usuarios->update($usuario, [
+                'name' => $data->name,
+                'email' => $data->email,
+                'dni' => $data->dni->valor(),
+                'phone' => $data->phone?->numero(),
+                'estado' => $data->estado,
+            ]);
+
+            // Si la cuenta deja de estar activa, se le corta el acceso ya
+            // mismo en vez de esperar a que su sesión expire sola -- ver
+            // también VerificarCuentaActiva, que cierra la petición ya en
+            // vuelo de esa misma sesión en cuanto llegue la próxima.
+            if ($data->estado !== EstadoUsuarioEnum::ACTIVO) {
+                $this->sesiones->revocarTodas($usuario);
+            }
+
+            return $usuario;
+        });
     }
 
     public function cambiarRol(User $usuario, string $rol): void

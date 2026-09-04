@@ -46,4 +46,14 @@ class SessionControlService
             ->where('id', '!=', $sesionActualId)
             ->delete();
     }
+
+    /**
+     * A diferencia de revocarTodasMenosActual(), sin excepción: la usa
+     * UserManagementService::actualizar() cuando un administrador desactiva
+     * a OTRO usuario, así que no hay "sesión actual" propia que conservar.
+     */
+    public function revocarTodas(User $usuario): void
+    {
+        DB::table('sessions')->where('user_id', $usuario->id)->delete();
+    }
 }

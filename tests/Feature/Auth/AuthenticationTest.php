@@ -4,6 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
+use App\Shared\Enums\EstadoUsuarioEnum;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
@@ -68,6 +69,23 @@ class AuthenticationTest extends TestCase
 
         $component
             ->assertHasErrors()
+            ->assertNoRedirect();
+
+        $this->assertGuest();
+    }
+
+    public function test_una_cuenta_desactivada_no_puede_iniciar_sesion(): void
+    {
+        $usuario = User::factory()->create(['estado' => EstadoUsuarioEnum::INACTIVO]);
+
+        $component = Volt::test('pages.auth.login')
+            ->set('form.email', $usuario->email)
+            ->set('form.password', 'password');
+
+        $component->call('login');
+
+        $component
+            ->assertHasErrors('form.email')
             ->assertNoRedirect();
 
         $this->assertGuest();

@@ -1,6 +1,5 @@
 <?php
 
-use App\Modules\AulaVirtual\Enums\EstadoEntregaEnum;
 use App\Modules\AulaVirtual\Models\CursoVirtual;
 use App\Modules\AulaVirtual\Models\EntregaTarea;
 use App\Modules\AulaVirtual\Models\Tarea;
@@ -63,7 +62,7 @@ new #[Layout('layouts.app')] class extends Component
 
         $this->validate([
             'comentario' => 'nullable|string',
-            'archivo' => 'nullable|file|max:10240',
+            'archivo' => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx,xls,xlsx,txt,zip,jpg,jpeg,png|max:10240',
         ]);
 
         $service->entregar($this->tarea, $estudiante, $this->comentario ?: null, $this->archivo);
@@ -151,7 +150,7 @@ new #[Layout('layouts.app')] class extends Component
         </div>
     @else
         <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
-            @if ($miEntrega && $miEntrega->estado === EstadoEntregaEnum::CALIFICADO)
+            @if ($miEntrega && $miEntrega->estado === \App\Modules\AulaVirtual\Enums\EstadoEntregaEnum::CALIFICADO)
                 <p class="text-sm text-ink">Tu entrega ya fue calificada.</p>
                 <p class="mt-2 font-display text-3xl text-accent">{{ $miEntrega->nota }} <span class="text-base text-ink-faint">/ {{ $tarea->puntaje_max }}</span></p>
                 @if ($miEntrega->comentario)

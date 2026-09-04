@@ -19,7 +19,9 @@ use App\Modules\Notificaciones\Services\NotificacionService;
 use App\Shared\Enums\MetodoEntregaEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -70,41 +72,70 @@ class CertificadoService
     ): Certificado {
         $tipo = $solicitud !== null ? $solicitud->tipo : $tipo;
 
-        /** @var Certificado $certificado */
-        $certificado = Certificado::query()->create([
-            'estudiante_id' => $estudiante->id,
-            'tipo' => $tipo,
-            'matricula_id' => $matricula?->id,
-            'numero' => $this->siguienteNumero(),
-            'codigo_verificacion' => $this->generarCodigoVerificacion(),
-            'es_duplicado' => false,
-            'emitido_por' => $emisor->id,
-            'fecha_emision' => now(),
-            'observaciones' => $observaciones,
-            'metodo_entrega' => $solicitud?->metodo_entrega,
-            'correo_entrega' => $solicitud?->correo_entrega,
-        ]);
-
-        $this->generarPdf($certificado);
-
-        if ($solicitud) {
-            $solicitud->update([
-                'estado' => EstadoSolicitudCertificadoEnum::ATENDIDA,
-                'atendido_por' => $emisor->id,
-                'certificado_id' => $certificado->id,
+        return DB::transaction(function () use ($estudiante, $matricula, $solicitud, $observaciones, $emisor, $tipo) {
+            $certificado = $this->crearConNumeroUnico([
+                'estudiante_id' => $estudiante->id,
+                'tipo' => $tipo,
+                'matricula_id' => $matricula?->id,
+                'codigo_verificacion' => $this->generarCodigoVerificacion(),
+                'es_duplicado' => false,
+                'emitido_por' => $emisor->id,
+                'fecha_emision' => now(),
+                'observaciones' => $observaciones,
+                'metodo_entrega' => $solicitud?->metodo_entrega,
+                'correo_entrega' => $solicitud?->correo_entrega,
             ]);
-        }
 
-        if ($estudiante->user) {
-            $this->notificaciones->notificar(
-                $estudiante->user,
-                TipoNotificacionEnum::CERTIFICADO_LISTO,
-                "Tu {$tipo->label()} está listo para recoger.",
-                $this->rutaMisDocumentos($tipo),
-            );
-        }
+            $this->generarPdf($certificado);
 
-        return $certificado;
+            if ($solicitud) {
+                $solicitud->update([
+                    'estado' => EstadoSolicitudCertificadoEnum::ATENDIDA,
+                    'atendido_por' => $emisor->id,
+                    'certificado_id' => $certificado->id,
+                ]);
+            }
+
+            if ($estudiante->user) {
+                $this->notificaciones->notificar(
+                    $estudiante->user,
+                    TipoNotificacionEnum::CERTIFICADO_LISTO,
+                    "Tu {$tipo->label()} está listo para recoger.",
+                    $this->rutaMisDocumentos($tipo),
+                );
+            }
+
+            return $certificado;
+        });
+    }
+
+    /**
+     * Crea el Certificado reintentando ante una colisión real de `numero`
+     * (columna única) en vez de dejar que reviente con un QueryException
+     * crudo: bajo concurrencia, dos emisiones casi simultáneas pueden leer
+     * el mismo conteo en siguienteNumero() antes de que la primera
+     * confirme su INSERT. El unique() de la columna es la garantía real
+     * (nunca quedan dos certificados con el mismo número); el reintento
+     * solo evita que ese caso, poco frecuente, se vea como un error.
+     *
+     * @param  array<string, mixed>  $atributos  Sin la clave 'numero': la agrega este método.
+     */
+    private function crearConNumeroUnico(array $atributos): Certificado
+    {
+        $intentosRestantes = 5;
+
+        while (true) {
+            try {
+                /** @var Certificado $certificado */
+                $certificado = Certificado::query()->create([...$atributos, 'numero' => $this->siguienteNumero()]);
+
+                return $certificado;
+            } catch (UniqueConstraintViolationException $e) {
+                if (--$intentosRestantes <= 0) {
+                    throw $e;
+                }
+            }
+        }
     }
 
     /**
@@ -207,23 +238,23 @@ class CertificadoService
     {
         $base = $original->es_duplicado ? $original->original : $original;
 
-        /** @var Certificado $duplicado */
-        $duplicado = Certificado::query()->create([
-            'estudiante_id' => $base->estudiante_id,
-            'tipo' => $base->tipo,
-            'matricula_id' => $base->matricula_id,
-            'numero' => $this->siguienteNumero(),
-            'codigo_verificacion' => $base->codigo_verificacion,
-            'es_duplicado' => true,
-            'certificado_original_id' => $base->id,
-            'emitido_por' => $emisor->id,
-            'fecha_emision' => now(),
-            'observaciones' => $observaciones,
-        ]);
+        return DB::transaction(function () use ($base, $observaciones, $emisor) {
+            $duplicado = $this->crearConNumeroUnico([
+                'estudiante_id' => $base->estudiante_id,
+                'tipo' => $base->tipo,
+                'matricula_id' => $base->matricula_id,
+                'codigo_verificacion' => $base->codigo_verificacion,
+                'es_duplicado' => true,
+                'certificado_original_id' => $base->id,
+                'emitido_por' => $emisor->id,
+                'fecha_emision' => now(),
+                'observaciones' => $observaciones,
+            ]);
 
-        $this->generarPdf($duplicado);
+            $this->generarPdf($duplicado);
 
-        return $duplicado;
+            return $duplicado;
+        });
     }
 
     public function rechazarSolicitud(SolicitudCertificado $solicitud, string $motivo, User $revisor): void

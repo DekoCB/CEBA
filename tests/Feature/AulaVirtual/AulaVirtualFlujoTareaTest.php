@@ -92,6 +92,28 @@ class AulaVirtualFlujoTareaTest extends TestCase
         ]);
     }
 
+    public function test_no_permite_entregar_un_php_disfrazado_de_tarea(): void
+    {
+        Storage::fake('public');
+
+        [, $curso, $usuarioEstudiante] = $this->cursoConEstudianteMatriculado();
+
+        $tarea = Tarea::factory()->create([
+            'curso_virtual_id' => $curso->id,
+            'fecha_limite' => now()->addDay(),
+            'puntaje_max' => 20,
+        ]);
+
+        $this->actingAs($usuarioEstudiante);
+
+        Volt::test('aula-virtual.tarea', ['curso' => $curso, 'tarea' => $tarea])
+            ->set('archivo', UploadedFile::fake()->create('malicioso.php', 10, 'application/x-php'))
+            ->call('entregar')
+            ->assertHasErrors('archivo');
+
+        $this->assertDatabaseCount('entregas_tarea', 0);
+    }
+
     public function test_un_estudiante_no_puede_calificar_su_propia_entrega(): void
     {
         [, $curso, $usuarioEstudiante, $estudiante] = $this->cursoConEstudianteMatriculado();

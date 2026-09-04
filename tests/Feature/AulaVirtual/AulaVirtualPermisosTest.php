@@ -206,6 +206,27 @@ class AulaVirtualPermisosTest extends TestCase
             ->assertSeeInOrder(['Bienvenida', 'Video de bienvenida']);
     }
 
+    public function test_no_permite_subir_un_php_disfrazado_de_material(): void
+    {
+        Storage::fake('public');
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $curso = $this->cursoDelDocente($docente);
+
+        $this->actingAs($docente);
+
+        Volt::test('aula-virtual.show', ['curso' => $curso])
+            ->set('materialTipo', 'archivo')
+            ->set('materialTitulo', 'Material')
+            ->set('materialArchivo', UploadedFile::fake()->create('malicioso.php', 10, 'application/x-php'))
+            ->set('materialCursosSeleccionados', [$curso->id])
+            ->call('crearMaterial')
+            ->assertHasErrors('materialArchivo');
+
+        $this->assertSame(0, $curso->materiales()->count());
+    }
+
     public function test_un_docente_no_puede_subir_material_a_la_seccion_de_otro_docente_inyectando_el_id(): void
     {
         $docente = User::factory()->create();
@@ -277,6 +298,27 @@ class AulaVirtualPermisosTest extends TestCase
 
         $this->assertSame(1, $miCurso->clasesGrabadas()->count());
         $this->assertSame(0, $cursoAjeno->clasesGrabadas()->count());
+    }
+
+    public function test_no_permite_subir_un_php_disfrazado_de_grabacion(): void
+    {
+        Storage::fake('public');
+
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $curso = $this->cursoDelDocente($docente);
+
+        $this->actingAs($docente);
+
+        Volt::test('aula-virtual.show', ['curso' => $curso])
+            ->set('grabacionTipo', 'archivo')
+            ->set('grabacionTitulo', 'Clase grabada')
+            ->set('grabacionArchivo', UploadedFile::fake()->create('malicioso.php', 10, 'application/x-php'))
+            ->set('grabacionCursosSeleccionados', [$curso->id])
+            ->call('crearGrabacion')
+            ->assertHasErrors('grabacionArchivo');
+
+        $this->assertSame(0, $curso->clasesGrabadas()->count());
     }
 
     public function test_un_estudiante_matriculado_ve_las_clases_grabadas_pero_no_puede_crear_una(): void

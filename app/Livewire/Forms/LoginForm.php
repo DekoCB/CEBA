@@ -47,6 +47,14 @@ class LoginForm extends Form
 
         $user = Auth::user();
 
+        if (! $user->estaActivo()) {
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                'form.email' => 'Tu cuenta está desactivada. Contacta a Dirección si crees que es un error.',
+            ]);
+        }
+
         // El usuario eligió una puerta de entrada (Estudiante / Personal) antes
         // de escribir sus credenciales: aunque email y contraseña sean
         // correctos, si su rol real no pertenece a esa categoría se rechaza,

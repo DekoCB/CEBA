@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -123,5 +124,31 @@ class UsuariosTest extends TestCase
             ->set('rol', RolEnum::ESTUDIANTE->value)
             ->call('crear')
             ->assertHasErrors('rol');
+    }
+
+    public function test_desactivar_un_usuario_desde_su_ficha_revoca_sus_sesiones_activas(): void
+    {
+        $direccion = User::factory()->create();
+        $direccion->assignRole(RolEnum::DIRECCION->value);
+
+        $docente = User::factory()->create(['dni' => '55667788']);
+        $docente->assignRole(RolEnum::DOCENTE->value);
+
+        DB::table('sessions')->insert([
+            'id' => 'sesion-de-prueba',
+            'user_id' => $docente->id,
+            'payload' => base64_encode('datos'),
+            'last_activity' => now()->timestamp,
+        ]);
+
+        $this->actingAs($direccion);
+
+        Volt::test('usuarios.show', ['usuario' => $docente])
+            ->set('estado', 'inactivo')
+            ->call('guardarDatos')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseMissing('sessions', ['id' => 'sesion-de-prueba']);
+        $this->assertSame('inactivo', $docente->fresh()->estado->value);
     }
 }

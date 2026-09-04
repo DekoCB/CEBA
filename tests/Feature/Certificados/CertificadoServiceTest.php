@@ -6,15 +6,19 @@ use App\Models\User;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Certificados\Enums\EstadoSolicitudCertificadoEnum;
 use App\Modules\Certificados\Enums\TipoDocumentoEnum;
+use App\Modules\Certificados\Models\Certificado;
+use App\Modules\Certificados\Models\SolicitudCertificado;
 use App\Modules\Certificados\Services\CertificadoService;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Notificaciones\Enums\TipoNotificacionEnum;
 use App\Modules\Notificaciones\Models\Notificacion;
+use App\Modules\Notificaciones\Services\NotificacionService;
 use App\Shared\Enums\MetodoEntregaEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 use Tests\TestCase;
 
 class CertificadoServiceTest extends TestCase
@@ -45,6 +49,35 @@ class CertificadoServiceTest extends TestCase
         $segundo = app(CertificadoService::class)->emitir($estudiante, null, null, null, $emisor);
 
         $this->assertNotSame($primero->numero, $segundo->numero);
+    }
+
+    public function test_si_falla_a_mitad_de_la_emision_no_queda_un_certificado_huerfano(): void
+    {
+        $usuario = User::factory()->create();
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+        $solicitud = SolicitudCertificado::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'tipo' => TipoDocumentoEnum::CERTIFICADO_ESTUDIOS,
+        ]);
+        $emisor = User::factory()->create();
+
+        // La notificación es lo último que hace emitir(): si falla ahí, ya
+        // se creó el Certificado y se generó el PDF -- justo el escenario
+        // que debía dejar un registro huérfano antes de envolver todo en
+        // una transacción.
+        $this->mock(NotificacionService::class, function ($mock) {
+            $mock->shouldReceive('notificar')->andThrow(new RuntimeException('fallo simulado'));
+        });
+
+        try {
+            app(CertificadoService::class)->emitir($estudiante, null, $solicitud, null, $emisor);
+            $this->fail('Se esperaba que emitir() propagara la excepción simulada.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('fallo simulado', $e->getMessage());
+        }
+
+        $this->assertSame(0, Certificado::query()->count());
+        $this->assertSame(EstadoSolicitudCertificadoEnum::PENDIENTE, $solicitud->fresh()->estado);
     }
 
     public function test_duplicar_conserva_el_mismo_codigo_de_verificacion(): void
