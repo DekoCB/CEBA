@@ -10,6 +10,7 @@ use App\Modules\Matricula\Database\Seeders\MatriculaDemoSeeder;
 use App\Shared\Enums\EstadoUsuarioEnum;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Database\Seeder;
+use RuntimeException;
 
 class DatabaseSeeder extends Seeder
 {
@@ -18,6 +19,17 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Este seeder crea cuentas @ceba.test y datos ficticios (estudiantes,
+        // pagos, evaluaciones...) pensados solo para desarrollo local. Correrlo
+        // contra producción mezclaría eso con la base de datos real del
+        // colegio -- ahí corresponde ProduccionSeeder en su lugar, que solo
+        // siembra roles/permisos y la cuenta real de Dirección.
+        if (! app()->environment('local', 'testing')) {
+            throw new RuntimeException(
+                'DatabaseSeeder es solo para desarrollo local. En producción usa: php artisan db:seed --class=Database\\Seeders\\ProduccionSeeder'
+            );
+        }
+
         $this->call(RolesAndPermissionsSeeder::class);
 
         $direccion = User::factory()->create([

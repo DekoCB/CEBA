@@ -23,6 +23,7 @@ final cubre qué cambia si en algún momento se pasa a un VPS.
    php artisan key:generate
    php artisan storage:link
    php artisan migrate --force
+   php artisan db:seed --class="Database\Seeders\ProduccionSeeder" --force
    php artisan config:cache
    php artisan route:cache
    php artisan view:cache
@@ -31,6 +32,21 @@ final cubre qué cambia si en algún momento se pasa a un VPS.
    `storage:link` es crítico: sin él, todo lo que sirve Media Library
    (recibos, libretas, certificados, comprobantes, QR de cuentas bancarias)
    devuelve 404 aunque el archivo exista.
+
+   `db:seed --class=ProduccionSeeder` es igual de crítico y **fácil de
+   saltarse**: sin él no existen los roles/permisos de los que depende todo
+   `hasRole()`/`hasPermissionTo()` del sistema, y no hay ninguna cuenta con
+   la que entrar. **Nunca** corras `php artisan db:seed` a secas (sin
+   `--class`) en producción — eso ejecuta `DatabaseSeeder`, que está
+   bloqueado fuera de local/testing (ver `DatabaseSeeder::run()`) porque
+   mezcla lo anterior con estudiantes/pagos/evaluaciones ficticios. La
+   contraseña temporal de la cuenta de Dirección se imprime una sola vez en
+   la consola al correr el seeder — cámbiala apenas inicies sesión.
+
+   Verificar también en hPanel → PHP Configuration que estén activas las
+   extensiones `bcmath`, `gd`, `zip`, `exif`, `fileinfo`, `mbstring`, `dom`,
+   `xml` y `simplexml` (las que piden Composer/Larastan/DomPDF/Excel/2FA —
+   confirmar con `composer check-platform-reqs` en local antes de subir).
 
 6. Compilar el frontend **antes de subir**, en tu máquina local (ver
    sección 3) — no asumas que el plan de Hostinger tiene Node.js accesible
