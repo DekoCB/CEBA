@@ -19,7 +19,7 @@ class ReciboFactory extends Factory
     {
         return [
             'pago_id' => Pago::factory(),
-            'numero_recibo' => 'R-'.now()->format('Y').'-'.$this->faker->unique()->numerify('######'),
+            'numero_recibo' => $this->faker->unique()->numerify('######'),
             'emitido_en' => now(),
         ];
     }

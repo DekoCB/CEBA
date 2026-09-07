@@ -30,11 +30,13 @@ class ReciboService
         return $recibo;
     }
 
+    /**
+     * Correlativo continuo (nunca se reinicia por año): ambas series del
+     * mismo recibo lo comparten, así que si se reiniciara cada año se
+     * repetiría el número y rompería el unique() de numero_recibo.
+     */
     private function siguienteNumero(): string
     {
-        $anio = now()->format('Y');
-        $emitidosEsteAnio = Recibo::query()->where('numero_recibo', 'like', "R-{$anio}-%")->count();
-
-        return sprintf('R-%s-%06d', $anio, $emitidosEsteAnio + 1);
+        return sprintf('%06d', Recibo::query()->count() + 1);
     }
 }
