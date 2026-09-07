@@ -3,7 +3,9 @@
 use App\Modules\FlujoCaja\Enums\CategoriaEgresoEnum;
 use App\Modules\FlujoCaja\Services\FlujoCajaService;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
@@ -81,7 +83,10 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('status', 'Egreso registrado correctamente.');
     }
 
-    public function with(FlujoCajaService $service): array
+    /**
+     * @return array{inicio: Carbon, fin: Carbon, mesLabel: string, ingresos: float, egresos: float, saldoNeto: float, movimientos: Collection}
+     */
+    private function datosDelPeriodo(FlujoCajaService $service): array
     {
         $inicio = Carbon::parse("{$this->mes}-01")->startOfMonth();
         $fin = $inicio->copy()->endOfMonth();
@@ -89,15 +94,43 @@ new #[Layout('layouts.app')] class extends Component
         $ingresos = $service->ingresosDelPeriodo($inicio, $fin);
         $egresos = $service->egresosDelPeriodo($inicio, $fin);
 
-        [$labelsIngresos, $datosIngresos] = $service->ingresosPorMes(6);
-        [$labelsEgresos, $datosEgresos] = $service->egresosPorMes(6);
-
         return [
+            'inicio' => $inicio,
+            'fin' => $fin,
             'mesLabel' => ucfirst($inicio->translatedFormat('F Y')),
             'ingresos' => $ingresos,
             'egresos' => $egresos,
             'saldoNeto' => $ingresos - $egresos,
             'movimientos' => $service->movimientosDelPeriodo($inicio, $fin),
+        ];
+    }
+
+    public function exportarPdf(FlujoCajaService $service)
+    {
+        abort_unless(Auth::user()->hasPermissionTo('flujo_caja.ver'), 403);
+
+        $datos = $this->datosDelPeriodo($service);
+        $nombreArchivo = 'flujo-caja-'.$datos['inicio']->format('Y-m').'.pdf';
+
+        // Ver reportes/index.blade.php: Pdf::loadView(...)->download() no lo
+        // reconoce Livewire como descarga (devuelve un Response plano, no un
+        // StreamedResponse/BinaryFileResponse) -- streamDownload() sí.
+        return response()->streamDownload(
+            fn () => print (Pdf::loadView('pdf.flujo-caja', $datos)->output()),
+            $nombreArchivo,
+            ['Content-Type' => 'application/pdf'],
+        );
+    }
+
+    public function with(FlujoCajaService $service): array
+    {
+        $datos = $this->datosDelPeriodo($service);
+
+        [$labelsIngresos, $datosIngresos] = $service->ingresosPorMes(6);
+        [$labelsEgresos, $datosEgresos] = $service->egresosPorMes(6);
+
+        return [
+            ...$datos,
             'categorias' => CategoriaEgresoEnum::cases(),
             'metodos' => MetodoPagoEnum::seleccionables(),
             'labelsIngresos' => $labelsIngresos,
@@ -130,12 +163,18 @@ new #[Layout('layouts.app')] class extends Component
             </button>
         </div>
 
-        @can('flujo_caja.gestionar')
-            <x-primary-button type="button" wire:click="abrirModal" class="gap-2">
-                <x-heroicon-o-plus class="h-4 w-4" />
-                Registrar egreso
-            </x-primary-button>
-        @endcan
+        <div class="flex gap-2">
+            <x-secondary-button type="button" wire:click="exportarPdf" wire:loading.attr="disabled" wire:target="exportarPdf">
+                Exportar PDF
+            </x-secondary-button>
+
+            @can('flujo_caja.gestionar')
+                <x-primary-button type="button" wire:click="abrirModal" class="gap-2">
+                    <x-heroicon-o-plus class="h-4 w-4" />
+                    Registrar egreso
+                </x-primary-button>
+            @endcan
+        </div>
     </div>
 
     <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">

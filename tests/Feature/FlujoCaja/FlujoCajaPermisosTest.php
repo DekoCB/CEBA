@@ -93,4 +93,18 @@ class FlujoCajaPermisosTest extends TestCase
             ->call('mesAnterior')
             ->assertDontSee('200.00');
     }
+
+    public function test_exportar_pdf_devuelve_una_descarga(): void
+    {
+        $tesoreria = User::factory()->create();
+        $tesoreria->assignRole(RolEnum::TESORERIA->value);
+        Pago::factory()->aprobado()->create(['monto' => 200, 'fecha_aprobacion' => now()]);
+
+        $this->actingAs($tesoreria);
+
+        $testable = Volt::test('flujo-caja.index')->call('exportarPdf');
+
+        $this->assertArrayHasKey('download', $testable->effects);
+        $this->assertSame('application/pdf', $testable->effects['download']['contentType']);
+    }
 }
