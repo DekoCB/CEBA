@@ -1,8 +1,6 @@
 <?php
 
 use App\Modules\Identidad\Services\SessionControlService;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 use Livewire\Volt\Component;
 
 new class extends Component
@@ -23,6 +21,7 @@ new class extends Component
     {
         return [
             'sesiones' => $service->sesionesDe(auth()->user(), session()->getId()),
+            'horasPorNombre' => $service->horasPorNombre(auth()->user()),
         ];
     }
 }; ?>
@@ -49,14 +48,14 @@ new class extends Component
             <div class="flex items-center justify-between py-3 text-sm" wire:key="sesion-{{ $sesion->id }}">
                 <div>
                     <p class="text-ink">
-                        {{ $sesion->ipAddress ?? 'IP desconocida' }}
+                        {{ $sesion->nombre ?? 'Sin nombre registrado' }}
                         @if ($sesion->esActual)
                             <x-badge variant="accent" class="ml-2">Este dispositivo</x-badge>
                         @endif
                     </p>
                     <p class="text-xs text-ink-faint">
-                        {{ Str::limit($sesion->userAgent ?? 'Agente desconocido', 60) }}
-                        · última actividad {{ Carbon::createFromTimestamp($sesion->lastActivity)->diffForHumans() }}
+                        {{ $sesion->ipAddress ?? 'IP desconocida' }} · {{ \Illuminate\Support\Str::limit($sesion->userAgent ?? 'Agente desconocido', 60) }}
+                        · última actividad {{ \Illuminate\Support\Carbon::createFromTimestamp($sesion->lastActivity)->diffForHumans() }}
                     </p>
                 </div>
                 @unless ($sesion->esActual)
@@ -67,4 +66,22 @@ new class extends Component
             </div>
         @endforeach
     </div>
+
+    @if ($horasPorNombre->isNotEmpty())
+        <div class="mt-6 border-t border-border pt-4">
+            <h3 class="text-sm font-semibold text-ink">Horas registradas por nombre</h3>
+            <p class="mt-1 text-xs text-ink-faint">
+                Suma de los ingresos ya cerrados de esta cuenta, agrupados por el nombre escrito en cada login.
+            </p>
+
+            <div class="mt-3 divide-y divide-border">
+                @foreach ($horasPorNombre as $fila)
+                    <div class="flex items-center justify-between py-2 text-sm">
+                        <span class="text-ink">{{ $fila['nombre'] }}</span>
+                        <span class="text-ink-dim">{{ number_format($fila['horas'], 1) }} h · {{ $fila['ingresos'] }} {{ \Illuminate\Support\Str::plural('ingreso', $fila['ingresos']) }}</span>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
 </section>

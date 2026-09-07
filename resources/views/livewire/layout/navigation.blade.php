@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Actions\Logout;
+use App\Modules\Identidad\Services\SessionControlService;
 use App\Modules\Notificaciones\Models\Notificacion;
 use App\Modules\Notificaciones\Services\NotificacionService;
 use Illuminate\Database\Eloquent\Collection;
@@ -13,8 +14,13 @@ new class extends Component
     /**
      * Log the current user out of the application.
      */
-    public function logout(Logout $logout): void
+    public function logout(Logout $logout, SessionControlService $sesiones): void
     {
+        // Antes de invalidar: Session::invalidate() (dentro de $logout())
+        // cambia el ID de la sesión, así que hay que cerrar el registro de
+        // ingreso con el ID de ANTES de que eso pase.
+        $sesiones->finalizarIngreso(session()->getId());
+
         $logout();
 
         $this->redirect('/', navigate: true);

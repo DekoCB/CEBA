@@ -22,6 +22,12 @@ class LoginForm extends Form
     #[Validate('boolean')]
     public bool $remember = false;
 
+    // Varias cuentas institucionales (p. ej. Dirección) las usa más de una
+    // persona -- este nombre es lo que después identifica quién estuvo
+    // detrás de cada sesión en "Sesiones activas", ver SessionControlService.
+    #[Validate('required|string|max:150')]
+    public string $nombre = '';
+
     /**
      * Attempt to authenticate the request's credentials.
      *
@@ -73,6 +79,7 @@ class LoginForm extends Form
             session([
                 'login.id' => $user->getKey(),
                 'login.remember' => $this->remember,
+                'login.nombre' => $this->nombre,
             ]);
 
             return true;

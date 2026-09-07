@@ -12,5 +12,6 @@ final readonly class SesionActiva
         public ?string $userAgent,
         public int $lastActivity,
         public bool $esActual,
+        public ?string $nombre = null,
     ) {}
 }

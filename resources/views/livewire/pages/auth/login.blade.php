@@ -1,7 +1,10 @@
 <?php
 
 use App\Livewire\Forms\LoginForm;
+use App\Modules\Identidad\Services\SessionControlService;
 use App\Shared\Enums\CategoriaAccesoEnum;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Facades\Session;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -27,7 +30,7 @@ new #[Layout('layouts.guest')] class extends Component
     /**
      * Handle an incoming authentication request.
      */
-    public function login(): void
+    public function login(SessionControlService $sesiones): void
     {
         $this->validate();
 
@@ -40,6 +43,8 @@ new #[Layout('layouts.guest')] class extends Component
         }
 
         Session::regenerate();
+
+        $sesiones->registrarIngreso(Auth::user(), $this->form->nombre, session()->getId(), Request::ip());
 
         $this->redirectIntended(default: route('dashboard', absolute: false), navigate: true);
     }
@@ -91,10 +96,17 @@ new #[Layout('layouts.guest')] class extends Component
         <x-auth-session-status class="mb-4" :status="session('status')" />
 
         <form wire:submit="login">
-            <!-- Usuario -->
+            <!-- Nombre de quien ingresa -->
             <div>
+                <x-input-label for="nombre" value="¿Con qué nombre ingresas?" />
+                <x-text-input wire:model="form.nombre" id="nombre" class="block mt-1 w-full" type="text" name="nombre" required autofocus autocomplete="off" placeholder="Tu nombre y apellido" />
+                <x-input-error :messages="$errors->get('form.nombre')" class="mt-2" />
+            </div>
+
+            <!-- Usuario -->
+            <div class="mt-4">
                 <x-input-label for="email" :value="__('Usuario')" />
-                <x-text-input wire:model="form.email" id="email" class="block mt-1 w-full" type="text" name="email" required autofocus autocomplete="username" />
+                <x-text-input wire:model="form.email" id="email" class="block mt-1 w-full" type="text" name="email" required autocomplete="username" />
                 <x-input-error :messages="$errors->get('form.email')" class="mt-2" />
             </div>
 

@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Modules\Identidad\Jobs\RegistrarAuditoriaJob;
+use App\Modules\Identidad\Services\SessionControlService;
 use App\Modules\Identidad\Services\TwoFactorAuthenticationService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -23,7 +24,7 @@ new #[Layout('layouts.guest')] class extends Component
         }
     }
 
-    public function verificar(TwoFactorAuthenticationService $service): void
+    public function verificar(TwoFactorAuthenticationService $service, SessionControlService $sesiones): void
     {
         $this->validate(['codigo' => 'required|string|max:30']);
 
@@ -73,10 +74,14 @@ new #[Layout('layouts.guest')] class extends Component
 
         RateLimiter::clear($throttleKey);
 
+        $nombre = (string) session('login.nombre', $user->name);
+
         Auth::login($user, (bool) session('login.remember', false));
 
-        session()->forget(['login.id', 'login.remember']);
+        session()->forget(['login.id', 'login.remember', 'login.nombre']);
         Session::regenerate();
+
+        $sesiones->registrarIngreso($user, $nombre, session()->getId(), Request::ip());
 
         $this->redirect(route('dashboard', absolute: false), navigate: true);
     }

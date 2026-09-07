@@ -29,6 +29,7 @@ class TwoFactorChallengeTest extends TestCase
         $user = User::factory()->create();
 
         Volt::test('pages.auth.login')
+            ->set('form.nombre', 'Quien Ingresa')
             ->set('form.email', $user->email)
             ->set('form.password', 'password')
             ->call('login')
@@ -42,6 +43,7 @@ class TwoFactorChallengeTest extends TestCase
         [$user] = $this->usuarioCon2faActivo();
 
         Volt::test('pages.auth.login')
+            ->set('form.nombre', 'Quien Ingresa')
             ->set('form.email', $user->email)
             ->set('form.password', 'password')
             ->call('login')
@@ -49,6 +51,7 @@ class TwoFactorChallengeTest extends TestCase
 
         $this->assertGuest();
         $this->assertSame($user->id, session('login.id'));
+        $this->assertSame('Quien Ingresa', session('login.nombre'));
     }
 
     public function test_el_reto_con_un_codigo_totp_valido_completa_el_login(): void
@@ -111,6 +114,7 @@ class TwoFactorChallengeTest extends TestCase
         $user = User::factory()->create();
 
         Volt::test('pages.auth.login')
+            ->set('form.nombre', 'Quien Ingresa')
             ->set('form.email', $user->email)
             ->set('form.password', 'contraseña-incorrecta')
             ->call('login')
@@ -125,6 +129,7 @@ class TwoFactorChallengeTest extends TestCase
     public function test_un_login_fallido_con_email_inexistente_queda_auditado_sin_usuario(): void
     {
         Volt::test('pages.auth.login')
+            ->set('form.nombre', 'Quien Ingresa')
             ->set('form.email', 'nadie@ceba.test')
             ->set('form.password', 'lo-que-sea')
             ->call('login')

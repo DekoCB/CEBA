@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Modules\Identidad\Services\SessionControlService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,14 +18,26 @@ use Symfony\Component\HttpFoundation\Response;
  * indefinidamente (ver UserManagementService::actualizar(), que revoca
  * las demás sesiones de la BD pero no puede tocar la petición ya en
  * vuelo de esa misma sesión).
+ *
+ * SessionControlService se inyecta por constructor, no como parámetro
+ * extra de handle(): Pipeline invoca los middlewares globales llamando
+ * directo a handle($request, $next), sin pasar por el resolver de
+ * dependencias del contenedor -- un tercer parámetro típado ahí revienta
+ * con "Too few arguments" en cada request.
  */
 class VerificarCuentaActiva
 {
+    public function __construct(
+        private readonly SessionControlService $sesiones,
+    ) {}
+
     public function handle(Request $request, Closure $next): Response
     {
         $usuario = Auth::user();
 
         if ($usuario && ! $usuario->estaActivo()) {
+            $this->sesiones->finalizarIngreso($request->session()->getId());
+
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
