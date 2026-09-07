@@ -32,6 +32,36 @@
             <span class="sidebar-label">Estudiantes</span>
         </a>
 
+        @can('docentes.ver')
+            <a
+                href="{{ route('docentes.index') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('docentes.*'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('docentes.*'),
+                ])
+            >
+                <x-heroicon-o-academic-cap class="h-5 w-5 shrink-0" />
+                <span class="sidebar-label">Docentes</span>
+            </a>
+        @endcan
+
+        @can('contratos.ver')
+            <a
+                href="{{ route('contratos.index') }}"
+                wire:navigate
+                @class([
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
+                    'bg-accent text-white shadow-md shadow-accent/30' =>request()->routeIs('contratos.*'),
+                    'text-ink-dim hover:bg-surface-2 hover:text-ink' => ! request()->routeIs('contratos.*'),
+                ])
+            >
+                <x-heroicon-o-document-text class="h-5 w-5 shrink-0" />
+                <span class="sidebar-label">Contratos</span>
+            </a>
+        @endcan
+
         @can('migraciones.ver')
             <a
                 href="{{ route('migraciones.index') }}"
