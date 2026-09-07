@@ -26,18 +26,33 @@ class ProduccionSeederTest extends TestCase
         $this->assertTrue($direccion->hasRole(RolEnum::DIRECCION->value));
     }
 
-    public function test_no_crea_ninguna_cuenta_de_ejemplo(): void
+    public function test_crea_las_cinco_cuentas_de_direccion_sin_datos_de_ejemplo(): void
     {
         $this->seed(ProduccionSeeder::class);
 
-        $this->assertSame(1, User::query()->count());
+        $emails = [
+            'walter.galindo@gmail.com',
+            'diana.bautista@gmail.com',
+            'aaron.galindo@gmail.com',
+            'ruth.galindo@gmail.com',
+            'reyna.galindo@gmail.com',
+        ];
+
+        foreach ($emails as $email) {
+            $usuario = User::query()->where('email', $email)->first();
+
+            $this->assertNotNull($usuario, "Falta la cuenta {$email}");
+            $this->assertTrue($usuario->hasRole(RolEnum::DIRECCION->value));
+        }
+
+        $this->assertSame(5, User::query()->count());
     }
 
-    public function test_correrlo_dos_veces_no_duplica_la_cuenta(): void
+    public function test_correrlo_dos_veces_no_duplica_ninguna_cuenta(): void
     {
         $this->seed(ProduccionSeeder::class);
         $this->seed(ProduccionSeeder::class);
 
-        $this->assertSame(1, User::query()->where('email', 'walter.galindo@gmail.com')->count());
+        $this->assertSame(5, User::query()->count());
     }
 }

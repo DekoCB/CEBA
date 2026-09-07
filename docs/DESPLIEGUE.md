@@ -33,6 +33,21 @@ final cubre qué cambia si en algún momento se pasa a un VPS.
    (recibos, libretas, certificados, comprobantes, QR de cuentas bancarias)
    devuelve 404 aunque el archivo exista.
 
+   Si este comando falla con `Call to undefined function ...\exec()` (o
+   `symlink()`): Hostinger deshabilita ambas funciones en `disable_functions`
+   por seguridad en varios planes, y el fallback de Laravel para crear el
+   symlink también pasa por `exec()` — así que ninguna de las dos rutas
+   funciona desde PHP. Solución: crear el symlink directo por SSH, que no
+   tiene esa restricción:
+
+   ```bash
+   ln -s /home/tu-usuario/ceba-app/storage/app/public /home/tu-usuario/ceba-app/public/storage
+   ```
+
+   Verificar con `ls -la public/storage` (debe verse como un enlace, no una
+   carpeta). No bloquea el resto del checklist: los demás comandos de esta
+   sección no dependen de este symlink.
+
    `db:seed --class=ProduccionSeeder` es igual de crítico y **fácil de
    saltarse**: sin él no existen los roles/permisos de los que depende todo
    `hasRole()`/`hasPermissionTo()` del sistema, y no hay ninguna cuenta con
@@ -40,8 +55,12 @@ final cubre qué cambia si en algún momento se pasa a un VPS.
    `--class`) en producción — eso ejecuta `DatabaseSeeder`, que está
    bloqueado fuera de local/testing (ver `DatabaseSeeder::run()`) porque
    mezcla lo anterior con estudiantes/pagos/evaluaciones ficticios. La
-   contraseña temporal de la cuenta de Dirección se imprime una sola vez en
-   la consola al correr el seeder — cámbiala apenas inicies sesión.
+   contraseña temporal de cada cuenta de Dirección se imprime una sola vez
+   en la consola al correr el seeder — cópialas antes de que se pierda la
+   terminal, y cámbialas apenas inicien sesión. Si se agrega una cuenta
+   nueva al arreglo `CUENTAS_DIRECCION` de `ProduccionSeeder` más adelante,
+   correr el seeder de nuevo es seguro: las que ya existen se saltan sin
+   duplicarse ni pisar su contraseña, solo se crean las nuevas.
 
    Verificar también en hPanel → PHP Configuration que estén activas las
    extensiones `bcmath`, `gd`, `zip`, `exif`, `fileinfo`, `mbstring`, `dom`,
