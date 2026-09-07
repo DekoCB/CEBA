@@ -15,6 +15,7 @@ use App\Modules\Matricula\Providers\MatriculaServiceProvider;
 use App\Modules\Migraciones\Providers\MigracionesServiceProvider;
 use App\Modules\Notificaciones\Providers\NotificacionesServiceProvider;
 use App\Modules\Pagos\Providers\PagosServiceProvider;
+use App\Modules\Personal\Providers\PersonalServiceProvider;
 use App\Modules\Reportes\Providers\ReportesServiceProvider;
 use App\Modules\Vacaciones\Providers\VacacionesServiceProvider;
 use App\Providers\AppServiceProvider;
@@ -42,4 +43,5 @@ return [
     VacacionesServiceProvider::class,
     FlujoCajaServiceProvider::class,
     DocentesServiceProvider::class,
+    PersonalServiceProvider::class,
 ];
