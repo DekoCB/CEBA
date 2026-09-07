@@ -26,6 +26,7 @@ use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Repositories\Contracts\EstudianteRepositoryInterface;
 use App\Modules\Matricula\Repositories\Contracts\MatriculaRepositoryInterface;
 use App\Shared\Enums\RolEnum;
+use App\Shared\Support\ImportaFilasDeExcel;
 use App\Shared\ValueObjects\Dni;
 use App\Shared\ValueObjects\Telefono;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -35,11 +36,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
-use PhpOffice\PhpSpreadsheet\Shared\Date as FechaExcel;
 use Throwable;
 
 class MatriculaService
 {
+    use ImportaFilasDeExcel;
+
     public function __construct(
         private readonly EstudianteRepositoryInterface $estudiantes,
         private readonly MatriculaRepositoryInterface $matriculas,
@@ -368,67 +370,5 @@ class MatriculaService
         }
 
         return ['exitosos' => $exitosos, 'errores' => $errores];
-    }
-
-    /**
-     * @param  Collection<string, mixed>  $fila
-     */
-    private function celdaOpcional(Collection $fila, string $clave): ?string
-    {
-        $valor = $fila->get($clave);
-
-        if ($valor === null) {
-            return null;
-        }
-
-        $valor = trim((string) $valor);
-
-        return $valor === '' ? null : $valor;
-    }
-
-    /**
-     * @param  Collection<string, mixed>  $fila
-     */
-    private function celdaObligatoria(Collection $fila, string $clave, ?string $mensaje = null): string
-    {
-        $valor = $this->celdaOpcional($fila, $clave);
-
-        if ($valor === null) {
-            throw new InvalidArgumentException($mensaje ?? "La columna «{$clave}» es obligatoria.");
-        }
-
-        return $valor;
-    }
-
-    private function parsearFecha(mixed $valor): string
-    {
-        if ($valor instanceof \DateTimeInterface) {
-            return Carbon::instance($valor)->format('Y-m-d');
-        }
-
-        if (is_numeric($valor)) {
-            return Carbon::instance(FechaExcel::excelToDateTimeObject((float) $valor))->format('Y-m-d');
-        }
-
-        $texto = trim((string) $valor);
-
-        foreach (['d/m/Y', 'Y-m-d', 'd-m-Y'] as $formato) {
-            try {
-                return Carbon::createFromFormat($formato, $texto)->format('Y-m-d');
-            } catch (Throwable) {
-                continue;
-            }
-        }
-
-        throw new InvalidArgumentException("La fecha «{$texto}» no tiene un formato reconocible (usa dd/mm/aaaa).");
-    }
-
-    private function mensajeDeError(Throwable $e): string
-    {
-        if ($e instanceof ValidationException) {
-            return $e->validator->errors()->first();
-        }
-
-        return $e->getMessage();
     }
 }
