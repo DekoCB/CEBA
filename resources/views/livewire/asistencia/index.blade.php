@@ -10,6 +10,8 @@ new #[Layout('layouts.app')] class extends Component
 {
     public ?int $cicloId = null;
 
+    public ?string $seccion = null;
+
     public ?int $gradoId = null;
 
     public function mount(): void
@@ -27,6 +29,11 @@ new #[Layout('layouts.app')] class extends Component
         $this->cicloId = $cicloId;
     }
 
+    public function seleccionarSeccion(string $letra): void
+    {
+        $this->seccion = $letra;
+    }
+
     public function seleccionarGrado(int $gradoId): void
     {
         $this->gradoId = $gradoId;
@@ -35,6 +42,13 @@ new #[Layout('layouts.app')] class extends Component
     public function volverAGrupos(): void
     {
         $this->cicloId = null;
+        $this->seccion = null;
+        $this->gradoId = null;
+    }
+
+    public function volverASecciones(): void
+    {
+        $this->seccion = null;
         $this->gradoId = null;
     }
 
@@ -63,26 +77,37 @@ new #[Layout('layouts.app')] class extends Component
 
         $gruposDisponibles = $horarios->pluck('ciclo')->unique('id')->sortByDesc('fecha_inicio')->values();
 
+        $gradosPorSeccion = collect();
         $gradosDisponibles = collect();
         $grupos = collect();
 
         if ($this->cicloId) {
             $delCiclo = $horarios->where('ciclo_id', $this->cicloId);
-            $gradosDisponibles = $delCiclo->pluck('grado')->unique('id')->sortBy('orden')->values();
+            $gradosPorSeccion = $delCiclo->pluck('grado')->unique('id')->sortBy('orden')->values()->groupBy(fn ($grado) => $grado->letraAula());
 
-            if ($this->gradoId) {
-                $delGrado = $delCiclo->where('grado_id', $this->gradoId);
+            if ($this->seccion) {
+                $gradosDisponibles = $gradosPorSeccion->get($this->seccion, collect());
 
-                // Un mismo curso+ciclo normalmente tiene un único Horario,
-                // pero se agrupan por curso+ciclo por si dos docentes
-                // llegaran a dictarlo en paralelo: quien mira elegiría
-                // cuál quiere ver en vez de toparse con dos tarjetas casi
-                // idénticas.
-                $grupos = $delGrado->groupBy('curso_id');
+                if ($this->gradoId) {
+                    $delGrado = $delCiclo->where('grado_id', $this->gradoId);
+
+                    // Un mismo curso+ciclo normalmente tiene un único Horario,
+                    // pero se agrupan por curso+ciclo por si dos docentes
+                    // llegaran a dictarlo en paralelo: quien mira elegiría
+                    // cuál quiere ver en vez de toparse con dos tarjetas casi
+                    // idénticas.
+                    $grupos = $delGrado->groupBy('curso_id');
+                }
             }
         }
 
-        return ['gruposDisponibles' => $gruposDisponibles, 'gradosDisponibles' => $gradosDisponibles, 'grupos' => $grupos, 'rol' => $rol];
+        return [
+            'gruposDisponibles' => $gruposDisponibles,
+            'gradosPorSeccion' => $gradosPorSeccion,
+            'gradosDisponibles' => $gradosDisponibles,
+            'grupos' => $grupos,
+            'rol' => $rol,
+        ];
     }
 }; ?>
 
@@ -142,11 +167,26 @@ new #[Layout('layouts.app')] class extends Component
                 </p>
             @endforelse
         </div>
-    @elseif (! $gradoId)
+    @elseif (! $seccion)
         <button type="button" wire:click="volverAGrupos" class="mb-4 text-sm text-ink-faint hover:text-ink">← Grupos</button>
 
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            @foreach (['A', 'B'] as $letra)
+                <button
+                    type="button"
+                    wire:click="seleccionarSeccion('{{ $letra }}')"
+                    class="block rounded-2xl border border-border bg-surface shadow-sm p-6 text-center transition hover:border-accent"
+                >
+                    <p class="font-display text-lg text-ink">Sección {{ $letra }}</p>
+                    <p class="mt-1 text-sm text-ink-dim">{{ $gradosPorSeccion->get($letra, collect())->pluck('nombre')->implode(', ') ?: 'Sin horarios en este grupo' }}</p>
+                </button>
+            @endforeach
+        </div>
+    @elseif (! $gradoId)
+        <button type="button" wire:click="volverASecciones" class="mb-4 text-sm text-ink-faint hover:text-ink">← Secciones</button>
+
         <div class="grid grid-cols-2 gap-4">
-            @foreach ($gradosDisponibles as $grado)
+            @forelse ($gradosDisponibles as $grado)
                 <button
                     type="button"
                     wire:click="seleccionarGrado({{ $grado->id }})"
@@ -154,7 +194,9 @@ new #[Layout('layouts.app')] class extends Component
                 >
                     <p class="font-display text-lg text-ink">{{ $grado->nombre }}</p>
                 </button>
-            @endforeach
+            @empty
+                <p class="col-span-full py-8 text-center text-sm text-ink-faint">Esta sección no tiene horarios en este grupo.</p>
+            @endforelse
         </div>
     @else
         <button type="button" wire:click="volverAGrados" class="mb-4 text-sm text-ink-faint hover:text-ink">← Grados</button>
