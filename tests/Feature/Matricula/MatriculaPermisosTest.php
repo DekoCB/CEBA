@@ -96,6 +96,49 @@ class MatriculaPermisosTest extends TestCase
         $this->assertSame('Pendiente entregar certificado de estudios del colegio anterior.', $estudiante->observaciones);
     }
 
+    public function test_registrar_matricula_desde_el_wizard_guarda_el_periodo_siagie_elegido(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Rosa')
+            ->set('apellidos', 'Delgado Vera')
+            ->set('dni', '55667711')
+            ->set('fechaNacimiento', now()->subYears(30)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertHasNoErrors()
+            ->assertSet('paso', 3)
+            ->set('dniEstudianteArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->call('avanzar')
+            ->assertSet('paso', 4)
+            ->call('avanzar')
+            ->assertSet('paso', 5)
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->set('periodoSiagie', '2')
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $estudiante = Estudiante::query()->where('dni', '55667711')->firstOrFail();
+        $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'periodo_siagie' => '2']);
+    }
+
     public function test_elegir_modalidad_anual_en_el_wizard_autoselecciona_el_ciclo_vigente(): void
     {
         Storage::fake('public');
@@ -104,7 +147,7 @@ class MatriculaPermisosTest extends TestCase
         $usuario->assignRole(RolEnum::COORDINADOR->value);
 
         // Sin periodo de matrícula: a diferencia de los Grupos de 6 meses,
-        // SIAGE anual no lo necesita para poder matricularse.
+        // SIAGIE anual no lo necesita para poder matricularse.
         $cicloAnual = Ciclo::factory()->anual()->activo()->create();
         $grado = Grado::factory()->create();
 

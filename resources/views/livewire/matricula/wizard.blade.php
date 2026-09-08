@@ -8,6 +8,7 @@ use App\Modules\Matricula\DTOs\RegistrarApoderadoData;
 use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
 use App\Modules\Matricula\DTOs\RegistrarMatriculaData;
 use App\Modules\Matricula\Enums\EstadoCivilEnum;
+use App\Modules\Matricula\Enums\PeriodoSiagieEnum;
 use App\Modules\Matricula\Enums\TipoDocumentoEnum;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
@@ -105,6 +106,8 @@ new class extends Component
 
     public string $gradoId = '';
 
+    public string $periodoSiagie = '';
+
     public string $observacionesMatricula = '';
 
     // Paso 6 — cronograma de pagos (opcional)
@@ -180,7 +183,7 @@ new class extends Component
     }
 
     /**
-     * Al cambiar de modalidad se limpia el ciclo elegido; para SIAGE anual
+     * Al cambiar de modalidad se limpia el ciclo elegido; para SIAGIE anual
      * no hay selector -- se autoasigna el ciclo anual vigente, si existe
      * (ver CicloService::cicloAnualVigente() y with()). A diferencia de
      * los Grupos de 6 meses, no depende de un periodo de matrícula abierto.
@@ -271,6 +274,7 @@ new class extends Component
                 'modalidadCiclo' => 'required|string|in:seis_meses,anual',
                 'cicloId' => 'required|integer|exists:ciclos,id',
                 'gradoId' => 'required|integer|exists:grados,id',
+                'periodoSiagie' => ['nullable', Rule::in(array_column(PeriodoSiagieEnum::cases(), 'value'))],
             ]);
 
             $this->paso = 6;
@@ -369,6 +373,7 @@ new class extends Component
                     gradoId: (int) $this->gradoId,
                     observaciones: $this->observacionesMatricula ?: null,
                     registradoPor: auth()->id(),
+                    periodoSiagie: $this->periodoSiagie !== '' ? PeriodoSiagieEnum::from($this->periodoSiagie) : null,
                 ));
 
                 $this->crearCronogramaSiCorresponde($matricula, $planPagoService);
@@ -454,6 +459,7 @@ new class extends Component
                 gradoId: (int) $this->gradoId,
                 observaciones: $this->observacionesMatricula ?: null,
                 registradoPor: auth()->id(),
+                periodoSiagie: $this->periodoSiagie !== '' ? PeriodoSiagieEnum::from($this->periodoSiagie) : null,
             ));
 
             $this->crearCronogramaSiCorresponde($matricula, $planPagoService);
@@ -505,6 +511,7 @@ new class extends Component
             'gradosCompatibles' => $grados,
             'todosLosGrados' => $grados,
             'modalidadesCiclo' => ModalidadCicloEnum::cases(),
+            'periodosSiagie' => PeriodoSiagieEnum::cases(),
             'ciclosDisponibles' => $ciclosConMatriculaAbierta,
             'cicloAnualVigente' => $ciclos->cicloAnualVigente(),
             'numerosCuotas' => NumeroCuotasEnum::cases(),
@@ -786,7 +793,7 @@ new class extends Component
             @endif
             <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div class="sm:col-span-2">
-                    <x-input-label for="modalidadCiclo" value="SIAGE" />
+                    <x-input-label for="modalidadCiclo" value="Modalidad" />
                     <x-select-input
                         wire:model.live="modalidadCiclo"
                         id="modalidadCiclo"
@@ -795,13 +802,25 @@ new class extends Component
                     />
                     <x-input-error :messages="$errors->get('modalidadCiclo')" class="mt-1" />
                 </div>
+                <div class="sm:col-span-2">
+                    <x-input-label for="periodoSiagie" value="Periodo SIAGIE (opcional)" />
+                    <x-select-input
+                        wire:model="periodoSiagie"
+                        id="periodoSiagie"
+                        placeholder="Sin registrar…"
+                        class="mt-1 block w-full"
+                        :options="collect($periodosSiagie)->mapWithKeys(fn ($periodo) => [$periodo->value => $periodo->label()])"
+                    />
+                    <p class="mt-1 text-xs text-ink-faint">Independiente del Grupo: es la clasificación propia del sistema SIAGIE del MINEDU.</p>
+                    <x-input-error :messages="$errors->get('periodoSiagie')" class="mt-1" />
+                </div>
                 @if ($modalidadCiclo === 'anual')
                     <div>
                         <x-input-label value="Año" />
                         @if ($cicloAnualVigente)
                             <p class="mt-1 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-ink">{{ $cicloAnualVigente->anio }}</p>
                         @else
-                            <p class="mt-1 text-xs text-danger">No hay ningún ciclo SIAGE anual registrado todavía. Créalo primero en Ciclos.</p>
+                            <p class="mt-1 text-xs text-danger">No hay ningún ciclo SIAGIE anual registrado todavía. Créalo primero en Ciclos.</p>
                         @endif
                         <x-input-error :messages="$errors->get('cicloId')" class="mt-1" />
                     </div>

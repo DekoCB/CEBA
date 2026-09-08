@@ -126,7 +126,7 @@ class MigracionServiceTest extends TestCase
         $this->assertCount(1, $this->service()->matriculasVigentes(null, $ciclo->id, null, $gradoSeccionA->id));
     }
 
-    public function test_matriculas_vigentes_filtra_por_modalidad_siage(): void
+    public function test_matriculas_vigentes_filtra_por_modalidad(): void
     {
         $grado = Grado::factory()->create(['orden' => 1]);
         $cicloSeisMeses = $this->cicloConPeriodoAbierto();

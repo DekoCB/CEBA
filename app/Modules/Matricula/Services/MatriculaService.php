@@ -160,6 +160,7 @@ class MatriculaService
                 'estudiante_id' => $estudiante->id,
                 'ciclo_id' => $ciclo->id,
                 'grado_id' => $grado->id,
+                'periodo_siagie' => $data->periodoSiagie,
                 'fecha_matricula' => $fechaMatricula,
                 'fecha_fin_estudio' => $fechaFinEstudio,
                 'estado' => EstadoMatriculaEnum::APROBADA,
@@ -231,7 +232,7 @@ class MatriculaService
     /**
      * Solo aplica a los 4 Grupos rotativos de 6 meses, cada uno con sus
      * propias ventanas de admisión que un coordinador abre y cierra a
-     * mano. SIAGE anual no tiene este concepto -- se identifica solo por
+     * mano. SIAGIE anual no tiene este concepto -- se identifica solo por
      * año y su matrícula está disponible mientras el ciclo esté vigente
      * (ver el llamado condicional en matricular()).
      */

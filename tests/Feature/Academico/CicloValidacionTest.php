@@ -189,7 +189,7 @@ class CicloValidacionTest extends TestCase
     public function test_un_ciclo_anual_no_exige_tipo_ni_mes_de_inicio_fijo(): void
     {
         $ciclo = $this->service()->crear([
-            'nombre' => 'SIAGE Anual - 2026',
+            'nombre' => 'SIAGIE Anual - 2026',
             'modalidad' => ModalidadCicloEnum::ANUAL,
             'tipo' => null,
             'anio' => 2026,
@@ -205,7 +205,7 @@ class CicloValidacionTest extends TestCase
         $this->expectException(ValidationException::class);
 
         $this->service()->crear([
-            'nombre' => 'SIAGE Anual - 2026 (corto)',
+            'nombre' => 'SIAGIE Anual - 2026 (corto)',
             'modalidad' => ModalidadCicloEnum::ANUAL,
             'tipo' => null,
             'anio' => 2026,
@@ -217,7 +217,7 @@ class CicloValidacionTest extends TestCase
     public function test_no_permite_dos_ciclos_anuales_con_fechas_cruzadas(): void
     {
         $this->service()->crear([
-            'nombre' => 'SIAGE Anual - 2026',
+            'nombre' => 'SIAGIE Anual - 2026',
             'modalidad' => ModalidadCicloEnum::ANUAL,
             'tipo' => null,
             'anio' => 2026,
@@ -228,7 +228,7 @@ class CicloValidacionTest extends TestCase
         $this->expectException(ValidationException::class);
 
         $this->service()->crear([
-            'nombre' => 'SIAGE Anual - 2026 (duplicado)',
+            'nombre' => 'SIAGIE Anual - 2026 (duplicado)',
             'modalidad' => ModalidadCicloEnum::ANUAL,
             'tipo' => null,
             'anio' => 2026,
@@ -239,7 +239,7 @@ class CicloValidacionTest extends TestCase
 
     public function test_un_ciclo_anual_puede_solaparse_con_un_grupo_rotativo_sin_problema(): void
     {
-        // Son modalidades independientes: un Grupo 1 y un SIAGE anual con
+        // Son modalidades independientes: un Grupo 1 y un SIAGIE anual con
         // fechas que se cruzan no es un error de carga.
         $this->service()->crear([
             'nombre' => 'Grupo 1 - 2026',
@@ -250,7 +250,7 @@ class CicloValidacionTest extends TestCase
         ]);
 
         $ciclo = $this->service()->crear([
-            'nombre' => 'SIAGE Anual - 2026',
+            'nombre' => 'SIAGIE Anual - 2026',
             'modalidad' => ModalidadCicloEnum::ANUAL,
             'tipo' => null,
             'anio' => 2026,

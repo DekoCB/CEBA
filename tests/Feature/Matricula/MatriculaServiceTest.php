@@ -11,6 +11,7 @@ use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\DTOs\RegistrarApoderadoData;
 use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
 use App\Modules\Matricula\DTOs\RegistrarMatriculaData;
+use App\Modules\Matricula\Enums\PeriodoSiagieEnum;
 use App\Modules\Matricula\Events\EstudianteMatriculado;
 use App\Modules\Matricula\Services\MatriculaService;
 use App\Shared\Enums\RolEnum;
@@ -179,6 +180,36 @@ class MatriculaServiceTest extends TestCase
         Event::assertDispatched(EstudianteMatriculado::class);
     }
 
+    public function test_matricular_guarda_el_periodo_siagie_elegido_a_mano(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $ciclo = $this->cicloConPeriodoAbierto();
+        $grado = Grado::factory()->create();
+
+        $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData(
+            cicloId: $ciclo->id,
+            gradoId: $grado->id,
+            observaciones: null,
+            registradoPor: null,
+            periodoSiagie: PeriodoSiagieEnum::SEGUNDO,
+        ));
+
+        $this->assertSame(PeriodoSiagieEnum::SEGUNDO, $matricula->fresh()->periodo_siagie);
+        $this->assertSame("{$ciclo->anio}-2", $matricula->siagieCompleto());
+    }
+
+    public function test_matricular_sin_elegir_periodo_siagie_lo_deja_nulo(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $ciclo = $this->cicloConPeriodoAbierto();
+        $grado = Grado::factory()->create();
+
+        $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
+
+        $this->assertNull($matricula->periodo_siagie);
+        $this->assertNull($matricula->siagieCompleto());
+    }
+
     public function test_matricular_actualiza_el_grado_actual_del_estudiante(): void
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
@@ -225,7 +256,7 @@ class MatriculaServiceTest extends TestCase
 
     public function test_matricular_en_un_ciclo_anual_no_exige_periodo_de_matricula_abierto(): void
     {
-        // A diferencia de los Grupos de 6 meses, SIAGE anual no depende de
+        // A diferencia de los Grupos de 6 meses, SIAGIE anual no depende de
         // un PeriodoMatricula: este ciclo no tiene ninguno y aun así debe
         // poder matricularse.
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());

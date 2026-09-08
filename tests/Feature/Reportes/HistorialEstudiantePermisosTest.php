@@ -8,6 +8,7 @@ use App\Modules\Academico\Models\Horario;
 use App\Modules\Evaluaciones\Models\Calificacion;
 use App\Modules\Evaluaciones\Models\Evaluacion;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
+use App\Modules\Matricula\Enums\PeriodoSiagieEnum;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Models\Pago;
@@ -141,7 +142,7 @@ class HistorialEstudiantePermisosTest extends TestCase
             ->assertSee('DNI 55667788');
     }
 
-    public function test_el_historial_muestra_la_modalidad_siage_de_cada_matricula(): void
+    public function test_el_historial_muestra_la_modalidad_de_cada_matricula(): void
     {
         $coordinador = User::factory()->create();
         $coordinador->assignRole(RolEnum::COORDINADOR->value);
@@ -155,7 +156,28 @@ class HistorialEstudiantePermisosTest extends TestCase
             ->set('terminoBusqueda', 'Villar Soto')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
             ->assertHasNoErrors()
-            ->assertSee('SIAGE anual');
+            ->assertSee('SIAGIE anual');
+    }
+
+    public function test_el_historial_muestra_el_periodo_siagie_de_la_matricula(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $estudiante = Estudiante::factory()->create(['dni' => '55667766', 'nombres' => 'Lucia', 'apellidos' => 'Ramos Chumbe']);
+        $ciclo = Ciclo::factory()->create(['anio' => 2026]);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $ciclo->id,
+            'periodo_siagie' => PeriodoSiagieEnum::PRIMERO,
+        ]);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('historial-estudiante.index')
+            ->set('terminoBusqueda', 'Ramos Chumbe')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->assertHasNoErrors()
+            ->assertSee('SIAGIE 2026-1');
     }
 
     public function test_el_historial_muestra_el_detalle_de_pagos_ya_cobrados(): void

@@ -30,7 +30,7 @@ new #[Layout('layouts.app')] class extends Component
     public string $gradoDestinoId = '';
 
     // Masivo
-    public string $siageOrigen = '';
+    public string $modalidadOrigen = '';
 
     public string $cicloOrigenId = '';
 
@@ -95,7 +95,7 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('status', 'Estudiante migrado correctamente.');
     }
 
-    public function updatedSiageOrigen(): void
+    public function updatedModalidadOrigen(): void
     {
         $this->cicloOrigenId = '';
         $this->seccionOrigen = '';
@@ -135,7 +135,7 @@ new #[Layout('layouts.app')] class extends Component
         Gate::authorize('migraciones.gestionar');
 
         $this->validate([
-            'siageOrigen' => 'required|string|in:seis_meses,anual',
+            'modalidadOrigen' => 'required|string|in:seis_meses,anual',
             'gradoOrigenId' => 'required|integer|exists:grados,id',
             'masivoCicloDestinoId' => 'required|integer|exists:ciclos,id',
             'masivoGradoDestinoId' => 'required|integer|exists:grados,id',
@@ -158,13 +158,13 @@ new #[Layout('layouts.app')] class extends Component
 
     /**
      * El "Grupo" con el que se sugiere el destino: para 6 meses es el que
-     * el usuario eligió; SIAGE anual no tiene selector de Grupo (ver
+     * el usuario eligió; SIAGIE anual no tiene selector de Grupo (ver
      * MigracionService::cicloAnualVigente()), así que se usa ese
      * automáticamente.
      */
     private function cicloOrigenParaSugerencia(MigracionService $service): ?Ciclo
     {
-        if ($this->siageOrigen === ModalidadCicloEnum::ANUAL->value) {
+        if ($this->modalidadOrigen === ModalidadCicloEnum::ANUAL->value) {
             return $service->cicloAnualVigente();
         }
 
@@ -176,13 +176,13 @@ new #[Layout('layouts.app')] class extends Component
      */
     private function cohorteMasivaActual(MigracionService $service): Collection
     {
-        if ($this->siageOrigen === '' || $this->gradoOrigenId === '') {
+        if ($this->modalidadOrigen === '' || $this->gradoOrigenId === '') {
             return new Collection;
         }
 
-        $modalidad = ModalidadCicloEnum::from($this->siageOrigen);
+        $modalidad = ModalidadCicloEnum::from($this->modalidadOrigen);
 
-        $cicloId = $this->siageOrigen === ModalidadCicloEnum::ANUAL->value
+        $cicloId = $this->modalidadOrigen === ModalidadCicloEnum::ANUAL->value
             ? $service->cicloAnualVigente()?->id
             : ($this->cicloOrigenId !== '' ? (int) $this->cicloOrigenId : null);
 
@@ -232,7 +232,7 @@ new #[Layout('layouts.app')] class extends Component
 <div>
     <x-slot name="header">
         <h1 class="font-display text-2xl text-ink">Migraciones</h1>
-        <p class="mt-1 text-sm text-ink-dim">Pasar de grado a un estudiante, o a varios a la vez filtrados por SIAGE/Grupo/Sección/Grado.</p>
+        <p class="mt-1 text-sm text-ink-dim">Pasar de grado a un estudiante, o a varios a la vez filtrados por Modalidad/Grupo/Sección/Grado.</p>
     </x-slot>
 
     @if (session('status'))
@@ -324,20 +324,20 @@ new #[Layout('layouts.app')] class extends Component
         <div class="space-y-4">
             <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
                 <h2 class="font-display text-sm text-ink">Origen</h2>
-                <p class="mt-1 text-xs text-ink-faint">Primero elige SIAGE — el de 6 meses se filtra por Grupo, el anual no tiene Grupos (no rota).</p>
+                <p class="mt-1 text-xs text-ink-faint">Primero elige la modalidad — el de 6 meses se filtra por Grupo, SIAGIE anual no tiene Grupos (no rota).</p>
                 <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <div>
-                        <x-input-label for="siageOrigen" value="SIAGE" />
+                        <x-input-label for="modalidadOrigen" value="Modalidad" />
                         <x-select-input
-                            wire:model.live="siageOrigen"
-                            id="siageOrigen"
+                            wire:model.live="modalidadOrigen"
+                            id="modalidadOrigen"
                             class="mt-1 block w-full"
-                            :options="['' => 'Selecciona…', 'seis_meses' => 'SIAGE 6 meses (Grupo rotativo)', 'anual' => 'SIAGE anual']"
+                            :options="collect(['' => 'Selecciona…'])->merge(collect(\App\Modules\Academico\Enums\ModalidadCicloEnum::cases())->mapWithKeys(fn ($modalidad) => [$modalidad->value => $modalidad->label()]))"
                         />
-                        <x-input-error :messages="$errors->get('siageOrigen')" class="mt-1" />
+                        <x-input-error :messages="$errors->get('modalidadOrigen')" class="mt-1" />
                     </div>
 
-                    @if ($siageOrigen === 'seis_meses')
+                    @if ($modalidadOrigen === 'seis_meses')
                         <div>
                             <x-input-label for="cicloOrigenId" value="Grupo" />
                             <x-select-input
@@ -347,18 +347,18 @@ new #[Layout('layouts.app')] class extends Component
                                 :options="collect($ciclosSeisMeses)->mapWithKeys(fn ($ciclo) => [$ciclo->id => $ciclo->nombre])->prepend('Todos los grupos', '')"
                             />
                         </div>
-                    @elseif ($siageOrigen === 'anual')
+                    @elseif ($modalidadOrigen === 'anual')
                         <div>
                             <x-input-label value="Año" />
                             @if ($cicloAnualVigente)
                                 <p class="mt-1 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-ink">{{ $cicloAnualVigente->anio }}</p>
                             @else
-                                <p class="mt-1 text-xs text-danger">No hay ningún ciclo SIAGE anual registrado todavía. Créalo primero en Ciclos.</p>
+                                <p class="mt-1 text-xs text-danger">No hay ningún ciclo SIAGIE anual registrado todavía. Créalo primero en Ciclos.</p>
                             @endif
                         </div>
                     @endif
 
-                    @if ($siageOrigen !== '')
+                    @if ($modalidadOrigen !== '')
                         <div>
                             <x-input-label for="seccionOrigen" value="Sección" />
                             <x-select-input
@@ -382,7 +382,7 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
             </div>
 
-            @if ($siageOrigen !== '' && $gradoOrigenId !== '')
+            @if ($modalidadOrigen !== '' && $gradoOrigenId !== '')
                 <div class="rounded-2xl border border-border bg-surface shadow-sm">
                     <div class="border-b border-border px-4 py-3">
                         <h3 class="font-display text-sm text-ink">{{ $cohorteMasiva->count() }} estudiante{{ $cohorteMasiva->count() === 1 ? '' : 's' }} coincide{{ $cohorteMasiva->count() === 1 ? '' : 'n' }}</h3>

@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * Un periodo de 2 meses de vacaciones para un estudiante SIAGE anual,
+ * Un periodo de 2 meses de vacaciones para un estudiante SIAGIE anual,
  * activado manualmente por un coordinador (ver VacacionService::activar()).
  * Es puramente informativo: no bloquea asistencia ni aula virtual.
  *

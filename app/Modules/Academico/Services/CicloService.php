@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Dos modalidades de ciclo (ver ModalidadCicloEnum): las 4 ventanas de
- * admisión rotativas del año (Grupo 1 a 4, 6 meses cada una) y SIAGE
+ * admisión rotativas del año (Grupo 1 a 4, 6 meses cada una) y SIAGIE
  * anual (un ciclo independiente que corre el año escolar completo, sin
  * Grupo asociado). Aplica la "doble validación" del roadmap: las fechas
  * del propio ciclo deben ser coherentes con su modalidad/tipo, y las
@@ -67,7 +67,7 @@ class CicloService
         if ($modalidad === ModalidadCicloEnum::SEIS_MESES) {
             if ($tipo === null) {
                 throw ValidationException::withMessages([
-                    'tipo' => 'Un ciclo SIAGE de 6 meses necesita indicar a qué grupo (1 a 4) pertenece.',
+                    'tipo' => 'Un ciclo de 6 meses (Grupo rotativo) necesita indicar a qué grupo (1 a 4) pertenece.',
                 ]);
             }
 
@@ -82,7 +82,7 @@ class CicloService
     }
 
     /**
-     * Un ciclo SIAGE anual no tiene mes de inicio fijo ni Grupo asociado:
+     * Un ciclo SIAGIE anual no tiene mes de inicio fijo ni Grupo asociado:
      * su periodo de clases dura 8 meses, declarados a mano (de qué mes a
      * qué mes) por quien lo registra -- los 2 meses restantes del año son
      * las vacaciones propias de esta modalidad (ver módulo Vacaciones),
@@ -104,7 +104,7 @@ class CicloService
 
         if ($diferenciaEnDias > 15) {
             throw ValidationException::withMessages([
-                'fecha_fin' => 'Un ciclo SIAGE anual dura 8 meses de clases; la fecha de fin no cuadra con la de inicio (margen de 15 días).',
+                'fecha_fin' => 'Un ciclo SIAGIE anual dura 8 meses de clases; la fecha de fin no cuadra con la de inicio (margen de 15 días).',
             ]);
         }
     }
@@ -116,7 +116,7 @@ class CicloService
 
         if ($solapados->isNotEmpty()) {
             throw ValidationException::withMessages([
-                'fecha_inicio' => 'Ya existe un ciclo SIAGE anual con fechas que se cruzan: '.$solapados->first()->nombre,
+                'fecha_inicio' => 'Ya existe un ciclo SIAGIE anual con fechas que se cruzan: '.$solapados->first()->nombre,
             ]);
         }
     }
@@ -234,7 +234,7 @@ class CicloService
     }
 
     /**
-     * SIAGE anual no rota entre Grupos como el de 6 meses: a lo sumo hay un
+     * SIAGIE anual no rota entre Grupos como el de 6 meses: a lo sumo hay un
      * ciclo anual "vigente" a la vez, el marcado Activo. Si todavía no hay
      * ninguno activo, cae al más reciente por fecha de inicio. Sin periodo
      * de matrícula que abrir de por medio -- esta modalidad se identifica

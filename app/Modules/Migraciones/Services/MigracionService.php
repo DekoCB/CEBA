@@ -33,11 +33,12 @@ class MigracionService
 
     /**
      * Cohorte de origen: matrículas vigentes (aprobadas) que coinciden con
-     * los filtros elegidos. El primer filtro es siempre la modalidad SIAGE
-     * (6 meses vs anual) -- ver el comentario de la vista sobre por qué
-     * SIAGE anual no tiene un filtro de "Grupo" propio, a diferencia de 6
-     * meses. $seccion es 'A'/'B' (ver Grado::scopeDeSeccion()); todos los
-     * filtros salvo $modalidad son opcionales.
+     * los filtros elegidos. El primer filtro es siempre la modalidad del
+     * ciclo (Grupo rotativo de 6 meses vs. SIAGIE anual) -- ver el
+     * comentario de la vista sobre por qué SIAGIE anual no tiene un filtro
+     * de "Grupo" propio, a diferencia de 6 meses. $seccion es 'A'/'B' (ver
+     * Grado::scopeDeSeccion()); todos los filtros salvo $modalidad son
+     * opcionales.
      *
      * @return Collection<int, Matricula>
      */

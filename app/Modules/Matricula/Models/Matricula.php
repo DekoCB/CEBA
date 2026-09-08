@@ -11,6 +11,7 @@ use App\Modules\Academico\Models\Horario;
 use App\Modules\Identidad\Support\Auditable;
 use App\Modules\Matricula\Database\Factories\MatriculaFactory;
 use App\Modules\Matricula\Enums\EstadoMatriculaEnum;
+use App\Modules\Matricula\Enums\PeriodoSiagieEnum;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -26,6 +27,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property int $estudiante_id
  * @property int $ciclo_id
  * @property int $grado_id
+ * @property PeriodoSiagieEnum|null $periodo_siagie
  * @property Carbon $fecha_matricula
  * @property Carbon|null $fecha_fin_estudio
  * @property EstadoMatriculaEnum $estado
@@ -42,6 +44,7 @@ class Matricula extends Model implements HasMedia
         'estudiante_id',
         'ciclo_id',
         'grado_id',
+        'periodo_siagie',
         'fecha_matricula',
         'fecha_fin_estudio',
         'estado',
@@ -55,6 +58,7 @@ class Matricula extends Model implements HasMedia
             'fecha_matricula' => 'date',
             'fecha_fin_estudio' => 'date',
             'estado' => EstadoMatriculaEnum::class,
+            'periodo_siagie' => PeriodoSiagieEnum::class,
         ];
     }
 
@@ -100,6 +104,24 @@ class Matricula extends Model implements HasMedia
     public function registradoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'registrado_por');
+    }
+
+    /**
+     * Texto para mostrar el periodo SIAGIE de esta matrícula (p. ej.
+     * "2026-1", "2026-2", "2026 Anual"). Usa el año del Ciclo -- el
+     * periodo SIAGIE en sí es independiente del Grupo, pero comparte el
+     * mismo año calendario de la matrícula. Null si todavía no se registró
+     * ningún periodo SIAGIE para esta matrícula.
+     */
+    public function siagieCompleto(): ?string
+    {
+        if ($this->periodo_siagie === null) {
+            return null;
+        }
+
+        return $this->periodo_siagie === PeriodoSiagieEnum::ANUAL
+            ? "{$this->ciclo->anio} Anual"
+            : "{$this->ciclo->anio}-{$this->periodo_siagie->value}";
     }
 
     /**

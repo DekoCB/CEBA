@@ -66,7 +66,7 @@ new #[Layout('layouts.app')] class extends Component
         ]);
 
         $this->mostrarModal = false;
-        session()->flash('status', $esSeisMeses ? 'Grupo creado correctamente.' : 'Ciclo SIAGE anual creado correctamente.');
+        session()->flash('status', $esSeisMeses ? 'Grupo creado correctamente.' : 'Ciclo SIAGIE anual creado correctamente.');
     }
 
     public function with(CicloService $service): array
@@ -82,7 +82,7 @@ new #[Layout('layouts.app')] class extends Component
 <div>
     <x-slot name="header">
         <h1 class="font-display text-2xl text-ink">Grupos</h1>
-        <p class="mt-1 text-sm text-ink-dim">4 ventanas de admisión rotativas al año (Grupo 1 ene-jun, Grupo 2 may-oct, Grupo 3 jul-dic, Grupo 4 nov-abr), o un ciclo SIAGE anual independiente.</p>
+        <p class="mt-1 text-sm text-ink-dim">4 ventanas de admisión rotativas al año (Grupo 1 ene-jun, Grupo 2 may-oct, Grupo 3 jul-dic, Grupo 4 nov-abr), o un ciclo SIAGIE anual independiente.</p>
     </x-slot>
 
     {{-- Ver academico/grados/index.blade.php: el botón no puede vivir en x-slot="header". --}}
@@ -207,7 +207,7 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
 
                 @if ($modalidad === 'anual')
-                    <p class="text-xs text-ink-dim">El periodo de clases del SIAGE anual dura 8 meses; declara de qué mes a qué mes (los 2 meses restantes del año son vacaciones, fuera del ciclo).</p>
+                    <p class="text-xs text-ink-dim">El periodo de clases del SIAGIE anual dura 8 meses; declara de qué mes a qué mes (los 2 meses restantes del año son vacaciones, fuera del ciclo).</p>
                 @endif
                 <div class="grid grid-cols-2 gap-4">
                     <div>

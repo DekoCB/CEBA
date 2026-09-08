@@ -69,7 +69,7 @@ class VacacionServiceTest extends TestCase
         return $estudiante;
     }
 
-    public function test_activar_rechaza_un_estudiante_que_no_esta_en_siage_anual(): void
+    public function test_activar_rechaza_un_estudiante_que_no_esta_en_siagie_anual(): void
     {
         $ciclo = $this->cicloConPeriodoAbierto(['tipo' => TipoCicloEnum::GRUPO_1]);
         $estudiante = $this->estudianteMatriculado($ciclo);

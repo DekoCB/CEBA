@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
 class VacacionService
 {
     /**
-     * La duración de vacaciones de SIAGE anual es fija: 2 meses desde la
+     * La duración de vacaciones de SIAGIE anual es fija: 2 meses desde la
      * fecha que el coordinador elija como inicio.
      */
     private const MESES_DE_VACACIONES = 2;
@@ -27,7 +27,7 @@ class VacacionService
 
         if ($matricula === null || $matricula->ciclo->modalidad !== ModalidadCicloEnum::ANUAL) {
             throw ValidationException::withMessages([
-                'estudiante' => 'Las vacaciones solo aplican a estudiantes matriculados en SIAGE anual.',
+                'estudiante' => 'Las vacaciones solo aplican a estudiantes matriculados en SIAGIE anual.',
             ]);
         }
 

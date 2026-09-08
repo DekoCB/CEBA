@@ -43,7 +43,7 @@ class MigracionesPermisosTest extends TestCase
         return $ciclo;
     }
 
-    // SIAGE anual no depende de un periodo de matrícula abierto (a
+    // SIAGIE anual no depende de un periodo de matrícula abierto (a
     // diferencia de los Grupos de 6 meses): solo importa el año.
     private function cicloAnual(int $anio, bool $activo = true): Ciclo
     {
@@ -137,7 +137,7 @@ class MigracionesPermisosTest extends TestCase
 
         Volt::test('migraciones.index')
             ->set('tab', 'masivo')
-            ->set('siageOrigen', 'seis_meses')
+            ->set('modalidadOrigen', 'seis_meses')
             ->set('cicloOrigenId', (string) $cicloOrigen->id)
             ->set('gradoOrigenId', (string) $gradoOrigen->id)
             ->set('masivoCicloDestinoId', (string) $cicloDestino->id)
@@ -149,7 +149,7 @@ class MigracionesPermisosTest extends TestCase
         $this->assertDatabaseCount('matriculas', 4);
     }
 
-    public function test_migrar_de_forma_masiva_en_siage_anual_no_pide_grupo_y_usa_el_ciclo_vigente(): void
+    public function test_migrar_de_forma_masiva_en_siagie_anual_no_pide_grupo_y_usa_el_ciclo_vigente(): void
     {
         $usuario = User::factory()->create();
         $usuario->assignRole(RolEnum::COORDINADOR->value);
@@ -164,7 +164,7 @@ class MigracionesPermisosTest extends TestCase
 
         Volt::test('migraciones.index')
             ->set('tab', 'masivo')
-            ->set('siageOrigen', 'anual')
+            ->set('modalidadOrigen', 'anual')
             ->assertDontSee('Todos los grupos')
             ->assertSee((string) $cicloAnualOrigen->anio)
             ->set('gradoOrigenId', (string) $gradoOrigen->id)

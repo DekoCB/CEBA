@@ -88,7 +88,7 @@ class LibretaService
     /**
      * El "periodo promocional" tal como lo pide SIAGIE: "{año}-1"/"{año}-2"
      * para los Grupos de 6 meses (según si el Grupo arranca en la primera
-     * o segunda mitad del año calendario), o "ANUAL" para SIAGE anual --
+     * o segunda mitad del año calendario), o "ANUAL" para SIAGIE anual --
      * a diferencia de Ciclo::nombre (texto libre tipo "Grupo 1 (Enero -
      * Junio)"), esto es el formato exigido en la libreta oficial.
      */
