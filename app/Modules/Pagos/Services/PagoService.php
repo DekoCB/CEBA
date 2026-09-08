@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Pagos\Services;
 
 use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Pagos\Enums\EstadoCuotaEnum;
 use App\Modules\Pagos\Enums\EstadoPagoEnum;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use App\Modules\Pagos\Enums\SerieReciboEnum;
@@ -100,7 +101,13 @@ class PagoService
             ]);
 
             if ($pago->cuota) {
-                $pago->cuota->update(['estado' => 'pagado']);
+                // El pago recién aprobado puede ser parcial (ej. 40 de una
+                // cuota de 80): la cuota solo pasa a "pagado" cuando la suma
+                // de todos sus pagos aprobados cubre el monto completo, no
+                // con el primer pago que se le vincule. Ver Cuota::saldoPendiente().
+                $pago->cuota->update([
+                    'estado' => $pago->cuota->saldoPendiente() <= 0.0 ? EstadoCuotaEnum::PAGADO : EstadoCuotaEnum::PENDIENTE,
+                ]);
             }
 
             $this->recibos->emitir($pago, $serie);

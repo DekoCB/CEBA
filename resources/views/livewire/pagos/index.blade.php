@@ -434,7 +434,7 @@ new #[Layout('layouts.app')] class extends Component
                             class="rounded-md border-border bg-surface text-xs text-ink focus:border-accent focus:ring-accent"
                         >
                             @foreach ($series as $serieOpcion)
-                                <option value="{{ $serieOpcion->value }}">Serie {{ $serieOpcion->value }} — {{ $serieOpcion->titulo() }}</option>
+                                <option value="{{ $serieOpcion->value }}">Serie {{ $serieOpcion->value }} — {{ $serieOpcion->titulo() }} ({{ $serieOpcion->centroCostoIniciales() }})</option>
                             @endforeach
                         </select>
                         <x-secondary-button type="button" x-on:click="$store.confirm.preguntar('¿Aprobar este pago? Se generará el recibo automáticamente.', () => $wire.aprobar({{ $pago->id }}), { etiquetaConfirmar: 'Aprobar' })">
@@ -513,10 +513,15 @@ new #[Layout('layouts.app')] class extends Component
                         · vence {{ $cuotaDetectada->fecha_vencimiento->format('d/m/Y') }}
                     </p>
                     <p class="mt-1 text-ink-dim">
-                        Monto de la cuota: S/ {{ number_format((float) $cuotaDetectada->monto, 2) }} —
+                        @if ($cuotaDetectada->montoPagado() > 0)
+                            Saldo pendiente: S/ {{ number_format($cuotaDetectada->saldoPendiente(), 2) }}
+                            de S/ {{ number_format((float) $cuotaDetectada->monto, 2) }} —
+                        @else
+                            Monto de la cuota: S/ {{ number_format((float) $cuotaDetectada->monto, 2) }} —
+                        @endif
                         @if ($totalPartes <= 0)
                             se vinculará automáticamente a este pago.
-                        @elseif ($totalPartes >= (float) $cuotaDetectada->monto)
+                        @elseif ($totalPartes >= $cuotaDetectada->saldoPendiente())
                             pago <span class="font-semibold text-ok">completo</span>.
                         @else
                             pago <span class="font-semibold text-warn">parcial</span>.
@@ -731,7 +736,7 @@ new #[Layout('layouts.app')] class extends Component
                                                 {{ $cuota->estaVencida() ? 'Vencida desde' : 'Vence el' }} {{ $cuota->fecha_vencimiento->format('d/m/Y') }}
                                             </p>
                                         </div>
-                                        <p class="font-display text-ink">S/ {{ number_format((float) $cuota->monto, 2) }}</p>
+                                        <p class="font-display text-ink">S/ {{ number_format($cuota->saldoPendiente(), 2) }}</p>
                                     </div>
                                 @empty
                                     <p class="px-4 py-6 text-center text-sm text-ink-faint">Sin cuotas pendientes.</p>

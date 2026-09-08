@@ -7,6 +7,7 @@ namespace App\Modules\Pagos\Models;
 use App\Modules\Identidad\Support\Auditable;
 use App\Modules\Pagos\Database\Factories\CuotaFactory;
 use App\Modules\Pagos\Enums\EstadoCuotaEnum;
+use App\Modules\Pagos\Enums\EstadoPagoEnum;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -67,5 +68,24 @@ class Cuota extends Model
     public function estaVencida(): bool
     {
         return $this->estado === EstadoCuotaEnum::PENDIENTE && $this->fecha_vencimiento->isPast();
+    }
+
+    /**
+     * Suma de los pagos ya aprobados vinculados a esta cuota -- una cuota
+     * puede cubrirse en varios pagos parciales (ej. 40 hoy, 40 después), así
+     * que lo cobrado no es un solo Pago sino la suma de todos los aprobados.
+     */
+    public function montoPagado(): float
+    {
+        return (float) $this->pagos()->where('estado', EstadoPagoEnum::APROBADO)->sum('monto');
+    }
+
+    /**
+     * Lo que falta por cobrar de esta cuota. Nunca negativo: un pago que se
+     * pasa del monto de la cuota no genera saldo "a favor" aquí.
+     */
+    public function saldoPendiente(): float
+    {
+        return max(0.0, (float) $this->monto - $this->montoPagado());
     }
 }

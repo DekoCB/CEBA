@@ -132,7 +132,7 @@ class CobranzaService
                 $matricula->grado->nombre,
                 $concepto->nombre,
                 'Cuota '.$cuota->numero.' — '.($vencida ? 'vencida desde ' : 'vence el ').$cuota->fecha_vencimiento->format('d/m/Y'),
-                number_format((float) $cuota->monto, 2),
+                number_format($cuota->saldoPendiente(), 2),
             ];
         })->values()->all();
     }

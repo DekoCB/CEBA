@@ -113,6 +113,27 @@ class PagoServiceTest extends TestCase
         $this->assertNotNull($aprobado->recibo->getFirstMedia('pdf'));
     }
 
+    public function test_un_pago_parcial_no_marca_la_cuota_como_pagada_y_el_saldo_se_va_descontando(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+        $cuota = Cuota::factory()->create(['monto' => 80]);
+
+        $primerPago = $this->service()->registrar($estudiante, $concepto, [['monto' => 40.0, 'metodo' => 'yape']], $cuota, null, null);
+        $this->service()->aprobar($primerPago, $this->aprobador(), SerieReciboEnum::ORIGINAL);
+
+        $cuota->refresh();
+        $this->assertSame('pendiente', $cuota->estado->value);
+        $this->assertSame(40.0, $cuota->saldoPendiente());
+
+        $segundoPago = $this->service()->registrar($estudiante, $concepto, [['monto' => 40.0, 'metodo' => 'efectivo']], $cuota, null, null);
+        $this->service()->aprobar($segundoPago, $this->aprobador(), SerieReciboEnum::ORIGINAL);
+
+        $cuota->refresh();
+        $this->assertSame('pagado', $cuota->estado->value);
+        $this->assertSame(0.0, $cuota->saldoPendiente());
+    }
+
     public function test_aprobar_respeta_la_serie_elegida_a_mano(): void
     {
         $estudiante = Estudiante::factory()->create();

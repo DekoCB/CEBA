@@ -1,7 +1,10 @@
 {{-- @var \App\Modules\Pagos\Enums\SerieReciboEnum $serie --}}
 <table class="encabezado">
     <tr>
-        <td class="logo-celda"><img src="{{ public_path('images/Logo.png') }}" alt="CEBA Peruano Británico"></td>
+        <td class="logo-celda">
+            <img src="{{ $serie->logoPath() }}" alt="CEBA {{ $serie->centroCostoIniciales() }}">
+            <p class="centro-costo">{{ $serie->centroCostoIniciales() }}</p>
+        </td>
         <td>
             <p class="colegio-nombre">CEBA<span>PERUANO BRITÁNICO</span></p>
             <p class="colegio-subtitulo">Centro de Educación Básica Alternativa · Nivel Secundaria — No Escolarizado</p>
@@ -93,7 +96,10 @@
             <p class="etiqueta">Cuota</p>
             @if ($pago->cuota)
                 N.° {{ $pago->cuota->numero }} de {{ $pago->cuota->planPago->numero_cuotas }}
-                ({{ (float) $pago->monto >= (float) $pago->cuota->monto ? 'Completo' : 'Parcial' }})
+                ({{ $pago->cuota->saldoPendiente() <= 0.0 ? 'Completo' : 'Parcial' }})
+                @if ($pago->cuota->saldoPendiente() > 0.0)
+                    <br>Saldo: S/ {{ number_format($pago->cuota->saldoPendiente(), 2) }}
+                @endif
             @else
                 —
             @endif
