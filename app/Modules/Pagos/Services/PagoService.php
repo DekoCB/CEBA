@@ -7,6 +7,7 @@ namespace App\Modules\Pagos\Services;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Pagos\Enums\EstadoPagoEnum;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
+use App\Modules\Pagos\Enums\SerieReciboEnum;
 use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Models\Pago;
@@ -41,6 +42,7 @@ class PagoService
         ?UploadedFile $comprobante,
         ?int $registradoPor,
         ?string $detalle = null,
+        ?string $observacion = null,
     ): Pago {
         if ($partes === []) {
             throw new InvalidArgumentException('Un pago necesita al menos una parte (monto y método).');
@@ -56,12 +58,13 @@ class PagoService
         $metodosUnicos = collect($partes)->pluck('metodo')->unique();
         $metodo = $metodosUnicos->count() === 1 ? $metodosUnicos->first() : MetodoPagoEnum::MIXTO->value;
 
-        return DB::transaction(function () use ($estudiante, $concepto, $detalle, $cuota, $montoTotal, $metodo, $registradoPor, $comprobante, $partes) {
+        return DB::transaction(function () use ($estudiante, $concepto, $detalle, $observacion, $cuota, $montoTotal, $metodo, $registradoPor, $comprobante, $partes) {
             /** @var Pago $pago */
             $pago = Pago::query()->create([
                 'estudiante_id' => $estudiante->id,
                 'concepto_id' => $concepto->id,
                 'detalle' => $detalle,
+                'observacion' => $observacion,
                 'cuota_id' => $cuota?->id,
                 'monto' => $montoTotal,
                 'metodo' => $metodo,
@@ -85,11 +88,11 @@ class PagoService
         });
     }
 
-    public function aprobar(Pago $pago, int $aprobadoPor): Pago
+    public function aprobar(Pago $pago, int $aprobadoPor, SerieReciboEnum $serie): Pago
     {
         $this->validarPendiente($pago);
 
-        DB::transaction(function () use ($pago, $aprobadoPor) {
+        DB::transaction(function () use ($pago, $aprobadoPor, $serie) {
             $pago->update([
                 'estado' => EstadoPagoEnum::APROBADO,
                 'aprobado_por' => $aprobadoPor,
@@ -100,7 +103,7 @@ class PagoService
                 $pago->cuota->update(['estado' => 'pagado']);
             }
 
-            $this->recibos->emitir($pago);
+            $this->recibos->emitir($pago, $serie);
             $this->bloqueos->evaluarYDesbloquear($pago->estudiante);
         });
 

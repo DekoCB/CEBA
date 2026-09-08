@@ -9,15 +9,15 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Console\Command;
 
 /**
- * Migra los recibos existentes (creados antes de las dos series) al nuevo
- * formato: reasigna un correlativo continuo en orden de creación y
- * regenera el PDF de cada uno con ambas series (001 y 002).
+ * Migra los recibos existentes al formato vigente: reasigna, dentro de
+ * cada serie por separado, un correlativo continuo en orden de creación,
+ * y regenera el PDF de cada uno (una sola página, la de su propia serie).
  */
 class RegenerarRecibos extends Command
 {
     protected $signature = 'recibos:regenerar';
 
-    protected $description = 'Reasigna el correlativo de cada recibo existente y regenera su PDF con el formato de dos series';
+    protected $description = 'Reasigna el correlativo (por serie) de cada recibo existente y regenera su PDF';
 
     public function handle(): int
     {
@@ -28,24 +28,26 @@ class RegenerarRecibos extends Command
 
         // Primero se pasan todos a un valor temporal único: si se reasignara
         // el correlativo definitivo fila por fila, una fila podría chocar
-        // contra el numero_recibo (todavía sin actualizar) de otra -- el
-        // unique() de la columna lo rechazaría a mitad de camino.
+        // contra el numero_recibo (todavía sin actualizar) de otra de la
+        // misma serie -- el unique() de (serie, numero_recibo) lo
+        // rechazaría a mitad de camino.
         foreach ($recibos as $recibo) {
             $recibo->update(['numero_recibo' => "tmp-{$recibo->id}"]);
         }
 
-        $correlativo = 0;
+        $correlativoPorSerie = [];
 
         foreach ($recibos as $recibo) {
-            $correlativo++;
-            $numero = sprintf('%06d', $correlativo);
+            $serie = $recibo->serie->value;
+            $correlativoPorSerie[$serie] = ($correlativoPorSerie[$serie] ?? 0) + 1;
+            $numero = sprintf('%06d', $correlativoPorSerie[$serie]);
 
             $recibo->update(['numero_recibo' => $numero]);
 
-            $pdf = Pdf::loadView('pdf.recibo', ['pago' => $recibo->pago, 'recibo' => $recibo]);
+            $pdf = Pdf::loadView('pdf.recibo', ['pago' => $recibo->pago, 'recibo' => $recibo, 'serie' => $recibo->serie]);
 
             $recibo->addMediaFromString($pdf->output())
-                ->usingFileName("{$numero}.pdf")
+                ->usingFileName("{$serie}-{$numero}.pdf")
                 ->toMediaCollection('pdf');
         }
 

@@ -69,6 +69,23 @@ class CobranzaService
     }
 
     /**
+     * La cuota de mensualidad que le toca pagar a continuación a un
+     * estudiante (la de vencimiento más próximo, sin importar si ya venció
+     * o no) -- usada por "Registrar pago" para vincular automáticamente el
+     * pago a su Cuota cuando el concepto elegido es Mensualidad, en vez de
+     * dejar el pago suelto sin Grupo/Cuota (ver PagoService::registrar()).
+     */
+    public function cuotaPendienteMasProxima(Estudiante $estudiante): ?Cuota
+    {
+        return Cuota::query()
+            ->where('estado', EstadoCuotaEnum::PENDIENTE)
+            ->whereHas('planPago.matricula', fn ($query) => $query->where('estudiante_id', $estudiante->id))
+            ->with('planPago.matricula.ciclo')
+            ->orderBy('fecha_vencimiento')
+            ->first();
+    }
+
+    /**
      * @param  list<int>  $conceptoIds
      * @return array{columnas: list<string>, filas: list<array<int, string|int|float>>}
      */

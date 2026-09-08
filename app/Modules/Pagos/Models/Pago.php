@@ -25,6 +25,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property int $estudiante_id
  * @property int $concepto_id
  * @property string|null $detalle
+ * @property string|null $observacion
  * @property int|null $cuota_id
  * @property float $monto
  * @property MetodoPagoEnum $metodo
@@ -48,6 +49,7 @@ class Pago extends Model implements HasMedia
         'estudiante_id',
         'concepto_id',
         'detalle',
+        'observacion',
         'cuota_id',
         'monto',
         'metodo',

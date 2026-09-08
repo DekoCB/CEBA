@@ -84,14 +84,19 @@
 
 <div class="observacion">
     <p class="etiqueta">Observación</p>
-    <div class="caja-texto">{{ $pago->detalle ?: '—' }}</div>
+    <div class="caja-texto">{{ $pago->observacion ?: '—' }}</div>
 </div>
 
 <table class="pie">
     <tr>
         <td>
             <p class="etiqueta">Cuota</p>
-            {{ $pago->cuota ? "N.° {$pago->cuota->numero} de {$pago->cuota->planPago->numero_cuotas}" : '—' }}
+            @if ($pago->cuota)
+                N.° {{ $pago->cuota->numero }} de {{ $pago->cuota->planPago->numero_cuotas }}
+                ({{ (float) $pago->monto >= (float) $pago->cuota->monto ? 'Completo' : 'Parcial' }})
+            @else
+                —
+            @endif
         </td>
         <td>
             <p class="etiqueta">Grupo</p>

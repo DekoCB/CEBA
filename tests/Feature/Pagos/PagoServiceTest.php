@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Pagos\Enums\EstadoPagoEnum;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
+use App\Modules\Pagos\Enums\SerieReciboEnum;
 use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Services\PagoService;
@@ -103,12 +104,24 @@ class PagoServiceTest extends TestCase
 
         $pago = $this->service()->registrar($estudiante, $concepto, [['monto' => (float) $cuota->monto, 'metodo' => 'yape']], $cuota, null, null);
 
-        $aprobado = $this->service()->aprobar($pago, $this->aprobador());
+        $aprobado = $this->service()->aprobar($pago, $this->aprobador(), SerieReciboEnum::ORIGINAL);
 
         $this->assertSame(EstadoPagoEnum::APROBADO, $aprobado->estado);
         $this->assertSame('pagado', $cuota->fresh()->estado->value);
         $this->assertNotNull($aprobado->recibo);
+        $this->assertSame(SerieReciboEnum::ORIGINAL, $aprobado->recibo->serie);
         $this->assertNotNull($aprobado->recibo->getFirstMedia('pdf'));
+    }
+
+    public function test_aprobar_respeta_la_serie_elegida_a_mano(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+        $pago = $this->service()->registrar($estudiante, $concepto, [['monto' => 100.0, 'metodo' => 'efectivo']], null, null, null);
+
+        $aprobado = $this->service()->aprobar($pago, $this->aprobador(), SerieReciboEnum::COPIA);
+
+        $this->assertSame(SerieReciboEnum::COPIA, $aprobado->recibo->serie);
     }
 
     public function test_rechazar_un_pago_registra_el_motivo(): void
@@ -129,11 +142,11 @@ class PagoServiceTest extends TestCase
         $estudiante = Estudiante::factory()->create();
         $concepto = ConceptoPago::factory()->create();
         $pago = $this->service()->registrar($estudiante, $concepto, [['monto' => 100.0, 'metodo' => 'efectivo']], null, null, null);
-        $this->service()->aprobar($pago, $this->aprobador());
+        $this->service()->aprobar($pago, $this->aprobador(), SerieReciboEnum::ORIGINAL);
 
         $this->expectException(ValidationException::class);
 
-        $this->service()->aprobar($pago, $this->aprobador());
+        $this->service()->aprobar($pago, $this->aprobador(), SerieReciboEnum::ORIGINAL);
     }
 
     public function test_pendientes_de_aprobacion_solo_incluye_pagos_en_estado_pendiente(): void
@@ -143,7 +156,7 @@ class PagoServiceTest extends TestCase
 
         $pendiente = $this->service()->registrar($estudiante, $concepto, [['monto' => 100.0, 'metodo' => 'efectivo']], null, null, null);
         $aprobado = $this->service()->registrar($estudiante, $concepto, [['monto' => 100.0, 'metodo' => 'efectivo']], null, null, null);
-        $this->service()->aprobar($aprobado, $this->aprobador());
+        $this->service()->aprobar($aprobado, $this->aprobador(), SerieReciboEnum::ORIGINAL);
 
         $cola = $this->service()->pendientesDeAprobacion();
 

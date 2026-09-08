@@ -8,6 +8,7 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use App\Modules\Pagos\Enums\NumeroCuotasEnum;
+use App\Modules\Pagos\Enums\SerieReciboEnum;
 use App\Modules\Pagos\Enums\TipoConceptoEnum;
 use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Pago;
@@ -40,6 +41,8 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $detalle = '';
 
+    public string $observacion = '';
+
     // Un pago puede cubrirse con más de un medio a la vez (ej. una parte en
     // efectivo y otra por Yape): cada elemento es un monto+método
     // independiente, pero todas juntas quedan como un solo registro de
@@ -54,6 +57,12 @@ new #[Layout('layouts.app')] class extends Component
     // Rechazo de pago
     /** @var array<int, string> */
     public array $motivoRechazo = [];
+
+    // Serie elegida a mano para el recibo de cada pago en la cola de
+    // aprobación (001 "Recibo de pago" o 002 "Recibo"), indexado por
+    // pago_id igual que motivoRechazo.
+    /** @var array<int, string> */
+    public array $serieElegida = [];
 
     // Crear plan de pago — indexado por matricula_id, porque el listado
     // de "matrículas sin plan" puede mostrar varias filas a la vez.
@@ -146,7 +155,7 @@ new #[Layout('layouts.app')] class extends Component
         $this->partes = array_values($this->partes);
     }
 
-    public function registrarPago(PagoService $service): void
+    public function registrarPago(PagoService $service, CobranzaService $cobranza): void
     {
         abort_unless(Auth::user()->hasAnyPermission(['pagos.registrar', 'pagos.gestionar']), 403);
 
@@ -168,14 +177,22 @@ new #[Layout('layouts.app')] class extends Component
             return;
         }
 
+        // Solo Mensualidad tiene una Cuota real que vincular (ver
+        // CobranzaService::cuotaPendienteMasProxima()) -- el resto de
+        // conceptos (Matrícula, Certificado, Otro...) no forman parte de
+        // un plan de cuotas, así que el pago queda sin Cuota como antes.
+        $cuota = $concepto->tipo === TipoConceptoEnum::MENSUALIDAD
+            ? $cobranza->cuotaPendienteMasProxima($estudiante)
+            : null;
+
         $partes = collect($this->partes)->map(fn (array $parte) => [
             'monto' => (float) $parte['monto'],
             'metodo' => $parte['metodo'],
         ])->all();
 
-        $service->registrar($estudiante, $concepto, $partes, null, $this->comprobante, Auth::id(), $this->detalle ?: null);
+        $service->registrar($estudiante, $concepto, $partes, $cuota, $this->comprobante, Auth::id(), $this->detalle ?: null, $this->observacion ?: null);
 
-        $this->reset(['estudianteSeleccionadoId', 'estudianteSeleccionadoNombre', 'conceptoId', 'detalle', 'partes', 'comprobante']);
+        $this->reset(['estudianteSeleccionadoId', 'estudianteSeleccionadoNombre', 'conceptoId', 'detalle', 'observacion', 'partes', 'comprobante']);
         session()->flash('status', 'Pago registrado. Queda pendiente de aprobación de Tesorería.');
     }
 
@@ -204,9 +221,12 @@ new #[Layout('layouts.app')] class extends Component
     {
         Gate::authorize('pagos.aprobar');
 
-        $service->aprobar(Pago::query()->findOrFail($pagoId), Auth::id());
+        $serie = SerieReciboEnum::from($this->serieElegida[$pagoId] ?? SerieReciboEnum::ORIGINAL->value);
 
-        session()->flash('status', 'Pago aprobado y recibo generado.');
+        $service->aprobar(Pago::query()->findOrFail($pagoId), Auth::id(), $serie);
+
+        unset($this->serieElegida[$pagoId]);
+        session()->flash('status', "Pago aprobado y recibo generado (serie {$serie->value}).");
     }
 
     public function rechazar(int $pagoId, PagoService $service): void
@@ -256,11 +276,27 @@ new #[Layout('layouts.app')] class extends Component
             }
         }
 
+        $colaAprobacion = $puedeAprobar ? $pagos->pendientesDeAprobacion() : collect();
+        foreach ($colaAprobacion as $pago) {
+            $this->serieElegida[$pago->id] ??= SerieReciboEnum::ORIGINAL->value;
+        }
+
         $historial = $puedeVerHistorial
             ? $pagos->todos()->when($this->filtroEstado, fn ($coleccion) => $coleccion->where('estado', $this->filtroEstado))
             : collect();
 
         $conceptosActivos = $conceptos->activos();
+
+        // Vista previa de a qué Cuota quedaría vinculado el pago si se
+        // registrara ahora mismo (ver registrarPago(), que hace la misma
+        // detección al guardar) -- solo tiene sentido una vez elegidos
+        // estudiante y un concepto de tipo Mensualidad.
+        $cuotaDetectada = null;
+        if ($puedeRegistrar && $this->estudianteSeleccionadoId
+            && $conceptosActivos->firstWhere('id', (int) $this->conceptoId)?->tipo === TipoConceptoEnum::MENSUALIDAD) {
+            $estudianteParaCuota = Estudiante::query()->find($this->estudianteSeleccionadoId);
+            $cuotaDetectada = $estudianteParaCuota ? $cobranza->cuotaPendienteMasProxima($estudianteParaCuota) : null;
+        }
 
         $cobrosResultadosBusqueda = collect();
         if ($puedeVerCobros && $this->cobrosTerminoBusqueda !== '') {
@@ -301,12 +337,14 @@ new #[Layout('layouts.app')] class extends Component
             'puedeRegistrar' => $puedeRegistrar,
             'puedeVerHistorial' => $puedeVerHistorial,
             'puedeVerCobros' => $puedeVerCobros,
-            'colaAprobacion' => $puedeAprobar ? $pagos->pendientesDeAprobacion() : collect(),
+            'colaAprobacion' => $colaAprobacion,
             'historial' => $historial,
             'resultadosBusqueda' => $resultadosBusqueda,
             'matriculasSinPlan' => $matriculasSinPlan,
             'conceptosActivos' => $conceptosActivos,
             'mostrarDetalleLibre' => $conceptosActivos->firstWhere('id', (int) $this->conceptoId)?->tipo === TipoConceptoEnum::OTRO,
+            'cuotaDetectada' => $cuotaDetectada,
+            'series' => SerieReciboEnum::cases(),
             'numerosCuotas' => NumeroCuotasEnum::cases(),
             'metodosPago' => MetodoPagoEnum::seleccionables(),
             'totalPartes' => collect($this->partes)->sum(fn (array $parte) => (float) ($parte['monto'] ?: 0)),
@@ -391,6 +429,14 @@ new #[Layout('layouts.app')] class extends Component
                     </div>
 
                     <div class="mt-3 flex flex-wrap items-center gap-2">
+                        <select
+                            wire:model="serieElegida.{{ $pago->id }}"
+                            class="rounded-md border-border bg-surface text-xs text-ink focus:border-accent focus:ring-accent"
+                        >
+                            @foreach ($series as $serieOpcion)
+                                <option value="{{ $serieOpcion->value }}">Serie {{ $serieOpcion->value }} — {{ $serieOpcion->titulo() }}</option>
+                            @endforeach
+                        </select>
                         <x-secondary-button type="button" x-on:click="$store.confirm.preguntar('¿Aprobar este pago? Se generará el recibo automáticamente.', () => $wire.aprobar({{ $pago->id }}), { etiquetaConfirmar: 'Aprobar' })">
                             Aprobar
                         </x-secondary-button>
@@ -457,6 +503,33 @@ new #[Layout('layouts.app')] class extends Component
                     <x-input-error :messages="$errors->get('detalle')" class="mt-1" />
                 </div>
             @endif
+
+            @if ($cuotaDetectada)
+                <div class="rounded-md border border-accent/30 bg-accent-soft px-3 py-2 text-xs text-ink">
+                    <p>
+                        <span class="font-semibold text-accent">Cuota N.° {{ $cuotaDetectada->numero }}</span>
+                        de {{ $cuotaDetectada->planPago->numero_cuotas }}
+                        · Grupo {{ $cuotaDetectada->planPago->matricula->ciclo->nombre }}
+                        · vence {{ $cuotaDetectada->fecha_vencimiento->format('d/m/Y') }}
+                    </p>
+                    <p class="mt-1 text-ink-dim">
+                        Monto de la cuota: S/ {{ number_format((float) $cuotaDetectada->monto, 2) }} —
+                        @if ($totalPartes <= 0)
+                            se vinculará automáticamente a este pago.
+                        @elseif ($totalPartes >= (float) $cuotaDetectada->monto)
+                            pago <span class="font-semibold text-ok">completo</span>.
+                        @else
+                            pago <span class="font-semibold text-warn">parcial</span>.
+                        @endif
+                    </p>
+                </div>
+            @endif
+
+            <div>
+                <x-input-label for="observacion" value="Observación (opcional)" />
+                <x-text-input wire:model="observacion" id="observacion" class="mt-1 block w-full" placeholder="Nota que se imprime en el recibo…" />
+                <x-input-error :messages="$errors->get('observacion')" class="mt-1" />
+            </div>
 
             <div>
                 <div class="flex items-center justify-between">

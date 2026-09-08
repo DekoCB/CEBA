@@ -42,6 +42,7 @@ use App\Modules\Notificaciones\Services\RecordatorioCuotaService;
 use App\Modules\Pagos\Enums\MedioCuentaEnum;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use App\Modules\Pagos\Enums\NumeroCuotasEnum;
+use App\Modules\Pagos\Enums\SerieReciboEnum;
 use App\Modules\Pagos\Enums\TipoBilleteraEnum;
 use App\Modules\Pagos\Enums\TipoConceptoEnum;
 use App\Modules\Pagos\Models\ConceptoPago;
@@ -115,7 +116,7 @@ class DemoRobustoSeeder extends Seeder
         $docentes = $this->crearDocentes(5);
         $this->crearHorarios($ciclo, $aulas, $docentes);
         $this->crearEstudiantesYMatriculas($ciclo, $grados);
-        $this->poblarSiageAnual($grados);
+        $this->poblarSiagieAnual($grados);
         $this->diversificarEstadosDeEstudiantes();
 
         $horarios = Horario::query()->where('ciclo_id', $ciclo->id)->get();
@@ -407,21 +408,21 @@ class DemoRobustoSeeder extends Seeder
     }
 
     /**
-     * Un ciclo SIAGE anual de ejemplo (independiente de los 4 grupos
+     * Un ciclo SIAGIE anual de ejemplo (independiente de los 4 grupos
      * rotativos) con un par de estudiantes matriculados, para poder
      * verificar la ficha/historial/wizard con un caso real de esa
      * modalidad.
      *
      * @param  Collection<int, Grado>  $grados
      */
-    private function poblarSiageAnual(Collection $grados): void
+    private function poblarSiagieAnual(Collection $grados): void
     {
         $anio = (int) now()->year;
 
         $cicloAnual = Ciclo::query()->firstOrCreate(
             ['modalidad' => ModalidadCicloEnum::ANUAL, 'anio' => $anio],
             [
-                'nombre' => "SIAGE Anual - {$anio}",
+                'nombre' => "SIAGIE Anual - {$anio}",
                 'tipo' => null,
                 'fecha_inicio' => "{$anio}-03-01",
                 'fecha_fin' => "{$anio}-10-31",
@@ -656,7 +657,7 @@ class DemoRobustoSeeder extends Seeder
         $pago = $service->registrar($estudiante, $concepto, [['monto' => (float) $cuota->monto, 'metodo' => MetodoPagoEnum::YAPE->value]], $cuota, null, $registradoPor);
 
         if ($aprobadoPor) {
-            $service->aprobar($pago, $aprobadoPor);
+            $service->aprobar($pago, $aprobadoPor, SerieReciboEnum::ORIGINAL);
         }
     }
 

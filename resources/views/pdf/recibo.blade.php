@@ -5,9 +5,6 @@
     <style>
         body { font-family: 'Helvetica', sans-serif; font-size: 11px; color: #1B1F27; }
 
-        .copia { page-break-after: always; }
-        .copia:last-child { page-break-after: auto; }
-
         table.encabezado { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
         table.encabezado td { vertical-align: middle; }
         .logo-celda { width: 78px; padding-right: 14px; }
@@ -52,10 +49,6 @@
     </style>
 </head>
 <body>
-    @foreach (\App\Modules\Pagos\Enums\SerieReciboEnum::cases() as $serie)
-        <div class="copia">
-            @include('pdf.partials.cuerpo-recibo', ['serie' => $serie])
-        </div>
-    @endforeach
+    @include('pdf.partials.cuerpo-recibo', ['serie' => $serie])
 </body>
 </html>

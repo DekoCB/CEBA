@@ -6,6 +6,7 @@ namespace App\Modules\Pagos\Models;
 
 use App\Modules\Identidad\Support\Auditable;
 use App\Modules\Pagos\Database\Factories\ReciboFactory;
+use App\Modules\Pagos\Enums\SerieReciboEnum;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,6 +17,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
 /**
  * @property int $id
  * @property int $pago_id
+ * @property SerieReciboEnum $serie
  * @property string $numero_recibo
  * @property Carbon $emitido_en
  * @property-read Pago $pago
@@ -29,6 +31,7 @@ class Recibo extends Model implements HasMedia
 
     protected $fillable = [
         'pago_id',
+        'serie',
         'numero_recibo',
         'emitido_en',
     ];
@@ -36,6 +39,7 @@ class Recibo extends Model implements HasMedia
     protected function casts(): array
     {
         return [
+            'serie' => SerieReciboEnum::class,
             'emitido_en' => 'datetime',
         ];
     }
