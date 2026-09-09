@@ -28,7 +28,12 @@ class CursoFactory extends Factory
                 'Educación para el trabajo',
                 'Educación física',
             ]),
-            'codigo' => strtoupper($this->faker->unique()->bothify('CUR-###')),
+            // codigo es único en la tabla. Antes usaba
+            // faker->unique()->bothify('CUR-###') (solo 1000 combinaciones
+            // posibles) -- mismo riesgo de agotar el rango que tenían
+            // GradoFactory::orden y AulaFactory::nombre, ver el comentario
+            // en GradoFactory.
+            'codigo' => 'CUR-'.str_pad((string) (Curso::count() + 1), 3, '0', STR_PAD_LEFT),
             'grado_id' => Grado::factory(),
             'horas' => $this->faker->numberBetween(60, 120),
             'activo' => true,
