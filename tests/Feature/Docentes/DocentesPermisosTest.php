@@ -38,6 +38,29 @@ class DocentesPermisosTest extends TestCase
         $this->actingAs($docente)->get(route('docentes.index'))->assertForbidden();
     }
 
+    public function test_el_buscador_de_docentes_muestra_sugerencias_y_filtra(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $docenteA = Docente::factory()->create();
+        $docenteA->usuario->update(['name' => 'Marcos Huaman']);
+        $docenteB = Docente::factory()->create();
+        $docenteB->usuario->update(['name' => 'Rocio Salazar']);
+
+        $this->actingAs($coordinador);
+
+        // @js() codifica las comillas como " dentro del atributo x-data.
+        $html = Volt::test('docentes.index')->html();
+        $this->assertStringContainsString('\u0022label\u0022:\u0022Marcos Huaman\u0022', $html);
+        $this->assertStringContainsString('\u0022label\u0022:\u0022Rocio Salazar\u0022', $html);
+
+        Volt::test('docentes.index')
+            ->set('termino', 'Marcos')
+            ->assertSee('Marcos Huaman')
+            ->assertDontSee('Rocio Salazar');
+    }
+
     public function test_coordinador_registra_un_docente_nuevo_y_le_crea_su_cuenta(): void
     {
         $coordinador = User::factory()->create();

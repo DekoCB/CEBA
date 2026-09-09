@@ -65,6 +65,25 @@ new class extends Component
         $service->verificar($documento);
     }
 
+    /**
+     * No se puede usar Pdf::loadView(...)->download() aquí: eso devuelve un
+     * Illuminate\Http\Response plano, que Livewire no reconoce como
+     * descarga de archivo (ver el mismo fix en reportes/index.blade.php y
+     * historial-estudiante/index.blade.php). streamDownload() sí.
+     */
+    public function descargarDniPdf(int $documentoId, DocumentoEstudianteService $service)
+    {
+        Gate::authorize('matricula.ver');
+
+        $documento = DocumentoEstudiante::query()->with('estudiante')->findOrFail($documentoId);
+
+        return response()->streamDownload(
+            fn () => print ($service->generarPdfDni($documento)->output()),
+            "dni-{$documento->tipo->value}-{$documento->estudiante_id}.pdf",
+            ['Content-Type' => 'application/pdf'],
+        );
+    }
+
     public function guardarObservaciones(): void
     {
         Gate::authorize('matricula.editar');
@@ -213,7 +232,7 @@ new class extends Component
 
     public function with(PlanPagoService $planes): array
     {
-        $estudiante = $this->estudianteId ? Estudiante::query()->with(['media', 'user.media'])->find($this->estudianteId) : null;
+        $estudiante = $this->estudianteId ? Estudiante::query()->with(['media', 'user.media', 'telefonos'])->find($this->estudianteId) : null;
 
         $matriculas = $estudiante?->matriculas()->with(['ciclo', 'grado', 'horarios.curso', 'horarios.docente', 'media'])->latest('fecha_matricula')->get();
 

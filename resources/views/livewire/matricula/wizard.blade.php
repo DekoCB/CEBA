@@ -47,6 +47,15 @@ new class extends Component
 
     public string $celular = '';
 
+    /**
+     * Celulares adicionales, solo para mayores de edad (ver
+     * EstudianteTelefono) -- el menor de edad se comunica a través del
+     * celular del apoderado, no tiene sentido pedirle más de uno propio.
+     *
+     * @var list<string>
+     */
+    public array $celularesAdicionales = [];
+
     public string $observacionesEstudiante = '';
 
     public $foto = null;
@@ -72,9 +81,13 @@ new class extends Component
     public string $apoderadoParentesco = '';
 
     // Paso 3 — documentos e institución de procedencia
-    public $dniEstudianteArchivo = null;
+    public $dniEstudianteCaraArchivo = null;
 
-    public $dniApoderadoArchivo = null;
+    public $dniEstudianteReversoArchivo = null;
+
+    public $dniApoderadoCaraArchivo = null;
+
+    public $dniApoderadoReversoArchivo = null;
 
     public $certificadoArchivo = null;
 
@@ -108,6 +121,8 @@ new class extends Component
 
     public string $siagieId = '';
 
+    public string $fechaMatricula = '';
+
     public string $observacionesMatricula = '';
 
     // Paso 6 — cronograma de pagos (opcional)
@@ -126,6 +141,8 @@ new class extends Component
     public function mount(): void
     {
         Gate::authorize('matricula.crear');
+
+        $this->fechaMatricula = now()->format('Y-m-d');
     }
 
     #[Computed]
@@ -136,6 +153,17 @@ new class extends Component
         }
 
         return MatriculaService::esMenorDeEdad($this->fechaNacimiento);
+    }
+
+    public function agregarCelular(): void
+    {
+        $this->celularesAdicionales[] = '';
+    }
+
+    public function quitarCelular(int $indice): void
+    {
+        unset($this->celularesAdicionales[$indice]);
+        $this->celularesAdicionales = array_values($this->celularesAdicionales);
     }
 
     /**
@@ -209,6 +237,7 @@ new class extends Component
                 'estadoCivil' => 'nullable|string|in:'.implode(',', array_column(EstadoCivilEnum::cases(), 'value')),
                 'direccion' => 'nullable|string|max:150',
                 'celular' => 'nullable|string',
+                'celularesAdicionales.*' => 'nullable|string',
             ]);
 
             if (! $service->dniDisponible($this->dni)) {
@@ -239,8 +268,10 @@ new class extends Component
 
         if ($this->paso === 3) {
             $this->validate([
-                'dniEstudianteArchivo' => 'required|file|mimes:pdf,jpg,jpeg,png|max:4096',
-                'dniApoderadoArchivo' => $this->esMenorDeEdad ? 'required|file|mimes:pdf,jpg,jpeg,png|max:4096' : 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
+                'dniEstudianteCaraArchivo' => 'required|file|mimes:pdf,jpg,jpeg,png|max:4096',
+                'dniEstudianteReversoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
+                'dniApoderadoCaraArchivo' => $this->esMenorDeEdad ? 'required|file|mimes:pdf,jpg,jpeg,png|max:4096' : 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
+                'dniApoderadoReversoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
                 'certificadoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
                 'constanciaArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
                 'colegioNombre' => 'nullable|string|max:150',
@@ -275,6 +306,7 @@ new class extends Component
                 'cicloId' => 'required|integer|exists:ciclos,id',
                 'gradoId' => 'required|integer|exists:grados,id',
                 'siagieId' => 'nullable|integer|exists:siagies,id',
+                'fechaMatricula' => 'required|date',
             ]);
 
             $this->paso = 6;
@@ -374,6 +406,7 @@ new class extends Component
                     observaciones: $this->observacionesMatricula ?: null,
                     registradoPor: auth()->id(),
                     siagieId: $this->siagieId !== '' ? (int) $this->siagieId : null,
+                    fechaMatricula: $this->fechaMatricula !== '' ? $this->fechaMatricula : null,
                 ));
 
                 $this->crearCronogramaSiCorresponde($matricula, $planPagoService);
@@ -431,17 +464,23 @@ new class extends Component
                 ]);
             }
 
-            if ($this->dniEstudianteArchivo) {
-                $documentoService->subir($estudiante, TipoDocumentoEnum::DNI_ESTUDIANTE, $this->dniEstudianteArchivo, auth()->id());
+            if ($this->dniEstudianteCaraArchivo) {
+                $documentoService->subir($estudiante, TipoDocumentoEnum::DNI_ESTUDIANTE, $this->dniEstudianteCaraArchivo, auth()->id(), $this->dniEstudianteReversoArchivo);
             }
-            if ($this->dniApoderadoArchivo) {
-                $documentoService->subir($estudiante, TipoDocumentoEnum::DNI_APODERADO, $this->dniApoderadoArchivo, auth()->id());
+            if ($this->dniApoderadoCaraArchivo) {
+                $documentoService->subir($estudiante, TipoDocumentoEnum::DNI_APODERADO, $this->dniApoderadoCaraArchivo, auth()->id(), $this->dniApoderadoReversoArchivo);
             }
             if ($this->certificadoArchivo) {
                 $documentoService->subir($estudiante, TipoDocumentoEnum::CERTIFICADO_ESTUDIOS, $this->certificadoArchivo, auth()->id());
             }
             if ($this->constanciaArchivo) {
                 $documentoService->subir($estudiante, TipoDocumentoEnum::CONSTANCIA, $this->constanciaArchivo, auth()->id());
+            }
+
+            foreach ($this->celularesAdicionales as $numero) {
+                if ($numero !== '') {
+                    $estudiante->telefonos()->create(['numero' => (string) new Telefono($numero)]);
+                }
             }
 
             if ($this->registrarExamen) {
@@ -460,6 +499,7 @@ new class extends Component
                 observaciones: $this->observacionesMatricula ?: null,
                 registradoPor: auth()->id(),
                 siagieId: $this->siagieId !== '' ? (int) $this->siagieId : null,
+                fechaMatricula: $this->fechaMatricula !== '' ? $this->fechaMatricula : null,
             ));
 
             $this->crearCronogramaSiCorresponde($matricula, $planPagoService);
@@ -628,6 +668,21 @@ new class extends Component
                     <x-text-input wire:model="celular" id="celular" class="mt-1 block w-full" />
                     <x-input-error :messages="$errors->get('celular')" class="mt-1" />
                 </div>
+                @unless ($this->esMenorDeEdad)
+                    <div class="sm:col-span-2">
+                        <x-input-label value="Celulares adicionales (opcional)" />
+                        <div class="mt-1 space-y-2">
+                            @foreach ($celularesAdicionales as $indice => $numero)
+                                <div class="flex items-center gap-2">
+                                    <x-text-input wire:model="celularesAdicionales.{{ $indice }}" class="block w-full" />
+                                    <button type="button" wire:click="quitarCelular({{ $indice }})" class="text-sm text-danger hover:underline">Quitar</button>
+                                </div>
+                                <x-input-error :messages="$errors->get('celularesAdicionales.'.$indice)" />
+                            @endforeach
+                        </div>
+                        <button type="button" wire:click="agregarCelular" class="mt-2 text-sm font-medium text-accent hover:underline">+ Agregar otro celular</button>
+                    </div>
+                @endunless
                 <div class="sm:col-span-2">
                     <x-input-label for="direccion" value="Dirección" />
                     <x-text-input wire:model="direccion" id="direccion" class="mt-1 block w-full" />
@@ -697,15 +752,25 @@ new class extends Component
             <h2 class="font-display text-lg text-ink">Documentos e institución de procedencia</h2>
             <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                    <x-input-label for="dniEstudianteArchivo" value="DNI del estudiante" />
-                    <input wire:model="dniEstudianteArchivo" id="dniEstudianteArchivo" type="file" accept=".pdf,image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-ink">
-                    <x-input-error :messages="$errors->get('dniEstudianteArchivo')" class="mt-1" />
+                    <x-input-label for="dniEstudianteCaraArchivo" value="DNI del estudiante — cara" />
+                    <input wire:model="dniEstudianteCaraArchivo" id="dniEstudianteCaraArchivo" type="file" accept=".pdf,image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-ink">
+                    <x-input-error :messages="$errors->get('dniEstudianteCaraArchivo')" class="mt-1" />
+                </div>
+                <div>
+                    <x-input-label for="dniEstudianteReversoArchivo" value="DNI del estudiante — sello/reverso (opcional)" />
+                    <input wire:model="dniEstudianteReversoArchivo" id="dniEstudianteReversoArchivo" type="file" accept=".pdf,image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-ink">
+                    <x-input-error :messages="$errors->get('dniEstudianteReversoArchivo')" class="mt-1" />
                 </div>
                 @if ($this->esMenorDeEdad)
                     <div>
-                        <x-input-label for="dniApoderadoArchivo" value="DNI del apoderado" />
-                        <input wire:model="dniApoderadoArchivo" id="dniApoderadoArchivo" type="file" accept=".pdf,image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-ink">
-                        <x-input-error :messages="$errors->get('dniApoderadoArchivo')" class="mt-1" />
+                        <x-input-label for="dniApoderadoCaraArchivo" value="DNI del apoderado — cara" />
+                        <input wire:model="dniApoderadoCaraArchivo" id="dniApoderadoCaraArchivo" type="file" accept=".pdf,image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-ink">
+                        <x-input-error :messages="$errors->get('dniApoderadoCaraArchivo')" class="mt-1" />
+                    </div>
+                    <div>
+                        <x-input-label for="dniApoderadoReversoArchivo" value="DNI del apoderado — sello/reverso (opcional)" />
+                        <input wire:model="dniApoderadoReversoArchivo" id="dniApoderadoReversoArchivo" type="file" accept=".pdf,image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-ink">
+                        <x-input-error :messages="$errors->get('dniApoderadoReversoArchivo')" class="mt-1" />
                     </div>
                 @endif
                 <div>
@@ -848,6 +913,11 @@ new class extends Component
                         :options="collect($gradosCompatibles)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])"
                     />
                     <x-input-error :messages="$errors->get('gradoId')" class="mt-1" />
+                </div>
+                <div>
+                    <x-input-label for="fechaMatricula" value="Fecha de matrícula" />
+                    <x-date-input wire:model="fechaMatricula" id="fechaMatricula" class="mt-1 block w-full" />
+                    <x-input-error :messages="$errors->get('fechaMatricula')" class="mt-1" />
                 </div>
                 <div class="sm:col-span-2">
                     <x-input-label for="observacionesMatricula" value="Observaciones (opcional)" />

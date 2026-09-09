@@ -150,7 +150,7 @@ class MatriculaService
             ]);
         }
 
-        $fechaMatricula = now();
+        $fechaMatricula = $data->fechaMatricula !== null ? Carbon::parse($data->fechaMatricula) : now();
         $fechaFinEstudio = $ciclo->modalidad === ModalidadCicloEnum::ANUAL
             ? $ciclo->fecha_fin
             : $fechaMatricula->clone()->addMonths($estudiante->es_menor_edad ? 8 : 6);

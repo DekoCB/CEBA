@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Matricula\Enums\EstadoEstudianteEnum;
+use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Services\MatriculaService;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
@@ -49,8 +50,14 @@ new #[Layout('layouts.app')] class extends Component
 
     public function with(MatriculaService $service): array
     {
+        $estudiantes = $service->listarEstudiantes($this->termino ?: null, $this->estadoFiltro ?: null);
+
         return [
-            'estudiantes' => $service->listarEstudiantes($this->termino ?: null, $this->estadoFiltro ?: null),
+            'estudiantes' => $estudiantes,
+            'sugerencias' => $estudiantes->take(6)->map(fn (Estudiante $estudiante) => [
+                'value' => $estudiante->id,
+                'label' => $estudiante->nombreCompleto(),
+            ])->values()->all(),
             'estados' => EstadoEstudianteEnum::cases(),
         ];
     }
@@ -99,12 +106,11 @@ new #[Layout('layouts.app')] class extends Component
     @endif
 
     <div class="mb-4 flex flex-col gap-3 sm:flex-row">
-        <input
-            type="search"
+        <x-buscador-combo
             wire:model.live.debounce.300ms="termino"
             placeholder="Buscar por nombre, apellido o DNI…"
-            class="w-full rounded-md border-border bg-surface text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:ring-accent sm:max-w-xs"
-        >
+            :sugerencias="$sugerencias"
+        />
         <x-select-input
             wire:model.live="estadoFiltro"
             class="w-full sm:max-w-xs"

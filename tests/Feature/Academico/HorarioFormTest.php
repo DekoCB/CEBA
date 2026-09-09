@@ -53,11 +53,15 @@ class HorarioFormTest extends TestCase
             ->set('cursoId', (string) $curso->id)
             ->set('docenteId', (string) $docente->id)
             ->set('aulaId', (string) $aula->id)
-            ->set('franjaPreset', 'lun_mie')
-            ->set('horaInicioHora', '18')
-            ->set('horaInicioMinuto', '00')
-            ->set('horaFinHora', '20')
-            ->set('horaFinMinuto', '00')
+            ->set('franjasSeleccionadas', ['lun_mie'])
+            ->set('horaInicioHoraPorDia.lunes', '18')
+            ->set('horaInicioMinutoPorDia.lunes', '00')
+            ->set('horaFinHoraPorDia.lunes', '20')
+            ->set('horaFinMinutoPorDia.lunes', '00')
+            ->set('horaInicioHoraPorDia.miercoles', '18')
+            ->set('horaInicioMinutoPorDia.miercoles', '00')
+            ->set('horaFinHoraPorDia.miercoles', '20')
+            ->set('horaFinMinutoPorDia.miercoles', '00')
             ->call('guardar')
             ->assertHasNoErrors();
 
@@ -94,11 +98,15 @@ class HorarioFormTest extends TestCase
             ->set('cursoId', (string) Curso::factory()->create()->id)
             ->set('docenteId', (string) User::factory()->create()->id)
             ->set('aulaId', (string) $existente->aula_id)
-            ->set('franjaPreset', 'lun_mie')
-            ->set('horaInicioHora', '19')
-            ->set('horaInicioMinuto', '00')
-            ->set('horaFinHora', '21')
-            ->set('horaFinMinuto', '00')
+            ->set('franjasSeleccionadas', ['lun_mie'])
+            ->set('horaInicioHoraPorDia.lunes', '19')
+            ->set('horaInicioMinutoPorDia.lunes', '00')
+            ->set('horaFinHoraPorDia.lunes', '21')
+            ->set('horaFinMinutoPorDia.lunes', '00')
+            ->set('horaInicioHoraPorDia.miercoles', '19')
+            ->set('horaInicioMinutoPorDia.miercoles', '00')
+            ->set('horaFinHoraPorDia.miercoles', '21')
+            ->set('horaFinMinutoPorDia.miercoles', '00')
             ->call('guardar')
             ->assertSee('ya está ocupada');
 
@@ -117,9 +125,136 @@ class HorarioFormTest extends TestCase
             ->set('docenteId', (string) User::factory()->create()->id)
             ->set('aulaId', (string) Aula::factory()->create()->id)
             ->call('guardar')
-            ->assertHasErrors('franjaPreset');
+            ->assertHasErrors('franjasSeleccionadas');
 
         $this->assertSame(0, Horario::query()->count());
+    }
+
+    public function test_crea_un_horario_combinando_dos_franjas_con_horas_distintas_por_dia(): void
+    {
+        $this->actingAs($this->actorCoordinador());
+
+        $curso = Curso::factory()->create();
+        $docente = User::factory()->create();
+        $docente->assignRole(RolEnum::DOCENTE->value);
+        $aula = Aula::factory()->create();
+        $ciclo = Ciclo::factory()->create();
+        $grado = Grado::factory()->create();
+
+        Volt::test('academico.horarios.index')
+            ->call('abrirModal')
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->set('cursoId', (string) $curso->id)
+            ->set('docenteId', (string) $docente->id)
+            ->set('aulaId', (string) $aula->id)
+            ->set('franjasSeleccionadas', ['lun_mie', 'mar_jue'])
+            ->set('horaInicioHoraPorDia.lunes', '18')
+            ->set('horaInicioMinutoPorDia.lunes', '00')
+            ->set('horaFinHoraPorDia.lunes', '20')
+            ->set('horaFinMinutoPorDia.lunes', '00')
+            ->set('horaInicioHoraPorDia.miercoles', '18')
+            ->set('horaInicioMinutoPorDia.miercoles', '00')
+            ->set('horaFinHoraPorDia.miercoles', '20')
+            ->set('horaFinMinutoPorDia.miercoles', '00')
+            ->set('horaInicioHoraPorDia.martes', '16')
+            ->set('horaInicioMinutoPorDia.martes', '00')
+            ->set('horaFinHoraPorDia.martes', '18')
+            ->set('horaFinMinutoPorDia.martes', '00')
+            ->set('horaInicioHoraPorDia.jueves', '16')
+            ->set('horaInicioMinutoPorDia.jueves', '00')
+            ->set('horaFinHoraPorDia.jueves', '18')
+            ->set('horaFinMinutoPorDia.jueves', '00')
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $horario = Horario::query()->where('curso_id', $curso->id)->firstOrFail();
+        $this->assertCount(4, $horario->dias);
+
+        $martes = $horario->dias->firstWhere('dia_semana', DiaSemanaEnum::MARTES);
+        $lunes = $horario->dias->firstWhere('dia_semana', DiaSemanaEnum::LUNES);
+        $this->assertSame('16:00:00', $martes->hora_inicio);
+        $this->assertSame('18:00:00', $martes->hora_fin);
+        $this->assertSame('18:00:00', $lunes->hora_inicio);
+        $this->assertSame('20:00:00', $lunes->hora_fin);
+    }
+
+    public function test_arrastrar_una_tarjeta_en_la_pestana_editar_mueve_el_dia(): void
+    {
+        $this->actingAs($this->actorCoordinador());
+
+        $ciclo = Ciclo::factory()->create();
+        $horario = $this->app->make(HorarioService::class)->crear([
+            'curso_id' => Curso::factory()->create()->id,
+            'docente_id' => User::factory()->create()->id,
+            'aula_id' => Aula::factory()->create()->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => Grado::factory()->create()->id,
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+            ],
+        ]);
+        $horarioDiaId = $horario->dias->first()->id;
+
+        Volt::test('academico.horarios.index')
+            ->set('cicloFiltro', (string) $ciclo->id)
+            ->set('vista', 'editar')
+            ->call('moverDia', $horarioDiaId, 'sabado')
+            ->assertHasNoErrors();
+
+        // actualizar() borra y recrea las filas de "dias", así que el id
+        // original ya no existe -- se relee el horario completo.
+        $this->assertSame(DiaSemanaEnum::SABADO, $horario->fresh('dias')->dias->first()->dia_semana);
+    }
+
+    public function test_abrir_modal_editar_precarga_los_dias_reales_y_guardar_los_actualiza(): void
+    {
+        $this->actingAs($this->actorCoordinador());
+
+        $horario = $this->app->make(HorarioService::class)->crear([
+            'curso_id' => Curso::factory()->create()->id,
+            'docente_id' => User::factory()->create()->id,
+            'aula_id' => Aula::factory()->create()->id,
+            'ciclo_id' => Ciclo::factory()->create()->id,
+            'grado_id' => Grado::factory()->create()->id,
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+            ],
+        ]);
+
+        Volt::test('academico.horarios.index')
+            ->call('abrirModalEditar', $horario->id)
+            ->assertSet('diasSueltosSeleccionados', ['lunes'])
+            ->assertSet('horaInicioHoraPorDia.lunes', '18')
+            ->set('horaFinHoraPorDia.lunes', '21')
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $this->assertSame('21:00:00', $horario->fresh('dias')->dias->first()->hora_fin);
+    }
+
+    public function test_el_boton_editar_en_la_lista_abre_el_modal_precargado(): void
+    {
+        $this->actingAs($this->actorCoordinador());
+
+        $horario = $this->app->make(HorarioService::class)->crear([
+            'curso_id' => Curso::factory()->create()->id,
+            'docente_id' => User::factory()->create()->id,
+            'aula_id' => Aula::factory()->create()->id,
+            'ciclo_id' => Ciclo::factory()->create()->id,
+            'grado_id' => Grado::factory()->create()->id,
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+            ],
+        ]);
+
+        Volt::test('academico.horarios.index')
+            ->set('cicloFiltro', (string) $horario->ciclo_id)
+            ->assertSee('Editar')
+            ->call('abrirModalEditar', $horario->id)
+            ->assertSet('mostrarModal', true)
+            ->assertSet('editandoId', $horario->id)
+            ->assertSet('cursoId', (string) $horario->curso_id);
     }
 
     public function test_el_listado_agrupa_los_horarios_por_franja_y_luego_por_grado(): void

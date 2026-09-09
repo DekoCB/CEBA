@@ -7,10 +7,13 @@ use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
+use Livewire\WithPagination;
 
 new #[Layout('layouts.app')] class extends Component
 {
-    use WithFileUploads;
+    use WithFileUploads, WithPagination;
+
+    public string $termino = '';
 
     public bool $mostrarModal = false;
 
@@ -33,6 +36,11 @@ new #[Layout('layouts.app')] class extends Component
     public function mount(): void
     {
         Gate::authorize('contratos.ver');
+    }
+
+    public function updatingTermino(): void
+    {
+        $this->resetPage();
     }
 
     public function abrirModalCrear(): void
@@ -108,8 +116,14 @@ new #[Layout('layouts.app')] class extends Component
 
     public function with(ContratoService $service): array
     {
+        $contratos = $service->listar($this->termino ?: null);
+
         return [
-            'contratos' => $service->listar(),
+            'contratos' => $contratos,
+            'sugerencias' => $contratos->take(6)->map(fn (Contrato $contrato) => [
+                'value' => $contrato->id,
+                'label' => $contrato->docente->usuario->name,
+            ])->values()->all(),
             'docentesDisponibles' => $service->docentesDisponibles(),
             'puedeGestionar' => Gate::allows('contratos.gestionar'),
         ];
@@ -122,14 +136,20 @@ new #[Layout('layouts.app')] class extends Component
         <p class="mt-1 text-sm text-ink-dim">Contratos del personal docente, con su documento firmado.</p>
     </x-slot>
 
-    @if ($puedeGestionar)
-        <div class="mb-4 flex justify-end">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <x-buscador-combo
+            wire:model.live.debounce.300ms="termino"
+            placeholder="Buscar por docente o DNI…"
+            :sugerencias="$sugerencias"
+        />
+
+        @if ($puedeGestionar)
             <x-primary-button type="button" wire:click="abrirModalCrear" class="gap-2">
                 <x-heroicon-o-plus class="h-4 w-4" />
                 Nuevo contrato
             </x-primary-button>
-        </div>
-    @endif
+        @endif
+    </div>
 
     @if (session('status'))
         <x-alert class="mb-4">{{ session('status') }}</x-alert>

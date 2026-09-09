@@ -12,10 +12,14 @@ use Illuminate\Support\Collection;
 
 class ContratoService
 {
-    public function listar(int $perPage = 15): LengthAwarePaginator
+    public function listar(?string $termino = null, int $perPage = 15): LengthAwarePaginator
     {
         return Contrato::query()
             ->with('docente.usuario')
+            ->when($termino, fn ($query) => $query->whereHas(
+                'docente.usuario',
+                fn ($q) => $q->where('name', 'like', "%{$termino}%")->orWhere('dni', 'like', "%{$termino}%")
+            ))
             ->latest('fecha_inicio')
             ->paginate($perPage);
     }

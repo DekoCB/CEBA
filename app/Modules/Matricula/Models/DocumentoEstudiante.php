@@ -45,9 +45,16 @@ class DocumentoEstudiante extends Model implements HasMedia
         return DocumentoEstudianteFactory::new();
     }
 
+    /**
+     * 'archivo' es la cara (o el único archivo, para documentos que no son
+     * DNI). 'reverso' solo se usa para DNI_ESTUDIANTE/DNI_APODERADO -- el
+     * sello del otro lado, opcional, para poder armar un PDF con ambas
+     * caras (ver DocumentoEstudianteService::generarPdfDni()).
+     */
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection('archivo')->singleFile();
+        $this->addMediaCollection('reverso')->singleFile();
     }
 
     public function estudiante(): BelongsTo

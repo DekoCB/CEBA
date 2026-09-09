@@ -40,6 +40,35 @@ class ContratosPermisosTest extends TestCase
         $this->actingAs($docente)->get(route('contratos.index'))->assertForbidden();
     }
 
+    public function test_el_buscador_de_contratos_muestra_sugerencias_y_filtra(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $docenteA = Docente::factory()->create();
+        $docenteA->usuario->update(['name' => 'Karla Ponce']);
+        Contrato::factory()->create(['docente_id' => $docenteA->id, 'tipo' => 'Contrato Tipo Uno Exclusivo']);
+
+        $docenteB = Docente::factory()->create();
+        $docenteB->usuario->update(['name' => 'Ivan Farfan']);
+        Contrato::factory()->create(['docente_id' => $docenteB->id, 'tipo' => 'Contrato Tipo Dos Exclusivo']);
+
+        $this->actingAs($coordinador);
+
+        $html = Volt::test('contratos.index')->html();
+        $this->assertStringContainsString('\u0022label\u0022:\u0022Karla Ponce\u0022', $html);
+        $this->assertStringContainsString('\u0022label\u0022:\u0022Ivan Farfan\u0022', $html);
+
+        // No se usa assertDontSee('Ivan Farfan'): su nombre tambien aparece
+        // en el select de docentes del modal (sin filtrar por termino),
+        // asi que se verifica sobre el "tipo" del contrato, que solo vive
+        // en la fila de la tabla.
+        Volt::test('contratos.index')
+            ->set('termino', 'Karla')
+            ->assertSee('Contrato Tipo Uno Exclusivo')
+            ->assertDontSee('Contrato Tipo Dos Exclusivo');
+    }
+
     public function test_coordinador_registra_un_contrato_con_documento(): void
     {
         Storage::fake('public');

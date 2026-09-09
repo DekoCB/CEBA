@@ -12,5 +12,6 @@ final readonly class RegistrarMatriculaData
         public ?string $observaciones,
         public ?int $registradoPor,
         public ?int $siagieId = null,
+        public ?string $fechaMatricula = null,
     ) {}
 }

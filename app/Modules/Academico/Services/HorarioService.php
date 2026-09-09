@@ -6,6 +6,7 @@ namespace App\Modules\Academico\Services;
 
 use App\Modules\Academico\Enums\DiaSemanaEnum;
 use App\Modules\Academico\Models\Horario;
+use App\Modules\Academico\Models\HorarioDia;
 use App\Modules\Academico\Repositories\Contracts\HorarioRepositoryInterface;
 use App\Modules\AulaVirtual\Services\CursoVirtualService;
 use Illuminate\Database\Eloquent\Collection;
@@ -133,5 +134,35 @@ class HorarioService
     private function horaCorta(string $hora): string
     {
         return substr($hora, 0, 5);
+    }
+
+    /**
+     * Mueve un solo día de un horario a otro día de la semana, conservando
+     * su hora -- usado por el editor de arrastrar-y-soltar. Reconstruye el
+     * array "dias" completo del horario dueño y lo pasa por actualizar(),
+     * así reutiliza la misma validación de traslapes sin duplicarla; si el
+     * nuevo día choca con otro horario en la misma aula/docente, lanza la
+     * misma ValidationException que actualizar().
+     */
+    public function moverDia(HorarioDia $dia, DiaSemanaEnum $nuevoDia): Horario
+    {
+        $horario = Horario::query()->with('dias')->findOrFail($dia->horario_id);
+
+        $dias = $horario->dias
+            ->map(fn (HorarioDia $d) => [
+                'dia_semana' => $d->id === $dia->id ? $nuevoDia : $d->dia_semana,
+                'hora_inicio' => $d->hora_inicio,
+                'hora_fin' => $d->hora_fin,
+            ])
+            ->all();
+
+        return $this->actualizar($horario, [
+            'curso_id' => $horario->curso_id,
+            'docente_id' => $horario->docente_id,
+            'aula_id' => $horario->aula_id,
+            'ciclo_id' => $horario->ciclo_id,
+            'grado_id' => $horario->grado_id,
+            'dias' => $dias,
+        ]);
     }
 }

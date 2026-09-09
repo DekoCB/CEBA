@@ -37,7 +37,15 @@
         <dl class="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
             <div><dt class="text-ink-faint">Fecha de nacimiento</dt><dd class="text-ink">{{ $estudiante->fecha_nacimiento->format('d/m/Y') }}</dd></div>
             <div><dt class="text-ink-faint">Estado civil</dt><dd class="text-ink">{{ $estudiante->estado_civil?->label() ?? '—' }}</dd></div>
-            <div><dt class="text-ink-faint">Celular</dt><dd class="text-ink">{{ $estudiante->celular ?? '—' }}</dd></div>
+            <div>
+                <dt class="text-ink-faint">Celular</dt>
+                <dd class="text-ink">
+                    {{ $estudiante->celular ?? '—' }}
+                    @foreach ($estudiante->telefonos as $telefono)
+                        <span class="block text-ink-dim">{{ $telefono->numero }}</span>
+                    @endforeach
+                </dd>
+            </div>
             <div><dt class="text-ink-faint">Correo</dt><dd class="text-ink">{{ $estudiante->email ?? '—' }}</dd></div>
             <div class="sm:col-span-2"><dt class="text-ink-faint">Dirección</dt><dd class="text-ink">{{ $estudiante->direccion ?? '—' }}</dd></div>
             <div><dt class="text-ink-faint">Grado actual</dt><dd class="text-ink">{{ $estudiante->gradoActual?->nombre ?? '—' }}</dd></div>
@@ -95,6 +103,9 @@
                         <p class="text-ink">{{ $documento->tipo->label() }}</p>
                         @if ($documento->getFirstMedia('archivo'))
                             <a href="{{ $documento->getFirstMediaUrl('archivo') }}" target="_blank" class="text-xs text-accent hover:underline">Ver archivo</a>
+                        @endif
+                        @if ($documento->getFirstMedia('archivo') && $documento->getFirstMedia('reverso'))
+                            <button wire:click="descargarDniPdf({{ $documento->id }})" class="ml-2 text-xs text-accent hover:underline">Descargar PDF (cara y sello)</button>
                         @endif
                     </div>
                     <div class="flex items-center gap-3">

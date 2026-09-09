@@ -197,6 +197,56 @@ class HorarioTraslapeTest extends TestCase
         $this->assertSame(DiaSemanaEnum::VIERNES, $actualizado->dias->first()->dia_semana);
     }
 
+    public function test_mover_dia_reprograma_solo_esa_fila_conservando_su_hora(): void
+    {
+        $horario = $this->service()->crear($this->datosBase());
+        $lunes = $horario->dias->firstWhere('dia_semana', DiaSemanaEnum::LUNES);
+
+        $actualizado = $this->service()->moverDia($lunes, DiaSemanaEnum::VIERNES);
+
+        $this->assertCount(2, $actualizado->dias);
+        $viernes = $actualizado->dias->firstWhere('dia_semana', DiaSemanaEnum::VIERNES);
+        $this->assertNotNull($viernes);
+        $this->assertSame('18:00:00', $viernes->hora_inicio);
+        $this->assertSame('20:00:00', $viernes->hora_fin);
+        $this->assertNull($actualizado->dias->firstWhere('dia_semana', DiaSemanaEnum::LUNES));
+        $this->assertNotNull($actualizado->dias->firstWhere('dia_semana', DiaSemanaEnum::MIERCOLES));
+    }
+
+    public function test_mover_dia_a_un_dia_ocupado_lanza_excepcion_y_no_mueve_nada(): void
+    {
+        $aula = Aula::factory()->create();
+        $ciclo = Ciclo::factory()->create();
+
+        $ocupante = $this->service()->crear([
+            'curso_id' => Curso::factory()->create()->id,
+            'docente_id' => User::factory()->create()->id,
+            'aula_id' => $aula->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => Grado::factory()->create()->id,
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::VIERNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+            ],
+        ]);
+
+        $horario = $this->service()->crear([
+            'curso_id' => Curso::factory()->create()->id,
+            'docente_id' => User::factory()->create()->id,
+            'aula_id' => $aula->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => Grado::factory()->create()->id,
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+            ],
+        ]);
+        $lunes = $horario->dias->firstWhere('dia_semana', DiaSemanaEnum::LUNES);
+
+        $this->expectException(ValidationException::class);
+        $this->service()->moverDia($lunes, DiaSemanaEnum::VIERNES);
+
+        $this->assertSame(DiaSemanaEnum::LUNES, $lunes->fresh()->dia_semana);
+    }
+
     public function test_franja_identifica_la_combinacion_lunes_y_miercoles(): void
     {
         $horario = $this->service()->crear($this->datosBase());

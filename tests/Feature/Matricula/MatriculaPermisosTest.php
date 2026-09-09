@@ -10,8 +10,10 @@ use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Academico\Models\Siagie;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
+use App\Modules\Matricula\Enums\TipoDocumentoEnum;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Matricula\Services\DocumentoEstudianteService;
 use App\Modules\Pagos\Models\PlanPago;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -80,7 +82,7 @@ class MatriculaPermisosTest extends TestCase
             ->call('avanzar')
             ->assertHasNoErrors()
             ->assertSet('paso', 3)
-            ->set('dniEstudianteArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->set('dniEstudianteCaraArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
             ->call('avanzar')
             ->assertHasNoErrors()
             ->assertSet('paso', 4)
@@ -96,6 +98,191 @@ class MatriculaPermisosTest extends TestCase
         $estudiante = Estudiante::query()->where('dni', '55667788')->firstOrFail();
         $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'ciclo_id' => $ciclo->id]);
         $this->assertSame('Pendiente entregar certificado de estudios del colegio anterior.', $estudiante->observaciones);
+    }
+
+    public function test_subir_cara_y_reverso_del_dni_guarda_ambas_colecciones_de_media(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Marisol')
+            ->set('apellidos', 'Chuquimango Vera')
+            ->set('dni', '55667799')
+            ->set('fechaNacimiento', now()->subYears(25)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertHasNoErrors()
+            ->assertSet('paso', 3)
+            ->set('dniEstudianteCaraArchivo', UploadedFile::fake()->image('dni-cara.jpg'))
+            ->set('dniEstudianteReversoArchivo', UploadedFile::fake()->image('dni-reverso.jpg'))
+            ->call('avanzar')
+            ->assertHasNoErrors()
+            ->assertSet('paso', 4)
+            ->call('avanzar')
+            ->assertSet('paso', 5)
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $estudiante = Estudiante::query()->where('dni', '55667799')->firstOrFail();
+        $documento = $estudiante->documentos()->where('tipo', 'dni_estudiante')->firstOrFail();
+
+        $this->assertNotNull($documento->getFirstMedia('archivo'));
+        $this->assertNotNull($documento->getFirstMedia('reverso'));
+    }
+
+    public function test_elegir_una_fecha_de_matricula_pasada_se_respeta_en_vez_de_usar_hoy(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+        $fechaElegida = now()->subDays(5)->format('Y-m-d');
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Oscar')
+            ->set('apellidos', 'Beltran Soto')
+            ->set('dni', '55667733')
+            ->set('fechaNacimiento', now()->subYears(27)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertHasNoErrors()
+            ->assertSet('paso', 3)
+            ->set('dniEstudianteCaraArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->call('avanzar')
+            ->assertSet('paso', 4)
+            ->call('avanzar')
+            ->assertSet('paso', 5)
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->set('fechaMatricula', $fechaElegida)
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $estudiante = Estudiante::query()->where('dni', '55667733')->firstOrFail();
+        $matricula = Matricula::query()->where('estudiante_id', $estudiante->id)->firstOrFail();
+
+        $this->assertSame($fechaElegida, $matricula->fecha_matricula->format('Y-m-d'));
+    }
+
+    public function test_guardar_celulares_adicionales_para_un_estudiante_mayor_de_edad(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Patricia')
+            ->set('apellidos', 'Salcedo Nina')
+            ->set('dni', '55667722')
+            ->set('fechaNacimiento', now()->subYears(30)->format('Y-m-d'))
+            ->set('celular', '987654321')
+            ->call('agregarCelular')
+            ->set('celularesAdicionales.0', '912345678')
+            ->call('agregarCelular')
+            ->set('celularesAdicionales.1', '923456789')
+            ->call('avanzar')
+            ->assertHasNoErrors()
+            ->assertSet('paso', 3)
+            ->set('dniEstudianteCaraArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->call('avanzar')
+            ->assertSet('paso', 4)
+            ->call('avanzar')
+            ->assertSet('paso', 5)
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $estudiante = Estudiante::query()->where('dni', '55667722')->firstOrFail();
+
+        $this->assertSame(2, $estudiante->telefonos()->count());
+        $this->assertDatabaseHas('estudiante_telefonos', ['estudiante_id' => $estudiante->id, 'numero' => '912345678']);
+        $this->assertDatabaseHas('estudiante_telefonos', ['estudiante_id' => $estudiante->id, 'numero' => '923456789']);
+    }
+
+    public function test_quitar_celular_adicional_lo_remueve_de_la_lista(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->call('agregarCelular')
+            ->set('celularesAdicionales.0', '912345678')
+            ->call('agregarCelular')
+            ->set('celularesAdicionales.1', '923456789')
+            ->call('quitarCelular', 0)
+            ->assertSet('celularesAdicionales', ['923456789']);
+    }
+
+    public function test_descargar_pdf_del_dni_solo_esta_disponible_con_ambas_caras(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+        $estudiante = Estudiante::factory()->create();
+
+        $documentoService = $this->app->make(DocumentoEstudianteService::class);
+        $documento = $documentoService->subir(
+            $estudiante,
+            TipoDocumentoEnum::DNI_ESTUDIANTE,
+            UploadedFile::fake()->image('cara.jpg'),
+            $usuario->id,
+            UploadedFile::fake()->image('reverso.jpg'),
+        );
+
+        $this->actingAs($usuario);
+
+        $testable = Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('descargarDniPdf', $documento->id);
+
+        $this->assertArrayHasKey('download', $testable->effects);
+        $this->assertSame('application/pdf', $testable->effects['download']['contentType']);
     }
 
     public function test_registrar_matricula_desde_el_wizard_guarda_el_siagie_elegido(): void
@@ -126,7 +313,7 @@ class MatriculaPermisosTest extends TestCase
             ->call('avanzar')
             ->assertHasNoErrors()
             ->assertSet('paso', 3)
-            ->set('dniEstudianteArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->set('dniEstudianteCaraArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
             ->call('avanzar')
             ->assertSet('paso', 4)
             ->call('avanzar')
@@ -163,7 +350,7 @@ class MatriculaPermisosTest extends TestCase
             ->set('fechaNacimiento', now()->subYears(28)->format('Y-m-d'))
             ->call('avanzar')
             ->assertSet('paso', 3)
-            ->set('dniEstudianteArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->set('dniEstudianteCaraArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
             ->call('avanzar')
             ->assertSet('paso', 4)
             ->call('avanzar')
@@ -268,7 +455,7 @@ class MatriculaPermisosTest extends TestCase
             ->set('fechaNacimiento', now()->subYears(30)->format('Y-m-d'))
             ->call('avanzar')
             ->assertSet('paso', 3)
-            ->set('dniEstudianteArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->set('dniEstudianteCaraArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
             ->call('avanzar')
             ->assertSet('paso', 4)
             ->call('avanzar')
@@ -329,7 +516,7 @@ class MatriculaPermisosTest extends TestCase
             ->set('fechaNacimiento', now()->subYears(30)->format('Y-m-d'))
             ->call('avanzar')
             ->assertSet('paso', 3)
-            ->set('dniEstudianteArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->set('dniEstudianteCaraArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
             ->call('avanzar')
             ->assertSet('paso', 4)
             ->call('avanzar')
@@ -361,7 +548,7 @@ class MatriculaPermisosTest extends TestCase
             ->set('fechaNacimiento', now()->subYears(28)->format('Y-m-d'))
             ->call('avanzar')
             ->assertSet('paso', 3)
-            ->set('dniEstudianteArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->set('dniEstudianteCaraArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
             ->call('avanzar')
             ->assertSet('paso', 4)
             ->call('avanzar')
@@ -417,6 +604,26 @@ class MatriculaPermisosTest extends TestCase
         Volt::test('matricula.wizard')
             ->call('cancelar')
             ->assertDispatched('wizard-cerrado');
+    }
+
+    public function test_el_buscador_de_estudiantes_muestra_sugerencias_y_filtra(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        Estudiante::factory()->create(['nombres' => 'Fabiola', 'apellidos' => 'Reyes Nunez']);
+        Estudiante::factory()->create(['nombres' => 'Gonzalo', 'apellidos' => 'Torres Diaz']);
+
+        $this->actingAs($usuario);
+
+        $html = Volt::test('matricula.index')->html();
+        $this->assertStringContainsString('\u0022label\u0022:\u0022Fabiola Reyes Nunez\u0022', $html);
+        $this->assertStringContainsString('\u0022label\u0022:\u0022Gonzalo Torres Diaz\u0022', $html);
+
+        Volt::test('matricula.index')
+            ->set('termino', 'Fabiola')
+            ->assertSee('Fabiola Reyes Nunez')
+            ->assertDontSee('Gonzalo Torres Diaz');
     }
 
     public function test_el_listado_abre_y_cierra_el_modal_del_wizard(): void

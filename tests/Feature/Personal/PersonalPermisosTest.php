@@ -38,6 +38,26 @@ class PersonalPermisosTest extends TestCase
         $this->actingAs($docente)->get(route('personal.index'))->assertForbidden();
     }
 
+    public function test_el_buscador_de_personal_muestra_sugerencias_y_filtra(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        Personal::factory()->create(['nombres' => 'Elena', 'apellidos' => 'Vargas Ruiz']);
+        Personal::factory()->create(['nombres' => 'Tomas', 'apellidos' => 'Cardenas Leon']);
+
+        $this->actingAs($coordinador);
+
+        $html = Volt::test('personal.index')->html();
+        $this->assertStringContainsString('\u0022label\u0022:\u0022Elena Vargas Ruiz\u0022', $html);
+        $this->assertStringContainsString('\u0022label\u0022:\u0022Tomas Cardenas Leon\u0022', $html);
+
+        Volt::test('personal.index')
+            ->set('termino', 'Elena')
+            ->assertSee('Elena Vargas Ruiz')
+            ->assertDontSee('Tomas Cardenas Leon');
+    }
+
     public function test_coordinador_registra_una_persona_nueva(): void
     {
         $coordinador = User::factory()->create();

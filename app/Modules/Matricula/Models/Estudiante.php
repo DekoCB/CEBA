@@ -128,6 +128,17 @@ class Estudiante extends Model implements HasMedia
         return $this->hasMany(ExamenUbicacion::class);
     }
 
+    /**
+     * Celulares adicionales, aparte del principal (ver $celular) -- ver
+     * EstudianteTelefono.
+     *
+     * @return HasMany<EstudianteTelefono, $this>
+     */
+    public function telefonos(): HasMany
+    {
+        return $this->hasMany(EstudianteTelefono::class);
+    }
+
     public function nombreCompleto(): string
     {
         return "{$this->nombres} {$this->apellidos}";

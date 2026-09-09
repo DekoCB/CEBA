@@ -128,8 +128,14 @@ new #[Layout('layouts.app')] class extends Component
 
     public function with(DocenteService $service): array
     {
+        $docentes = $service->listar($this->termino ?: null);
+
         return [
-            'docentes' => $service->listar($this->termino ?: null),
+            'docentes' => $docentes,
+            'sugerencias' => $docentes->take(6)->map(fn (Docente $docente) => [
+                'value' => $docente->id,
+                'label' => $docente->usuario->name,
+            ])->values()->all(),
             'puedeGestionar' => Gate::allows('docentes.gestionar'),
         ];
     }
@@ -142,12 +148,11 @@ new #[Layout('layouts.app')] class extends Component
     </x-slot>
 
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <input
-            type="search"
+        <x-buscador-combo
             wire:model.live.debounce.300ms="termino"
             placeholder="Buscar por nombre o DNI…"
-            class="w-full rounded-md border-border bg-surface text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:ring-accent sm:max-w-xs"
-        >
+            :sugerencias="$sugerencias"
+        />
 
         @if ($puedeGestionar)
             <div class="flex gap-2">
