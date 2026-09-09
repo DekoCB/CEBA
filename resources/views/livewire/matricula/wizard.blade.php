@@ -3,12 +3,12 @@
 use App\Modules\Academico\Enums\ModalidadCicloEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Grado;
+use App\Modules\Academico\Models\Siagie;
 use App\Modules\Academico\Services\CicloService;
 use App\Modules\Matricula\DTOs\RegistrarApoderadoData;
 use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
 use App\Modules\Matricula\DTOs\RegistrarMatriculaData;
 use App\Modules\Matricula\Enums\EstadoCivilEnum;
-use App\Modules\Matricula\Enums\PeriodoSiagieEnum;
 use App\Modules\Matricula\Enums\TipoDocumentoEnum;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
@@ -106,7 +106,7 @@ new class extends Component
 
     public string $gradoId = '';
 
-    public string $periodoSiagie = '';
+    public string $siagieId = '';
 
     public string $observacionesMatricula = '';
 
@@ -274,7 +274,7 @@ new class extends Component
                 'modalidadCiclo' => 'required|string|in:seis_meses,anual',
                 'cicloId' => 'required|integer|exists:ciclos,id',
                 'gradoId' => 'required|integer|exists:grados,id',
-                'periodoSiagie' => ['nullable', Rule::in(array_column(PeriodoSiagieEnum::cases(), 'value'))],
+                'siagieId' => 'nullable|integer|exists:siagies,id',
             ]);
 
             $this->paso = 6;
@@ -373,7 +373,7 @@ new class extends Component
                     gradoId: (int) $this->gradoId,
                     observaciones: $this->observacionesMatricula ?: null,
                     registradoPor: auth()->id(),
-                    periodoSiagie: $this->periodoSiagie !== '' ? PeriodoSiagieEnum::from($this->periodoSiagie) : null,
+                    siagieId: $this->siagieId !== '' ? (int) $this->siagieId : null,
                 ));
 
                 $this->crearCronogramaSiCorresponde($matricula, $planPagoService);
@@ -459,7 +459,7 @@ new class extends Component
                 gradoId: (int) $this->gradoId,
                 observaciones: $this->observacionesMatricula ?: null,
                 registradoPor: auth()->id(),
-                periodoSiagie: $this->periodoSiagie !== '' ? PeriodoSiagieEnum::from($this->periodoSiagie) : null,
+                siagieId: $this->siagieId !== '' ? (int) $this->siagieId : null,
             ));
 
             $this->crearCronogramaSiCorresponde($matricula, $planPagoService);
@@ -511,7 +511,7 @@ new class extends Component
             'gradosCompatibles' => $grados,
             'todosLosGrados' => $grados,
             'modalidadesCiclo' => ModalidadCicloEnum::cases(),
-            'periodosSiagie' => PeriodoSiagieEnum::cases(),
+            'siagiesDisponibles' => Siagie::query()->orderByDesc('anio')->orderBy('tipo')->get(),
             'ciclosDisponibles' => $ciclosConMatriculaAbierta,
             'cicloAnualVigente' => $ciclos->cicloAnualVigente(),
             'numerosCuotas' => NumeroCuotasEnum::cases(),
@@ -803,16 +803,16 @@ new class extends Component
                     <x-input-error :messages="$errors->get('modalidadCiclo')" class="mt-1" />
                 </div>
                 <div class="sm:col-span-2">
-                    <x-input-label for="periodoSiagie" value="Periodo SIAGIE (opcional)" />
+                    <x-input-label for="siagieId" value="SIAGIE (opcional)" />
                     <x-select-input
-                        wire:model="periodoSiagie"
-                        id="periodoSiagie"
+                        wire:model="siagieId"
+                        id="siagieId"
                         placeholder="Sin registrar…"
                         class="mt-1 block w-full"
-                        :options="collect($periodosSiagie)->mapWithKeys(fn ($periodo) => [$periodo->value => $periodo->label()])"
+                        :options="collect($siagiesDisponibles)->mapWithKeys(fn ($siagie) => [$siagie->id => $siagie->nombreCompleto()])"
                     />
                     <p class="mt-1 text-xs text-ink-faint">Independiente del Grupo: es la clasificación propia del sistema SIAGIE del MINEDU.</p>
-                    <x-input-error :messages="$errors->get('periodoSiagie')" class="mt-1" />
+                    <x-input-error :messages="$errors->get('siagieId')" class="mt-1" />
                 </div>
                 @if ($modalidadCiclo === 'anual')
                     <div>

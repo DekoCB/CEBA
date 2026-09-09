@@ -3,15 +3,16 @@
 namespace Tests\Feature\Matricula;
 
 use App\Models\User;
+use App\Modules\Academico\Enums\TipoSiagieEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
+use App\Modules\Academico\Models\Siagie;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\DTOs\RegistrarApoderadoData;
 use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
 use App\Modules\Matricula\DTOs\RegistrarMatriculaData;
-use App\Modules\Matricula\Enums\PeriodoSiagieEnum;
 use App\Modules\Matricula\Events\EstudianteMatriculado;
 use App\Modules\Matricula\Services\MatriculaService;
 use App\Shared\Enums\RolEnum;
@@ -180,25 +181,26 @@ class MatriculaServiceTest extends TestCase
         Event::assertDispatched(EstudianteMatriculado::class);
     }
 
-    public function test_matricular_guarda_el_periodo_siagie_elegido_a_mano(): void
+    public function test_matricular_guarda_el_siagie_elegido_a_mano(): void
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
         $ciclo = $this->cicloConPeriodoAbierto();
         $grado = Grado::factory()->create();
+        $siagie = Siagie::factory()->create(['tipo' => TipoSiagieEnum::SEGUNDO, 'anio' => $ciclo->anio]);
 
         $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData(
             cicloId: $ciclo->id,
             gradoId: $grado->id,
             observaciones: null,
             registradoPor: null,
-            periodoSiagie: PeriodoSiagieEnum::SEGUNDO,
+            siagieId: $siagie->id,
         ));
 
-        $this->assertSame(PeriodoSiagieEnum::SEGUNDO, $matricula->fresh()->periodo_siagie);
+        $this->assertSame($siagie->id, $matricula->fresh()->siagie_id);
         $this->assertSame("{$ciclo->anio}-2", $matricula->siagieCompleto());
     }
 
-    public function test_matricular_sin_elegir_periodo_siagie_lo_deja_nulo(): void
+    public function test_matricular_sin_elegir_siagie_lo_deja_nulo(): void
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
         $ciclo = $this->cicloConPeriodoAbierto();
@@ -206,7 +208,7 @@ class MatriculaServiceTest extends TestCase
 
         $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
 
-        $this->assertNull($matricula->periodo_siagie);
+        $this->assertNull($matricula->siagie_id);
         $this->assertNull($matricula->siagieCompleto());
     }
 

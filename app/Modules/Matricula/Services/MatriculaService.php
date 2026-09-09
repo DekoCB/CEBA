@@ -160,7 +160,7 @@ class MatriculaService
                 'estudiante_id' => $estudiante->id,
                 'ciclo_id' => $ciclo->id,
                 'grado_id' => $grado->id,
-                'periodo_siagie' => $data->periodoSiagie,
+                'siagie_id' => $data->siagieId,
                 'fecha_matricula' => $fechaMatricula,
                 'fecha_fin_estudio' => $fechaFinEstudio,
                 'estado' => EstadoMatriculaEnum::APROBADA,

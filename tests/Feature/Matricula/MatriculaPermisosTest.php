@@ -3,10 +3,12 @@
 namespace Tests\Feature\Matricula;
 
 use App\Models\User;
+use App\Modules\Academico\Enums\TipoSiagieEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Academico\Models\Horario;
+use App\Modules\Academico\Models\Siagie;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
@@ -96,7 +98,7 @@ class MatriculaPermisosTest extends TestCase
         $this->assertSame('Pendiente entregar certificado de estudios del colegio anterior.', $estudiante->observaciones);
     }
 
-    public function test_registrar_matricula_desde_el_wizard_guarda_el_periodo_siagie_elegido(): void
+    public function test_registrar_matricula_desde_el_wizard_guarda_el_siagie_elegido(): void
     {
         Storage::fake('public');
 
@@ -112,6 +114,7 @@ class MatriculaPermisosTest extends TestCase
             'fecha_fin' => now()->addDays(10),
         ]);
         $grado = Grado::factory()->create();
+        $siagie = Siagie::factory()->create(['tipo' => TipoSiagieEnum::SEGUNDO]);
 
         $this->actingAs($usuario);
 
@@ -130,13 +133,13 @@ class MatriculaPermisosTest extends TestCase
             ->assertSet('paso', 5)
             ->set('cicloId', (string) $ciclo->id)
             ->set('gradoId', (string) $grado->id)
-            ->set('periodoSiagie', '2')
+            ->set('siagieId', (string) $siagie->id)
             ->call('confirmar')
             ->assertHasNoErrors()
             ->assertDispatched('matricula-registrada');
 
         $estudiante = Estudiante::query()->where('dni', '55667711')->firstOrFail();
-        $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'periodo_siagie' => '2']);
+        $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'siagie_id' => $siagie->id]);
     }
 
     public function test_elegir_modalidad_anual_en_el_wizard_autoselecciona_el_ciclo_vigente(): void

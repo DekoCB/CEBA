@@ -6,6 +6,7 @@ namespace App\Modules\Academico\Repositories\Contracts;
 
 use App\Modules\Academico\Models\Ciclo;
 use App\Shared\Repositories\RepositoryInterface;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 
 /**
@@ -22,4 +23,10 @@ interface CicloRepositoryInterface extends RepositoryInterface
     public function solapadosCon(string $fechaInicio, string $fechaFin, ?int $exceptoId = null): Collection;
 
     public function activo(): ?Ciclo;
+
+    /**
+     * Los Grupos rotativos (modalidad=seis_meses) únicamente -- el listado
+     * de Grupos ya no incluye el SIAGIE anual (ver SiagieService).
+     */
+    public function paginateGrupos(int $perPage = 15): LengthAwarePaginator;
 }

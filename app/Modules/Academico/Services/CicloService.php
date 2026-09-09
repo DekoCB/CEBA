@@ -33,9 +33,14 @@ class CicloService
         private readonly CicloRepositoryInterface $ciclos,
     ) {}
 
+    /**
+     * Los Grupos rotativos (modalidad=seis_meses) únicamente: el SIAGIE
+     * anual ya no vive en este listado, tiene su propio módulo (ver
+     * SiagieService::listar()).
+     */
     public function listar(int $perPage = 15): LengthAwarePaginator
     {
-        return $this->ciclos->paginate($perPage);
+        return $this->ciclos->paginateGrupos($perPage);
     }
 
     /**
@@ -51,7 +56,7 @@ class CicloService
     }
 
     /**
-     * @param  array{nombre: string, tipo?: ?TipoCicloEnum, modalidad?: ModalidadCicloEnum, anio: int, fecha_inicio: string, fecha_fin: string, estado: string}  $datos
+     * @param  array{nombre: string, tipo?: ?TipoCicloEnum, modalidad?: ModalidadCicloEnum, anio: int, fecha_inicio: string, fecha_fin: string, estado: EstadoCicloEnum}  $datos
      */
     public function actualizar(Ciclo $ciclo, array $datos): Ciclo
     {

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Vacaciones\Services;
 
-use App\Modules\Academico\Enums\ModalidadCicloEnum;
+use App\Modules\Academico\Enums\TipoSiagieEnum;
 use App\Modules\Matricula\Enums\EstadoMatriculaEnum;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
@@ -25,7 +25,7 @@ class VacacionService
     {
         $matricula = $this->matriculaVigente($estudiante);
 
-        if ($matricula === null || $matricula->ciclo->modalidad !== ModalidadCicloEnum::ANUAL) {
+        if ($matricula === null || $matricula->ciclo->siagie?->tipo !== TipoSiagieEnum::ANUAL) {
             throw ValidationException::withMessages([
                 'estudiante' => 'Las vacaciones solo aplican a estudiantes matriculados en SIAGIE anual.',
             ]);
@@ -73,7 +73,7 @@ class VacacionService
             ->where('estudiante_id', $estudiante->id)
             ->where('estado', EstadoMatriculaEnum::APROBADA)
             ->latest('fecha_matricula')
-            ->with('ciclo')
+            ->with('ciclo.siagie')
             ->first();
     }
 }

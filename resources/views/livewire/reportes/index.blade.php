@@ -5,6 +5,7 @@ use App\Modules\Academico\Enums\FranjaHorarioEnum;
 use App\Modules\Academico\Models\Ciclo;
 use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Grado;
+use App\Modules\Academico\Models\Siagie;
 use App\Modules\Reportes\Exports\ReporteExport;
 use App\Modules\Reportes\Services\ReporteService;
 use App\Shared\Enums\RolEnum;
@@ -41,6 +42,8 @@ new #[Layout('layouts.app')] class extends Component
     private const TIPOS_CON_HORARIO = ['matricula', 'academico', 'financiero', 'morosos', 'certificados', 'operativo', 'propio'];
 
     public string $tipo = '';
+
+    public string $siagieId = '';
 
     public string $cicloId = '';
 
@@ -87,9 +90,16 @@ new #[Layout('layouts.app')] class extends Component
     }
 
     /**
-     * El filtro es en cascada: Grupo primero, luego Grado, luego Curso.
-     * Cambiar un nivel invalida los que dependen de él.
+     * El filtro es en cascada: SIAGIE primero, luego Grupo, luego Grado,
+     * luego Curso. Cambiar un nivel invalida los que dependen de él.
      */
+    public function updatedSiagieId(): void
+    {
+        $this->cicloId = '';
+        $this->gradoId = '';
+        $this->cursoId = '';
+    }
+
     public function updatedCicloId(): void
     {
         $this->gradoId = '';
@@ -150,19 +160,20 @@ new #[Layout('layouts.app')] class extends Component
      */
     private function generarReporte(ReporteService $reportes): array
     {
+        $siagieId = $this->siagieId !== '' ? (int) $this->siagieId : null;
         $cicloId = $this->cicloId !== '' ? (int) $this->cicloId : null;
         $gradoId = $this->gradoId !== '' ? (int) $this->gradoId : null;
         $cursoId = $this->cursoId !== '' ? (int) $this->cursoId : null;
         $franja = $this->franja !== '' ? $this->franja : null;
 
         return match ($this->tipo) {
-            'matricula' => $reportes->matricula($cicloId, $gradoId, $cursoId, $franja),
-            'academico' => $reportes->academico($cicloId, $gradoId, $cursoId, $franja),
-            'financiero' => $reportes->financiero($cicloId, $gradoId, $cursoId, $franja),
-            'morosos' => $reportes->morosos($cicloId, $gradoId, $cursoId, $franja),
-            'certificados' => $reportes->certificados($cicloId, $gradoId, $cursoId, $franja),
-            'operativo' => $reportes->operativo($cicloId, $gradoId, $cursoId, $franja),
-            'propio' => $reportes->propio(Auth::user(), $cicloId, $gradoId, $cursoId, $franja),
+            'matricula' => $reportes->matricula($cicloId, $gradoId, $cursoId, $franja, $siagieId),
+            'academico' => $reportes->academico($cicloId, $gradoId, $cursoId, $franja, $siagieId),
+            'financiero' => $reportes->financiero($cicloId, $gradoId, $cursoId, $franja, $siagieId),
+            'morosos' => $reportes->morosos($cicloId, $gradoId, $cursoId, $franja, $siagieId),
+            'certificados' => $reportes->certificados($cicloId, $gradoId, $cursoId, $franja, $siagieId),
+            'operativo' => $reportes->operativo($cicloId, $gradoId, $cursoId, $franja, $siagieId),
+            'propio' => $reportes->propio(Auth::user(), $cicloId, $gradoId, $cursoId, $franja, $siagieId),
             default => ['columnas' => [], 'filas' => []],
         };
     }
@@ -227,6 +238,7 @@ new #[Layout('layouts.app')] class extends Component
             'reporte' => $reporte,
             'puedeExportar' => $user->hasPermissionTo('reportes.exportar'),
             'franjasDisponibles' => $this->franjasDisponibles(),
+            'siagiesDisponibles' => Siagie::query()->orderByDesc('anio')->orderBy('tipo')->get(),
             'ciclosDisponibles' => Ciclo::query()->orderByDesc('fecha_inicio')->get(),
             'gradosDisponibles' => $this->gradosDisponibles(),
             'cursosDisponibles' => $this->cursosDisponibles(),
@@ -252,12 +264,12 @@ new #[Layout('layouts.app')] class extends Component
                 />
             </div>
             <div>
-                <x-input-label for="cicloId" value="Grupo" />
+                <x-input-label for="siagieId" value="SIAGIE" />
                 <x-select-input
-                    wire:model.live="cicloId"
-                    id="cicloId"
-                    class="mt-1 block w-56"
-                    :options="collect($ciclosDisponibles)->mapWithKeys(fn ($ciclo) => [$ciclo->id => $ciclo->nombre])->prepend('Todos los grupos', '')"
+                    wire:model.live="siagieId"
+                    id="siagieId"
+                    class="mt-1 block w-48"
+                    :options="collect($siagiesDisponibles)->mapWithKeys(fn ($siagie) => [$siagie->id => $siagie->nombreCompleto()])->prepend('Todos los SIAGIE', '')"
                 />
             </div>
             {{--
@@ -267,6 +279,16 @@ new #[Layout('layouts.app')] class extends Component
                 crearse el nodo) queda con las opciones "congeladas" del
                 primer render y nunca ve las nuevas tras un morph.
             --}}
+            <div wire:key="ciclo-select-{{ $siagieId }}">
+                <x-input-label for="cicloId" value="Grupo" />
+                <x-select-input
+                    wire:model.live="cicloId"
+                    id="cicloId"
+                    class="mt-1 block w-56"
+                    :disabled="$siagieId === ''"
+                    :options="collect($ciclosDisponibles)->mapWithKeys(fn ($ciclo) => [$ciclo->id => $ciclo->nombre])->prepend('Todos los grupos', '')"
+                />
+            </div>
             <div wire:key="grado-select-{{ $cicloId }}">
                 <x-input-label for="gradoId" value="Grado" />
                 <x-select-input
