@@ -23,6 +23,9 @@ new #[Layout('layouts.app')] class extends Component
     /** @var array<int, mixed> */
     public array $comprobantePorCuota = [];
 
+    /** @var array<int, string> */
+    public array $montoPorCuota = [];
+
     public function mount(): void
     {
         $user = Auth::user();
@@ -35,13 +38,18 @@ new #[Layout('layouts.app')] class extends Component
         $estudiante = Auth::user()->estudiante;
         abort_unless($estudiante !== null, 403);
 
+        $cuota = Cuota::query()->with('planPago.matricula')->findOrFail($cuotaId);
+        abort_unless($cuota->planPago->matricula?->estudiante_id === $estudiante->id, 403);
+
         $this->validate([
             "metodoPorCuota.{$cuotaId}" => 'required|string|in:'.implode(',', array_column(MetodoPagoEnum::seleccionables(), 'value')),
             "comprobantePorCuota.{$cuotaId}" => 'required|file|max:5120',
+            // El tope es el saldo pendiente real (no el monto nominal de la
+            // cuota): este es el único punto donde el propio estudiante
+            // declara cuánto pagó, sin cruce contra el comprobante, así que
+            // no debe poder registrar más de lo que efectivamente debe.
+            "montoPorCuota.{$cuotaId}" => "required|numeric|min:0.01|max:{$cuota->saldoPendiente()}",
         ]);
-
-        $cuota = Cuota::query()->with('planPago.matricula')->findOrFail($cuotaId);
-        abort_unless($cuota->planPago->matricula?->estudiante_id === $estudiante->id, 403);
 
         $concepto = ConceptoPago::query()->where('tipo', 'mensualidad')->first()
             ?? ConceptoPago::query()->firstOrFail();
@@ -49,13 +57,13 @@ new #[Layout('layouts.app')] class extends Component
         $service->registrar(
             $estudiante,
             $concepto,
-            [['monto' => (float) $cuota->monto, 'metodo' => $this->metodoPorCuota[$cuotaId]]],
+            [['monto' => (float) $this->montoPorCuota[$cuotaId], 'metodo' => $this->metodoPorCuota[$cuotaId]]],
             $cuota,
             $this->comprobantePorCuota[$cuotaId],
             null,
         );
 
-        unset($this->metodoPorCuota[$cuotaId], $this->comprobantePorCuota[$cuotaId]);
+        unset($this->metodoPorCuota[$cuotaId], $this->comprobantePorCuota[$cuotaId], $this->montoPorCuota[$cuotaId]);
         session()->flash('status', 'Comprobante enviado. Quedará pendiente de aprobación de Tesorería.');
     }
 
@@ -73,6 +81,23 @@ new #[Layout('layouts.app')] class extends Component
                 'matricula' => $matricula,
                 'plan' => $planes->planDe($matricula),
             ]);
+
+        // Prellena el monto sugerido al saldo pendiente real de cada cuota
+        // (así el caso común -- pagar todo -- sigue siendo casi un clic),
+        // pero queda editable para que el estudiante pueda declarar un
+        // pago parcial. Solo se inicializa una vez por cuota (??=), para no
+        // pisar lo que el estudiante ya haya escrito en un re-render.
+        foreach ($matriculas as $item) {
+            if (! $item['plan']) {
+                continue;
+            }
+
+            foreach ($item['plan']->cuotas as $cuota) {
+                if ($cuota->estado->value === 'pendiente') {
+                    $this->montoPorCuota[$cuota->id] ??= (string) $cuota->saldoPendiente();
+                }
+            }
+        }
 
         return [
             'matriculas' => $matriculas,
@@ -131,6 +156,17 @@ new #[Layout('layouts.app')] class extends Component
 
                             @if ($cuota->estado->value === 'pendiente')
                                 <form wire:submit="subirComprobante({{ $cuota->id }})" class="mt-2 flex flex-wrap items-center gap-2">
+                                    <div class="flex items-center gap-1">
+                                        <span class="text-xs text-ink-faint">S/</span>
+                                        <input
+                                            wire:model="montoPorCuota.{{ $cuota->id }}"
+                                            type="number"
+                                            step="0.01"
+                                            min="0.01"
+                                            class="w-20 rounded-md border-border text-xs"
+                                            placeholder="Monto"
+                                        >
+                                    </div>
                                     <x-select-input
                                         wire:model="metodoPorCuota.{{ $cuota->id }}"
                                         placeholder="Método…"
@@ -140,6 +176,8 @@ new #[Layout('layouts.app')] class extends Component
                                     <input wire:model="comprobantePorCuota.{{ $cuota->id }}" type="file" class="text-xs text-ink-dim file:mr-2 file:rounded-md file:border-0 file:bg-surface-2 file:px-2 file:py-1 file:text-xs file:text-ink">
                                     <button type="submit" class="text-xs font-medium text-accent hover:underline">Enviar comprobante</button>
                                 </form>
+                                <p class="mt-1 text-xs text-ink-faint">Si pagaste menos de la cuota completa, cambia el monto por lo que realmente pagaste.</p>
+                                <x-input-error :messages="$errors->get('montoPorCuota.'.$cuota->id)" class="mt-1" />
                                 <x-input-error :messages="$errors->get('metodoPorCuota.'.$cuota->id)" class="mt-1" />
                                 <x-input-error :messages="$errors->get('comprobantePorCuota.'.$cuota->id)" class="mt-1" />
                             @endif

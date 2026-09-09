@@ -278,6 +278,7 @@ class PagosFlujoTest extends TestCase
         $this->actingAs($usuario);
 
         Volt::test('pagos.mi-cuenta')
+            ->set("montoPorCuota.{$cuota->id}", '100')
             ->set("metodoPorCuota.{$cuota->id}", 'yape')
             ->set("comprobantePorCuota.{$cuota->id}", UploadedFile::fake()->create('comprobante.pdf', 100, 'application/pdf'))
             ->call('subirComprobante', $cuota->id)
@@ -288,5 +289,55 @@ class PagosFlujoTest extends TestCase
             'cuota_id' => $cuota->id,
             'estado' => 'pendiente',
         ]);
+    }
+
+    /**
+     * Regresión: "Mi cuenta" hardcodeaba el monto del pago al monto
+     * completo de la cuota sin importar cuánto haya escrito el
+     * estudiante -- un pago parcial terminaba restando la cuota entera
+     * al total adeudado. Ver mi-cuenta.blade.php::subirComprobante().
+     */
+    public function test_un_pago_parcial_desde_mi_cuenta_no_marca_la_cuota_como_pagada(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ESTUDIANTE->value);
+        $estudiante = Estudiante::factory()->create(['user_id' => $usuario->id]);
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'fecha_matricula' => now()]);
+        ConceptoPago::factory()->create(['tipo' => 'mensualidad']);
+
+        $plan = $this->app->make(PlanPagoService::class)->crear($matricula, NumeroCuotasEnum::UNA, 80.0);
+        $cuota = $plan->cuotas()->firstOrFail();
+
+        Storage::fake('public');
+
+        $this->actingAs($usuario);
+
+        Volt::test('pagos.mi-cuenta')
+            ->set("montoPorCuota.{$cuota->id}", '40')
+            ->set("metodoPorCuota.{$cuota->id}", 'yape')
+            ->set("comprobantePorCuota.{$cuota->id}", UploadedFile::fake()->create('comprobante.pdf', 100, 'application/pdf'))
+            ->call('subirComprobante', $cuota->id)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('pagos', [
+            'estudiante_id' => $estudiante->id,
+            'cuota_id' => $cuota->id,
+            'monto' => 40.0,
+            'estado' => 'pendiente',
+        ]);
+
+        $pago = Pago::query()->where('cuota_id', $cuota->id)->firstOrFail();
+
+        $tesoreria = User::factory()->create();
+        $tesoreria->assignRole(RolEnum::TESORERIA->value);
+        $this->actingAs($tesoreria);
+
+        Volt::test('pagos.index')
+            ->call('aprobar', $pago->id)
+            ->assertHasNoErrors();
+
+        $cuota->refresh();
+        $this->assertSame('pendiente', $cuota->estado->value);
+        $this->assertSame(40.0, $cuota->saldoPendiente());
     }
 }
