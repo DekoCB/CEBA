@@ -29,14 +29,16 @@ return new class extends Migration
             ->get();
 
         foreach ($matriculas as $matricula) {
+            $tipo = $this->mapearTipo($matricula->periodo_siagie);
+
             $siagieId = DB::table('siagies')
-                ->where('tipo', $matricula->periodo_siagie)
+                ->where('tipo', $tipo)
                 ->where('anio', $matricula->anio)
                 ->value('id');
 
             if ($siagieId === null) {
                 $siagieId = DB::table('siagies')->insertGetId([
-                    'tipo' => $matricula->periodo_siagie,
+                    'tipo' => $tipo,
                     'anio' => $matricula->anio,
                     'estado' => 'activo',
                     'created_at' => now(),
@@ -64,11 +66,33 @@ return new class extends Migration
             ->get();
 
         foreach ($matriculas as $matricula) {
-            DB::table('matriculas')->where('id', $matricula->matricula_id)->update(['periodo_siagie' => $matricula->tipo]);
+            DB::table('matriculas')->where('id', $matricula->matricula_id)->update(['periodo_siagie' => $this->mapearTipoInverso($matricula->tipo)]);
         }
 
         Schema::table('matriculas', function (Blueprint $table) {
             $table->dropConstrainedForeignId('siagie_id');
         });
+    }
+
+    /**
+     * El PeriodoSiagieEnum original usaba '1'/'2'/'anual'; TipoSiagieEnum
+     * (que reemplaza esa columna) usa 'primero'/'segundo'/'anual'.
+     */
+    private function mapearTipo(string $periodoAntiguo): string
+    {
+        return match ($periodoAntiguo) {
+            '1' => 'primero',
+            '2' => 'segundo',
+            default => $periodoAntiguo,
+        };
+    }
+
+    private function mapearTipoInverso(string $tipoNuevo): string
+    {
+        return match ($tipoNuevo) {
+            'primero' => '1',
+            'segundo' => '2',
+            default => $tipoNuevo,
+        };
     }
 };
