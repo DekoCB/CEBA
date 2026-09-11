@@ -8,6 +8,7 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use App\Modules\Pagos\Enums\NumeroCuotasEnum;
+use App\Modules\Pagos\Enums\SerieReciboEnum;
 use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Pago;
 use App\Modules\Pagos\Services\PagoService;
@@ -339,5 +340,144 @@ class PagosFlujoTest extends TestCase
         $cuota->refresh();
         $this->assertSame('pendiente', $cuota->estado->value);
         $this->assertSame(40.0, $cuota->saldoPendiente());
+    }
+
+    /**
+     * Pedido del cliente: que el sistema "vaya descontando" el saldo de
+     * una cuota -- al volver a elegir un estudiante con un pago parcial ya
+     * aprobado, el monto debe salir precargado con lo que falta (S/40),
+     * no con el total de la cuota (S/80), para que Tesorería no tenga que
+     * calcularlo a mano.
+     */
+    public function test_seleccionar_estudiante_precarga_el_monto_con_el_saldo_pendiente_de_la_cuota(): void
+    {
+        $administrativo = User::factory()->create();
+        $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'fecha_matricula' => now()]);
+        $concepto = ConceptoPago::factory()->create(['tipo' => 'mensualidad']);
+
+        $plan = $this->app->make(PlanPagoService::class)->crear($matricula, NumeroCuotasEnum::UNA, 80.0);
+        $cuota = $plan->cuotas()->firstOrFail();
+
+        $pagoService = $this->app->make(PagoService::class);
+        $primerPago = $pagoService->registrar($estudiante, $concepto, [['monto' => 40.0, 'metodo' => 'yape']], $cuota, null, null);
+        $pagoService->aprobar($primerPago, User::factory()->create()->id, SerieReciboEnum::ORIGINAL);
+
+        $this->actingAs($administrativo);
+
+        Volt::test('pagos.index')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->set('conceptoId', (string) $concepto->id)
+            ->assertSet('partes.0.monto', '40');
+    }
+
+    /**
+     * No debe pisar un monto que la persona ya haya empezado a escribir
+     * antes de elegir el concepto (ej. si cambia de estudiante a mitad de
+     * llenar el formulario).
+     */
+    public function test_el_autocompletado_del_saldo_no_pisa_un_monto_ya_escrito(): void
+    {
+        $administrativo = User::factory()->create();
+        $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'fecha_matricula' => now()]);
+        $concepto = ConceptoPago::factory()->create(['tipo' => 'mensualidad']);
+
+        $this->app->make(PlanPagoService::class)->crear($matricula, NumeroCuotasEnum::UNA, 80.0);
+
+        $this->actingAs($administrativo);
+
+        Volt::test('pagos.index')
+            ->set('partes.0.monto', '15')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->set('conceptoId', (string) $concepto->id)
+            ->assertSet('partes.0.monto', '15');
+    }
+
+    /**
+     * Pedido del cliente: poder anotar de quién es la cuenta que recibió
+     * el pago (ej. Yape personal de un miembro del staff, no la cuenta
+     * institucional) sin reemplazar el método -- ver
+     * PagoParte::metodoConNota().
+     */
+    public function test_registrar_un_pago_con_nota_en_el_metodo_queda_guardada_y_se_muestra_junto_al_metodo(): void
+    {
+        $administrativo = User::factory()->create();
+        $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+
+        $this->actingAs($administrativo);
+
+        Volt::test('pagos.index')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->set('conceptoId', (string) $concepto->id)
+            ->set('partes.0.monto', '40')
+            ->set('partes.0.metodo', 'yape')
+            ->set('partes.0.nota', 'Walter')
+            ->call('registrarPago')
+            ->assertHasNoErrors();
+
+        $pago = Pago::query()->where('estudiante_id', $estudiante->id)->firstOrFail();
+        $this->assertDatabaseHas('pago_partes', ['pago_id' => $pago->id, 'metodo' => 'yape', 'nota' => 'Walter']);
+        $this->assertSame('Yape Walter', $pago->medioPagoResumen());
+        $this->assertSame('Yape Walter', $pago->partes->first()->metodoConNota());
+    }
+
+    /**
+     * Pedido del cliente: la fecha de pago debe poder editarse (ej. un
+     * cobro en efectivo recibido unos días antes de registrarse), a
+     * diferencia de la fecha de emisión del recibo, que sigue siendo
+     * siempre la de hoy sin importar esto.
+     */
+    public function test_registrar_un_pago_con_fecha_de_pago_pasada(): void
+    {
+        $administrativo = User::factory()->create();
+        $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+
+        $this->actingAs($administrativo);
+
+        Volt::test('pagos.index')
+            ->assertSet('fechaPago', now()->format('Y-m-d'))
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->set('conceptoId', (string) $concepto->id)
+            ->set('partes.0.monto', '40')
+            ->set('partes.0.metodo', 'efectivo')
+            ->set('fechaPago', '2026-09-01')
+            ->call('registrarPago')
+            ->assertHasNoErrors();
+
+        $pago = Pago::query()->where('estudiante_id', $estudiante->id)->firstOrFail();
+        $this->assertSame('2026-09-01', $pago->fecha_pago->format('Y-m-d'));
+    }
+
+    public function test_no_permite_una_fecha_de_pago_futura(): void
+    {
+        $administrativo = User::factory()->create();
+        $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+
+        $this->actingAs($administrativo);
+
+        Volt::test('pagos.index')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->set('conceptoId', (string) $concepto->id)
+            ->set('partes.0.monto', '40')
+            ->set('partes.0.metodo', 'efectivo')
+            ->set('fechaPago', now()->addDay()->format('Y-m-d'))
+            ->call('registrarPago')
+            ->assertHasErrors('fechaPago');
+
+        $this->assertDatabaseMissing('pagos', ['estudiante_id' => $estudiante->id]);
     }
 }

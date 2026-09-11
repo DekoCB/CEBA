@@ -134,6 +134,67 @@ class PagoServiceTest extends TestCase
         $this->assertSame(0.0, $cuota->saldoPendiente());
     }
 
+    public function test_registrar_guarda_la_nota_de_una_parte_cuando_se_indica(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+
+        $pago = $this->service()->registrar($estudiante, $concepto, [
+            ['monto' => 100.0, 'metodo' => 'yape', 'nota' => 'Director'],
+        ], null, null, null);
+
+        $this->assertSame('Director', $pago->partes->first()->nota);
+        $this->assertSame('Yape Director', $pago->partes->first()->metodoConNota());
+        $this->assertSame('Yape Director', $pago->medioPagoResumen());
+    }
+
+    public function test_registrar_sin_nota_la_deja_en_null_y_el_metodo_se_muestra_solo(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+
+        $pago = $this->service()->registrar($estudiante, $concepto, [['monto' => 100.0, 'metodo' => 'yape']], null, null, null);
+
+        $this->assertNull($pago->partes->first()->nota);
+        $this->assertSame('Yape', $pago->partes->first()->metodoConNota());
+    }
+
+    /**
+     * Pedido del cliente: la fecha de pago (a diferencia de la fecha de
+     * emisión del recibo, que siempre es la de hoy y no se toca) debe
+     * poder editarse, ej. para un cobro en efectivo recibido unos días
+     * antes de que recién se registre en el sistema.
+     */
+    public function test_registrar_con_fecha_de_pago_explicita_la_guarda_en_vez_de_hoy(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+
+        $pago = $this->service()->registrar(
+            $estudiante,
+            $concepto,
+            [['monto' => 100.0, 'metodo' => 'efectivo']],
+            null,
+            null,
+            null,
+            null,
+            null,
+            '2026-09-01',
+        );
+
+        $this->assertSame('2026-09-01', $pago->fecha_pago->format('Y-m-d'));
+    }
+
+    public function test_registrar_sin_fecha_de_pago_usa_hoy(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+
+        $pago = $this->service()->registrar($estudiante, $concepto, [['monto' => 100.0, 'metodo' => 'efectivo']], null, null, null);
+
+        $this->assertSame(now()->format('Y-m-d'), $pago->fecha_pago->format('Y-m-d'));
+    }
+
     public function test_aprobar_respeta_la_serie_elegida_a_mano(): void
     {
         $estudiante = Estudiante::factory()->create();

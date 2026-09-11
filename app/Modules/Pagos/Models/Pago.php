@@ -127,4 +127,18 @@ class Pago extends Model implements HasMedia
     {
         return $this->hasMany(PagoParte::class);
     }
+
+    /**
+     * El texto de "medio de pago" para mostrar en resumen (recibo, cola de
+     * aprobación, historial): si el pago tiene una sola parte, usa su
+     * método con nota (ej. "Yape Walter"); si tiene varias con métodos
+     * distintos, se queda con el resumen agregado ("Mixto") -- el detalle
+     * de cada parte con su nota ya se muestra aparte en esos casos.
+     */
+    public function medioPagoResumen(): string
+    {
+        return $this->partes->count() === 1
+            ? $this->partes->first()->metodoConNota()
+            : $this->metodo->label();
+    }
 }

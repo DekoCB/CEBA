@@ -77,7 +77,7 @@
         <tbody>
             @foreach ($pago->partes as $parte)
                 <tr>
-                    <td>{{ $parte->metodo->label() }}</td>
+                    <td>{{ $parte->metodoConNota() }}</td>
                     <td class="col-monto">S/ {{ number_format((float) $parte->monto, 2) }}</td>
                 </tr>
             @endforeach
@@ -110,7 +110,7 @@
         </td>
         <td>
             <p class="etiqueta">Medio de pago</p>
-            {{ $pago->metodo->label() }}
+            {{ $pago->medioPagoResumen() }}
         </td>
     </tr>
 </table>

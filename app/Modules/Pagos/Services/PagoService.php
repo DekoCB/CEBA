@@ -14,6 +14,7 @@ use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Models\Pago;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
@@ -33,7 +34,7 @@ class PagoService
      * método único si todas las partes usan el mismo, o "mixto" si no --
      * es solo un resumen para listados; el detalle real vive en partes().
      *
-     * @param  list<array{monto: float, metodo: string}>  $partes
+     * @param  list<array{monto: float, metodo: string, nota?: ?string}>  $partes
      */
     public function registrar(
         Estudiante $estudiante,
@@ -44,6 +45,7 @@ class PagoService
         ?int $registradoPor,
         ?string $detalle = null,
         ?string $observacion = null,
+        ?string $fechaPago = null,
     ): Pago {
         if ($partes === []) {
             throw new InvalidArgumentException('Un pago necesita al menos una parte (monto y método).');
@@ -59,7 +61,13 @@ class PagoService
         $metodosUnicos = collect($partes)->pluck('metodo')->unique();
         $metodo = $metodosUnicos->count() === 1 ? $metodosUnicos->first() : MetodoPagoEnum::MIXTO->value;
 
-        return DB::transaction(function () use ($estudiante, $concepto, $detalle, $observacion, $cuota, $montoTotal, $metodo, $registradoPor, $comprobante, $partes) {
+        // Fecha de pago: cuándo se recibió el dinero (editable, puede ser un
+        // día anterior si se cobró en efectivo y recién se registra hoy) --
+        // distinta de la fecha de emisión del recibo (Recibo::emitido_en,
+        // siempre la del momento en que Tesorería aprueba), que no se toca.
+        $fecha = $fechaPago !== null ? Carbon::parse($fechaPago) : now();
+
+        return DB::transaction(function () use ($estudiante, $concepto, $detalle, $observacion, $cuota, $montoTotal, $metodo, $registradoPor, $comprobante, $partes, $fecha) {
             /** @var Pago $pago */
             $pago = Pago::query()->create([
                 'estudiante_id' => $estudiante->id,
@@ -71,13 +79,14 @@ class PagoService
                 'metodo' => $metodo,
                 'estado' => EstadoPagoEnum::PENDIENTE,
                 'registrado_por' => $registradoPor,
-                'fecha_pago' => now(),
+                'fecha_pago' => $fecha,
             ]);
 
             foreach ($partes as $parte) {
                 $pago->partes()->create([
                     'monto' => $parte['monto'],
                     'metodo' => $parte['metodo'],
+                    'nota' => $parte['nota'] ?? null,
                 ]);
             }
 

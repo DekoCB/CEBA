@@ -255,10 +255,10 @@ new #[Layout('layouts.app')] class extends Component
                         <div class="flex items-center justify-between gap-4 py-3 text-sm">
                             <div>
                                 <p class="text-ink">{{ $pago->concepto->nombre }}{{ $pago->detalle ? " — {$pago->detalle}" : '' }}</p>
-                                <p class="text-xs text-ink-faint">{{ $pago->fecha_pago->format('d/m/Y') }} · {{ $pago->metodo->label() }}</p>
+                                <p class="text-xs text-ink-faint">{{ $pago->fecha_pago->format('d/m/Y') }} · {{ $pago->medioPagoResumen() }}</p>
                                 @if ($pago->partes->count() > 1)
                                     <p class="text-xs text-ink-faint">
-                                        {{ $pago->partes->map(fn ($parte) => 'S/ '.number_format((float) $parte->monto, 2).' '.$parte->metodo->label())->implode(' + ') }}
+                                        {{ $pago->partes->map(fn ($parte) => 'S/ '.number_format((float) $parte->monto, 2).' '.$parte->metodoConNota())->implode(' + ') }}
                                     </p>
                                 @endif
                                 @if ($pago->estado->value === 'rechazado' && $pago->motivo_rechazo)

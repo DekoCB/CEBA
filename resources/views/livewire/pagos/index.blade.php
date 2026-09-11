@@ -43,13 +43,18 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $observacion = '';
 
+    // Fecha en la que se recibió el pago (editable) -- distinta de la
+    // fecha de emisión del recibo, que siempre es el momento en que
+    // Tesorería aprueba y no se toca. Por defecto hoy, para el caso común.
+    public string $fechaPago = '';
+
     // Un pago puede cubrirse con más de un medio a la vez (ej. una parte en
     // efectivo y otra por Yape): cada elemento es un monto+método
     // independiente, pero todas juntas quedan como un solo registro de
     // Pago (ver PagoService::registrar()).
-    /** @var array<int, array{monto: string, metodo: string}> */
+    /** @var array<int, array{monto: string, metodo: string, nota: string}> */
     public array $partes = [
-        ['monto' => '', 'metodo' => ''],
+        ['monto' => '', 'metodo' => '', 'nota' => ''],
     ];
 
     public $comprobante = null;
@@ -109,13 +114,49 @@ new #[Layout('layouts.app')] class extends Component
             $user->hasAnyPermission(['pagos.registrar', 'pagos.gestionar']) => 'registrar',
             default => 'historial',
         };
+
+        $this->fechaPago = now()->format('Y-m-d');
     }
 
-    public function seleccionarEstudiante(int $estudianteId, string $nombre): void
+    public function seleccionarEstudiante(int $estudianteId, string $nombre, CobranzaService $cobranza): void
     {
         $this->estudianteSeleccionadoId = $estudianteId;
         $this->estudianteSeleccionadoNombre = $nombre;
         $this->terminoBusqueda = '';
+
+        $this->autocompletarMontoConSaldo($cobranza);
+    }
+
+    public function updatedConceptoId(CobranzaService $cobranza): void
+    {
+        $this->autocompletarMontoConSaldo($cobranza);
+    }
+
+    /**
+     * Si el concepto elegido es Mensualidad y el estudiante ya tiene una
+     * cuota con un pago parcial, precarga el monto de la primera parte con
+     * el saldo real que falta cobrar (ej. si ya pagó S/40 de una cuota de
+     * S/80, deja S/40 en vez de S/80) en vez de que Tesorería tenga que
+     * calcularlo a mano. Solo toca el campo si sigue vacío, para no pisar
+     * un monto que la persona ya haya escrito.
+     */
+    private function autocompletarMontoConSaldo(CobranzaService $cobranza): void
+    {
+        if (! $this->estudianteSeleccionadoId || $this->partes[0]['monto'] !== '') {
+            return;
+        }
+
+        $concepto = ConceptoPago::query()->find($this->conceptoId);
+        if ($concepto?->tipo !== TipoConceptoEnum::MENSUALIDAD) {
+            return;
+        }
+
+        $estudiante = Estudiante::query()->find($this->estudianteSeleccionadoId);
+        $cuota = $estudiante ? $cobranza->cuotaPendienteMasProxima($estudiante) : null;
+
+        if ($cuota && $cuota->saldoPendiente() > 0.0) {
+            $this->partes[0]['monto'] = (string) $cuota->saldoPendiente();
+        }
     }
 
     public function cobrosSeleccionarEstudiante(int $estudianteId, string $nombre): void
@@ -142,7 +183,7 @@ new #[Layout('layouts.app')] class extends Component
 
     public function agregarParte(): void
     {
-        $this->partes[] = ['monto' => '', 'metodo' => ''];
+        $this->partes[] = ['monto' => '', 'metodo' => '', 'nota' => ''];
     }
 
     public function quitarParte(int $indice): void
@@ -165,7 +206,9 @@ new #[Layout('layouts.app')] class extends Component
             'partes' => 'required|array|min:1',
             'partes.*.monto' => 'required|numeric|min:0.01',
             'partes.*.metodo' => 'required|string|in:'.implode(',', array_column(MetodoPagoEnum::seleccionables(), 'value')),
+            'partes.*.nota' => 'nullable|string|max:40',
             'comprobante' => 'nullable|file|max:5120',
+            'fechaPago' => 'required|date|before_or_equal:today',
         ]);
 
         $estudiante = Estudiante::query()->findOrFail($this->estudianteSeleccionadoId);
@@ -188,11 +231,13 @@ new #[Layout('layouts.app')] class extends Component
         $partes = collect($this->partes)->map(fn (array $parte) => [
             'monto' => (float) $parte['monto'],
             'metodo' => $parte['metodo'],
+            'nota' => $parte['nota'] !== '' ? $parte['nota'] : null,
         ])->all();
 
-        $service->registrar($estudiante, $concepto, $partes, $cuota, $this->comprobante, Auth::id(), $this->detalle ?: null, $this->observacion ?: null);
+        $service->registrar($estudiante, $concepto, $partes, $cuota, $this->comprobante, Auth::id(), $this->detalle ?: null, $this->observacion ?: null, $this->fechaPago);
 
         $this->reset(['estudianteSeleccionadoId', 'estudianteSeleccionadoNombre', 'conceptoId', 'detalle', 'observacion', 'partes', 'comprobante']);
+        $this->fechaPago = now()->format('Y-m-d');
         session()->flash('status', 'Pago registrado. Queda pendiente de aprobación de Tesorería.');
     }
 
@@ -414,11 +459,11 @@ new #[Layout('layouts.app')] class extends Component
                                 @if ($pago->cuota)
                                     · cuota {{ $pago->cuota->numero }}
                                 @endif
-                                · {{ $pago->metodo->label() }} · {{ $pago->fecha_pago->format('d/m/Y') }}
+                                · {{ $pago->medioPagoResumen() }} · {{ $pago->fecha_pago->format('d/m/Y') }}
                             </p>
                             @if ($pago->partes->count() > 1)
                                 <p class="text-xs text-ink-faint">
-                                    {{ $pago->partes->map(fn ($parte) => 'S/ '.number_format((float) $parte->monto, 2).' '.$parte->metodo->label())->implode(' + ') }}
+                                    {{ $pago->partes->map(fn ($parte) => 'S/ '.number_format((float) $parte->monto, 2).' '.$parte->metodoConNota())->implode(' + ') }}
                                 </p>
                             @endif
                             @if ($pago->getFirstMedia('comprobante'))
@@ -531,6 +576,12 @@ new #[Layout('layouts.app')] class extends Component
             @endif
 
             <div>
+                <x-input-label for="fechaPago" value="Fecha de pago" />
+                <x-date-input wire:model="fechaPago" id="fechaPago" class="mt-1 block w-full" />
+                <x-input-error :messages="$errors->get('fechaPago')" class="mt-1" />
+            </div>
+
+            <div>
                 <x-input-label for="observacion" value="Observación (opcional)" />
                 <x-text-input wire:model="observacion" id="observacion" class="mt-1 block w-full" placeholder="Nota que se imprime en el recibo…" />
                 <x-input-error :messages="$errors->get('observacion')" class="mt-1" />
@@ -555,25 +606,38 @@ new #[Layout('layouts.app')] class extends Component
                 </div>
                 <p class="mt-1 text-xs text-ink-faint">Si paga con más de un medio (ej. una parte en efectivo y otra por Yape), agrega una parte por cada uno — queda como un solo registro.</p>
 
-                <div class="mt-2 space-y-2" wire:key="partes-contenedor-{{ count($partes) }}">
+                <div class="mt-2 space-y-3" wire:key="partes-contenedor-{{ count($partes) }}">
                     @foreach ($partes as $indice => $parte)
-                        <div class="flex items-start gap-2" wire:key="parte-{{ $indice }}">
-                            <div class="flex-1">
-                                <x-text-input wire:model.live.debounce.400ms="partes.{{ $indice }}.monto" type="number" step="0.01" min="0" placeholder="Monto (S/)" class="block w-full" />
-                                <x-input-error :messages="$errors->get('partes.'.$indice.'.monto')" class="mt-1" />
+                        <div wire:key="parte-{{ $indice }}">
+                            <div class="flex items-start gap-2">
+                                <div class="flex-1">
+                                    <x-text-input wire:model.live.debounce.400ms="partes.{{ $indice }}.monto" type="number" step="0.01" min="0" placeholder="Monto (S/)" class="block w-full" />
+                                    <x-input-error :messages="$errors->get('partes.'.$indice.'.monto')" class="mt-1" />
+                                </div>
+                                <div class="flex-1">
+                                    <x-select-input
+                                        wire:model.live="partes.{{ $indice }}.metodo"
+                                        placeholder="Método…"
+                                        class="block w-full"
+                                        :options="collect($metodosPago)->mapWithKeys(fn ($metodoOpcion) => [$metodoOpcion->value => $metodoOpcion->label()])"
+                                    />
+                                    <x-input-error :messages="$errors->get('partes.'.$indice.'.metodo')" class="mt-1" />
+                                </div>
+                                @if (count($partes) > 1)
+                                    <button type="button" wire:click="quitarParte({{ $indice }})" wire:loading.attr="disabled" class="mt-2 shrink-0 text-xs text-danger hover:underline disabled:cursor-not-allowed disabled:opacity-50">Quitar</button>
+                                @endif
                             </div>
-                            <div class="flex-1">
-                                <x-select-input
-                                    wire:model.live="partes.{{ $indice }}.metodo"
-                                    placeholder="Método…"
-                                    class="block w-full"
-                                    :options="collect($metodosPago)->mapWithKeys(fn ($metodoOpcion) => [$metodoOpcion->value => $metodoOpcion->label()])"
-                                />
-                                <x-input-error :messages="$errors->get('partes.'.$indice.'.metodo')" class="mt-1" />
-                            </div>
-                            @if (count($partes) > 1)
-                                <button type="button" wire:click="quitarParte({{ $indice }})" wire:loading.attr="disabled" class="mt-2 shrink-0 text-xs text-danger hover:underline disabled:cursor-not-allowed disabled:opacity-50">Quitar</button>
-                            @endif
+                            {{--
+                                Nota opcional para dejar constancia de quién
+                                recibió el pago cuando no fue por la cuenta
+                                institucional (ej. "Walter", "Director") --
+                                se pega al método al mostrarlo ("Yape
+                                Walter"), ver PagoParte::metodoConNota(). El
+                                método en sí sigue siendo el mismo enum
+                                cerrado del que dependen los reportes.
+                            --}}
+                            <x-text-input wire:model.blur="partes.{{ $indice }}.nota" placeholder="De quién es la cuenta (opcional) — ej. Walter, Director…" class="mt-1 block w-full text-xs" />
+                            <x-input-error :messages="$errors->get('partes.'.$indice.'.nota')" class="mt-1" />
                         </div>
                     @endforeach
                 </div>
@@ -775,11 +839,11 @@ new #[Layout('layouts.app')] class extends Component
                                         <div>
                                             <p class="text-ink">{{ $pago->concepto->nombre }}{{ $pago->detalle ? " — {$pago->detalle}" : '' }}</p>
                                             <p class="text-xs text-ink-faint">
-                                                {{ $pago->fecha_pago->format('d/m/Y') }} · {{ $pago->metodo->label() }}
+                                                {{ $pago->fecha_pago->format('d/m/Y') }} · {{ $pago->medioPagoResumen() }}
                                             </p>
                                             @if ($pago->partes->count() > 1)
                                                 <p class="text-xs text-ink-faint">
-                                                    {{ $pago->partes->map(fn ($parte) => 'S/ '.number_format((float) $parte->monto, 2).' '.$parte->metodo->label())->implode(' + ') }}
+                                                    {{ $pago->partes->map(fn ($parte) => 'S/ '.number_format((float) $parte->monto, 2).' '.$parte->metodoConNota())->implode(' + ') }}
                                                 </p>
                                             @endif
                                             @if ($pago->recibo && $pago->recibo->getFirstMedia('pdf'))

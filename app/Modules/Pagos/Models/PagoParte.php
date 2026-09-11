@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $pago_id
  * @property float $monto
  * @property MetodoPagoEnum $metodo
+ * @property string|null $nota
  * @property-read Pago $pago
  */
 class PagoParte extends Model
@@ -28,6 +29,7 @@ class PagoParte extends Model
         'pago_id',
         'monto',
         'metodo',
+        'nota',
     ];
 
     protected function casts(): array
@@ -49,5 +51,17 @@ class PagoParte extends Model
     public function pago(): BelongsTo
     {
         return $this->belongsTo(Pago::class);
+    }
+
+    /**
+     * El método para mostrar, con su nota pegada al lado si tiene una --
+     * ej. "Yape Walter" en vez de solo "Yape". El método en sí (para
+     * reportes/filtros) sigue siendo $this->metodo, sin tocar.
+     */
+    public function metodoConNota(): string
+    {
+        $nota = trim((string) $this->nota);
+
+        return $nota === '' ? $this->metodo->label() : "{$this->metodo->label()} {$nota}";
     }
 }
