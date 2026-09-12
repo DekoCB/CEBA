@@ -53,12 +53,14 @@ class HistorialEstudianteServiceTest extends TestCase
 
         $matriculaUno = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
         $planUno = PlanPago::factory()->create(['matricula_id' => $matriculaUno->id]);
-        Cuota::factory()->pagada()->create(['plan_pago_id' => $planUno->id, 'numero' => 1, 'monto' => 100]);
+        $cuotaPagadaUno = Cuota::factory()->pagada()->create(['plan_pago_id' => $planUno->id, 'numero' => 1, 'monto' => 100]);
+        Pago::factory()->aprobado()->create(['estudiante_id' => $estudiante->id, 'cuota_id' => $cuotaPagadaUno->id, 'monto' => 100]);
         Cuota::factory()->vencida()->create(['plan_pago_id' => $planUno->id, 'numero' => 2, 'monto' => 150]);
 
         $matriculaDos = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
         $planDos = PlanPago::factory()->create(['matricula_id' => $matriculaDos->id]);
-        Cuota::factory()->pagada()->create(['plan_pago_id' => $planDos->id, 'numero' => 1, 'monto' => 200]);
+        $cuotaPagadaDos = Cuota::factory()->pagada()->create(['plan_pago_id' => $planDos->id, 'numero' => 1, 'monto' => 200]);
+        Pago::factory()->aprobado()->create(['estudiante_id' => $estudiante->id, 'cuota_id' => $cuotaPagadaDos->id, 'monto' => 200]);
         Cuota::factory()->create(['plan_pago_id' => $planDos->id, 'numero' => 2, 'monto' => 50, 'estado' => EstadoCuotaEnum::EXONERADO]);
 
         $historial = $this->service()->porDni('22222222');
@@ -67,6 +69,28 @@ class HistorialEstudianteServiceTest extends TestCase
         $this->assertSame(50.0, $historial['resumenPagos']['totalExonerado']);
         $this->assertCount(1, $historial['resumenPagos']['cuotasVencidas']);
         $this->assertSame(150.0, (float) $historial['resumenPagos']['cuotasVencidas']->first()->monto);
+    }
+
+    /**
+     * Regresión: el cliente reportó que "Pagado" no reflejaba los pagos
+     * parciales, y que "Pendiente" mostraba el monto completo de la cuota
+     * en vez de lo que realmente faltaba. resumenPagos() ahora suma
+     * montoPagado()/saldoPendiente() de cada cuota en vez del monto
+     * nominal según su estado -- ver HistorialEstudianteService.
+     */
+    public function test_una_cuota_con_pago_parcial_aprobado_se_refleja_en_pagado_y_en_pendiente(): void
+    {
+        $estudiante = Estudiante::factory()->create(['dni' => '44444444']);
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
+        $cuota = Cuota::factory()->create(['plan_pago_id' => $plan->id, 'numero' => 1, 'monto' => 80]);
+
+        Pago::factory()->aprobado()->create(['estudiante_id' => $estudiante->id, 'cuota_id' => $cuota->id, 'monto' => 40]);
+
+        $historial = $this->service()->porDni('44444444');
+
+        $this->assertSame(40.0, $historial['resumenPagos']['totalPagado']);
+        $this->assertSame(40.0, $historial['resumenPagos']['totalPendiente']);
     }
 
     public function test_pagos_trae_el_detalle_de_cada_pago_sin_importar_su_estado(): void

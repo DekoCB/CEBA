@@ -98,8 +98,15 @@ class HistorialEstudianteService
             ->get();
 
         return [
-            'totalPagado' => (float) $cuotas->where('estado', EstadoCuotaEnum::PAGADO)->sum('monto'),
-            'totalPendiente' => (float) $cuotas->where('estado', EstadoCuotaEnum::PENDIENTE)->sum('monto'),
+            // Suma lo realmente cobrado (montoPagado()), no el monto nominal
+            // de las cuotas ya PAGADO -- así una cuota pendiente con un
+            // pago parcial ya aprobado también aporta lo que sí se cobró,
+            // en vez de quedar en cero hasta que se complete.
+            'totalPagado' => (float) $cuotas->sum(fn (Cuota $cuota) => $cuota->montoPagado()),
+            // Lo que de verdad falta cobrar (saldoPendiente()), no el monto
+            // completo de la cuota -- si ya tiene un pago parcial aprobado,
+            // aquí debe verse solo lo que queda debiendo.
+            'totalPendiente' => (float) $cuotas->where('estado', EstadoCuotaEnum::PENDIENTE)->sum(fn (Cuota $cuota) => $cuota->saldoPendiente()),
             'totalExonerado' => (float) $cuotas->where('estado', EstadoCuotaEnum::EXONERADO)->sum('monto'),
             'cuotasVencidas' => $cuotas->filter(fn (Cuota $cuota) => $cuota->estaVencida())->sortBy('fecha_vencimiento')->values(),
         ];
