@@ -7,6 +7,7 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Services\DocumentoEstudianteService;
 use App\Modules\Matricula\Services\MatriculaService;
+use App\Modules\Pagos\Enums\EstadoCuotaEnum;
 use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Pagos\Services\PagoService;
@@ -40,6 +41,12 @@ new #[Layout('layouts.app')] class extends Component
     public ?int $editandoMontoCargoId = null;
 
     public string $montoCargoNuevo = '';
+
+    public bool $agregandoCargo = false;
+
+    public string $cargoConceptoNuevo = '';
+
+    public string $cargoMontoNuevo = '';
 
     public function mount(Estudiante $estudiante): void
     {
@@ -237,6 +244,44 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('status', 'Monto del cargo adicional actualizado.');
     }
 
+    public function mostrarFormularioCargo(): void
+    {
+        Gate::authorize('pagos.gestionar');
+
+        $this->agregandoCargo = true;
+    }
+
+    public function cancelarNuevoCargo(): void
+    {
+        $this->agregandoCargo = false;
+        $this->cargoConceptoNuevo = '';
+        $this->cargoMontoNuevo = '';
+    }
+
+    public function guardarNuevoCargo(): void
+    {
+        Gate::authorize('pagos.gestionar');
+
+        $this->validate([
+            'cargoConceptoNuevo' => 'required|string|max:100',
+            'cargoMontoNuevo' => 'required|numeric|min:0.01',
+        ]);
+
+        CargoAdicional::query()->create([
+            'estudiante_id' => $this->estudiante->id,
+            'concepto' => $this->cargoConceptoNuevo,
+            'monto' => (float) $this->cargoMontoNuevo,
+            'estado' => EstadoCuotaEnum::PENDIENTE,
+            'registrado_por' => Auth::id(),
+        ]);
+
+        $this->agregandoCargo = false;
+        $this->cargoConceptoNuevo = '';
+        $this->cargoMontoNuevo = '';
+
+        session()->flash('status', 'Cargo adicional agregado.');
+    }
+
     /**
      * Los cursos del grado y ciclo de esta matrícula, cada uno con sus
      * horarios disponibles (por si tiene varias secciones), cuál está
@@ -326,5 +371,8 @@ new #[Layout('layouts.app')] class extends Component
         :cargos-adicionales="$cargosAdicionales"
         :editando-monto-cargo-id="$editandoMontoCargoId"
         :monto-cargo-nuevo="$montoCargoNuevo"
+        :agregando-cargo="$agregandoCargo"
+        :cargo-concepto-nuevo="$cargoConceptoNuevo"
+        :cargo-monto-nuevo="$cargoMontoNuevo"
     />
 </div>

@@ -1129,4 +1129,89 @@ class MatriculaPermisosTest extends TestCase
         $this->assertSame('pendiente', $cargo->estado->value);
         $this->assertSame(20.0, $cargo->saldoPendiente());
     }
+
+    /**
+     * Pedido del cliente: poder agregar un cargo adicional directamente
+     * desde la ficha del estudiante, no solo al matricularlo.
+     */
+    public function test_agregar_un_cargo_adicional_desde_la_pagina_completa_de_la_ficha(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('mostrarFormularioCargo')
+            ->set('cargoConceptoNuevo', 'Recuperación')
+            ->set('cargoMontoNuevo', '60')
+            ->call('guardarNuevoCargo')
+            ->assertHasNoErrors()
+            ->assertSet('agregandoCargo', false);
+
+        $this->assertDatabaseHas('cargos_adicionales', [
+            'estudiante_id' => $estudiante->id,
+            'concepto' => 'Recuperación',
+            'monto' => 60,
+            'estado' => 'pendiente',
+        ]);
+    }
+
+    public function test_agregar_un_cargo_adicional_desde_el_modal_de_ficha(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.ficha-modal')
+            ->call('abrir', $estudiante->id)
+            ->call('mostrarFormularioCargo')
+            ->set('cargoConceptoNuevo', 'Visación')
+            ->set('cargoMontoNuevo', '25')
+            ->call('guardarNuevoCargo')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('cargos_adicionales', [
+            'estudiante_id' => $estudiante->id,
+            'concepto' => 'Visación',
+            'monto' => 25,
+            'estado' => 'pendiente',
+        ]);
+    }
+
+    public function test_no_se_puede_agregar_un_cargo_adicional_sin_el_permiso_de_gestionar_pagos(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('mostrarFormularioCargo')
+            ->assertForbidden();
+    }
+
+    public function test_agregar_un_cargo_adicional_exige_concepto_y_monto(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('mostrarFormularioCargo')
+            ->call('guardarNuevoCargo')
+            ->assertHasErrors(['cargoConceptoNuevo', 'cargoMontoNuevo']);
+
+        $this->assertDatabaseCount('cargos_adicionales', 0);
+    }
 }

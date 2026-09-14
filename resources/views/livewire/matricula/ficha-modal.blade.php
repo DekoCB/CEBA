@@ -7,6 +7,7 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Services\DocumentoEstudianteService;
 use App\Modules\Matricula\Services\MatriculaService;
+use App\Modules\Pagos\Enums\EstadoCuotaEnum;
 use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Pagos\Services\PagoService;
@@ -47,6 +48,12 @@ new class extends Component
 
     public string $montoCargoNuevo = '';
 
+    public bool $agregandoCargo = false;
+
+    public string $cargoConceptoNuevo = '';
+
+    public string $cargoMontoNuevo = '';
+
     #[On('ver-estudiante')]
     public function abrir(int $estudianteId): void
     {
@@ -63,6 +70,9 @@ new class extends Component
         $this->montoTotalNuevo = '';
         $this->editandoMontoCargoId = null;
         $this->montoCargoNuevo = '';
+        $this->agregandoCargo = false;
+        $this->cargoConceptoNuevo = '';
+        $this->cargoMontoNuevo = '';
     }
 
     public function verificarDocumento(int $documentoId, DocumentoEstudianteService $service): void
@@ -241,6 +251,46 @@ new class extends Component
         $this->montoCargoNuevo = '';
     }
 
+    public function mostrarFormularioCargo(): void
+    {
+        Gate::authorize('pagos.gestionar');
+
+        $this->agregandoCargo = true;
+    }
+
+    public function cancelarNuevoCargo(): void
+    {
+        $this->agregandoCargo = false;
+        $this->cargoConceptoNuevo = '';
+        $this->cargoMontoNuevo = '';
+    }
+
+    public function guardarNuevoCargo(): void
+    {
+        Gate::authorize('pagos.gestionar');
+
+        if ($this->estudianteId === null) {
+            return;
+        }
+
+        $this->validate([
+            'cargoConceptoNuevo' => 'required|string|max:100',
+            'cargoMontoNuevo' => 'required|numeric|min:0.01',
+        ]);
+
+        CargoAdicional::query()->create([
+            'estudiante_id' => $this->estudianteId,
+            'concepto' => $this->cargoConceptoNuevo,
+            'monto' => (float) $this->cargoMontoNuevo,
+            'estado' => EstadoCuotaEnum::PENDIENTE,
+            'registrado_por' => Auth::id(),
+        ]);
+
+        $this->agregandoCargo = false;
+        $this->cargoConceptoNuevo = '';
+        $this->cargoMontoNuevo = '';
+    }
+
     /**
      * Los cursos del grado y ciclo de esta matrícula, cada uno con sus
      * horarios disponibles (por si tiene varias secciones), cuál está
@@ -327,6 +377,9 @@ new class extends Component
                     :cargos-adicionales="$cargosAdicionales"
                     :editando-monto-cargo-id="$editandoMontoCargoId"
                     :monto-cargo-nuevo="$montoCargoNuevo"
+                    :agregando-cargo="$agregandoCargo"
+                    :cargo-concepto-nuevo="$cargoConceptoNuevo"
+                    :cargo-monto-nuevo="$cargoMontoNuevo"
                 />
             @else
                 <p class="py-8 text-center text-sm text-ink-faint">Cargando…</p>

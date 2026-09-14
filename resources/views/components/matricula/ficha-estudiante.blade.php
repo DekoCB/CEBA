@@ -15,6 +15,9 @@
     'cargosAdicionales' => [],
     'editandoMontoCargoId' => null,
     'montoCargoNuevo' => '',
+    'agregandoCargo' => false,
+    'cargoConceptoNuevo' => '',
+    'cargoMontoNuevo' => '',
 ])
 
 {{--
@@ -347,6 +350,29 @@
                     <p class="py-4 text-sm text-ink-faint">Sin cargos adicionales registrados.</p>
                 @endforelse
             </div>
+
+            @can('pagos.gestionar')
+                <div class="mt-4 border-t border-border pt-4">
+                    @if (! $agregandoCargo)
+                        <button type="button" wire:click="mostrarFormularioCargo" class="text-xs font-medium text-accent hover:underline">+ Agregar cargo</button>
+                    @else
+                        <form wire:submit="guardarNuevoCargo" class="flex flex-wrap items-end gap-2">
+                            <div>
+                                <label class="block text-xs text-ink-faint">Concepto</label>
+                                <input type="text" wire:model="cargoConceptoNuevo" placeholder="Ej. Convalidación" class="mt-1 w-48 rounded-md border-border bg-surface text-xs text-ink focus:border-accent focus:ring-accent">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-ink-faint">Monto (S/)</label>
+                                <input type="number" step="0.01" min="0.01" wire:model="cargoMontoNuevo" class="mt-1 w-24 rounded-md border-border bg-surface text-xs text-ink focus:border-accent focus:ring-accent">
+                            </div>
+                            <x-secondary-button type="submit">Guardar</x-secondary-button>
+                            <button type="button" wire:click="cancelarNuevoCargo" class="text-xs text-ink-faint hover:text-ink">Cancelar</button>
+                        </form>
+                        <x-input-error :messages="$errors->get('cargoConceptoNuevo')" class="mt-1" />
+                        <x-input-error :messages="$errors->get('cargoMontoNuevo')" class="mt-1" />
+                    @endif
+                </div>
+            @endcan
         </div>
     @endcan
 </div>
