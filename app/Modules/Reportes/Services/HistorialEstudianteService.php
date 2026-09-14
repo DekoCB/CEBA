@@ -48,7 +48,7 @@ class HistorialEstudianteService
      * @return array{
      *     estudiante: Estudiante,
      *     matriculas: Collection<int, Matricula>,
-     *     resumenPagos: array{totalPagado: float, totalPendiente: float, totalExonerado: float, cuotasVencidas: Collection<int, Cuota>, cargosAdicionalesPendientes: Collection<int, CargoAdicional>},
+     *     resumenPagos: array{totalPagado: float, totalPendiente: float, totalExonerado: float, cuotasVencidas: Collection<int, Cuota>, cuotasPendientes: Collection<int, Cuota>, cargosAdicionalesPendientes: Collection<int, CargoAdicional>},
      *     pagos: Collection<int, Pago>,
      *     documentosSubidos: Collection<int, DocumentoEstudiante>,
      *     documentosEmitidos: Collection<int, Certificado>,
@@ -89,7 +89,7 @@ class HistorialEstudianteService
      * bloquean acceso": aquí interesa el cuadro completo, no la regla de
      * bloqueo.
      *
-     * @return array{totalPagado: float, totalPendiente: float, totalExonerado: float, cuotasVencidas: Collection<int, Cuota>, cargosAdicionalesPendientes: Collection<int, CargoAdicional>}
+     * @return array{totalPagado: float, totalPendiente: float, totalExonerado: float, cuotasVencidas: Collection<int, Cuota>, cuotasPendientes: Collection<int, Cuota>, cargosAdicionalesPendientes: Collection<int, CargoAdicional>}
      */
     private function resumenPagos(Estudiante $estudiante): array
     {
@@ -120,6 +120,10 @@ class HistorialEstudianteService
             'totalExonerado' => (float) $cuotas->where('estado', EstadoCuotaEnum::EXONERADO)->sum('monto')
                 + (float) $cargos->where('estado', EstadoCuotaEnum::EXONERADO)->sum('monto'),
             'cuotasVencidas' => $cuotas->filter(fn (Cuota $cuota) => $cuota->estaVencida())->sortBy('fecha_vencimiento')->values(),
+            // Pedido del cliente: además de las ya vencidas (arriba), ver
+            // las que están por vencer -- sin duplicar: estaVencida() ya
+            // implica estado PENDIENTE, así que se descartan aquí.
+            'cuotasPendientes' => $cuotas->where('estado', EstadoCuotaEnum::PENDIENTE)->reject(fn (Cuota $cuota) => $cuota->estaVencida())->sortBy('fecha_vencimiento')->values(),
             'cargosAdicionalesPendientes' => $cargos->where('estado', EstadoCuotaEnum::PENDIENTE)->values(),
         ];
     }

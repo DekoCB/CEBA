@@ -72,6 +72,24 @@
         </table>
     @endif
 
+    @if ($resumenPagos['cuotasPendientes']->isNotEmpty())
+        <div class="subseccion">Cuotas pendientes</div>
+        <table>
+            <thead><tr><th>Cuota</th><th>Grado</th><th>Ciclo</th><th>Saldo</th><th>Vence</th></tr></thead>
+            <tbody>
+                @foreach ($resumenPagos['cuotasPendientes'] as $cuota)
+                    <tr>
+                        <td>{{ $cuota->numero }}</td>
+                        <td>{{ $cuota->planPago->matricula?->grado->nombre }}</td>
+                        <td>{{ $cuota->planPago->matricula?->ciclo->nombre }}</td>
+                        <td>S/ {{ number_format($cuota->saldoPendiente(), 2) }}</td>
+                        <td>{{ $cuota->fecha_vencimiento->format('d/m/Y') }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endif
+
     <div class="subseccion">Detalle de pagos</div>
     <table>
         <thead>

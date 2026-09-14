@@ -249,6 +249,18 @@ new #[Layout('layouts.app')] class extends Component
                     </div>
                 @endif
 
+                @if ($historial['resumenPagos']['cuotasPendientes']->isNotEmpty())
+                    <h3 class="mt-4 text-xs font-semibold uppercase tracking-wide text-warn">Cuotas pendientes</h3>
+                    <div class="mt-2 divide-y divide-border">
+                        @foreach ($historial['resumenPagos']['cuotasPendientes'] as $cuota)
+                            <div class="flex items-center justify-between py-2 text-sm">
+                                <span class="text-ink-dim">Cuota {{ $cuota->numero }} · {{ $cuota->planPago->matricula?->grado->nombre }} · {{ $cuota->planPago->matricula?->ciclo->nombre }}</span>
+                                <span class="text-warn">S/ {{ number_format($cuota->saldoPendiente(), 2) }} · vence {{ $cuota->fecha_vencimiento->format('d/m/Y') }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+
                 @if ($historial['resumenPagos']['cargosAdicionalesPendientes']->isNotEmpty())
                     <h3 class="mt-4 text-xs font-semibold uppercase tracking-wide text-warn">Cargos adicionales pendientes</h3>
                     <div class="mt-2 divide-y divide-border">

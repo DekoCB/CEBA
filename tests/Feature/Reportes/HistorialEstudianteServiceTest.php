@@ -73,6 +73,28 @@ class HistorialEstudianteServiceTest extends TestCase
     }
 
     /**
+     * Pedido del cliente: además de las cuotas ya vencidas, ver las que
+     * todavía están pendientes con su fecha de vencimiento -- sin
+     * duplicar las vencidas en ambas listas.
+     */
+    public function test_el_resumen_de_pagos_incluye_las_cuotas_pendientes_por_vencer_sin_duplicar_las_vencidas(): void
+    {
+        $estudiante = Estudiante::factory()->create(['dni' => '99998888']);
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
+
+        $porVencer = Cuota::factory()->create(['plan_pago_id' => $plan->id, 'numero' => 1, 'monto' => 100]);
+        $vencida = Cuota::factory()->vencida()->create(['plan_pago_id' => $plan->id, 'numero' => 2, 'monto' => 150]);
+
+        $historial = $this->service()->porDni('99998888');
+
+        $this->assertCount(1, $historial['resumenPagos']['cuotasPendientes']);
+        $this->assertSame($porVencer->id, $historial['resumenPagos']['cuotasPendientes']->first()->id);
+        $this->assertCount(1, $historial['resumenPagos']['cuotasVencidas']);
+        $this->assertSame($vencida->id, $historial['resumenPagos']['cuotasVencidas']->first()->id);
+    }
+
+    /**
      * Regresión: el cliente reportó que "Pagado" no reflejaba los pagos
      * parciales, y que "Pendiente" mostraba el monto completo de la cuota
      * en vez de lo que realmente faltaba. resumenPagos() ahora suma
