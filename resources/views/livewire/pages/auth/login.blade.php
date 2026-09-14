@@ -111,13 +111,27 @@ new #[Layout('layouts.login')] class extends Component
             </div>
 
             <!-- Password -->
-            <div class="mt-4">
+            <div class="mt-4" x-data="{ mostrar: false }">
                 <x-input-label for="password" :value="__('Password')" />
 
-                <x-text-input wire:model="form.password" id="password" class="block mt-1 w-full"
-                                type="password"
-                                name="password"
-                                required autocomplete="current-password" />
+                <div class="relative mt-1">
+                    <x-text-input wire:model="form.password" id="password" class="block w-full pr-10"
+                                    type="password"
+                                    x-bind:type="mostrar ? 'text' : 'password'"
+                                    name="password"
+                                    required autocomplete="current-password" />
+
+                    <button
+                        type="button"
+                        x-on:click="mostrar = ! mostrar"
+                        class="absolute inset-y-0 right-0 flex items-center px-2.5 text-ink-faint transition hover:text-accent"
+                        x-bind:aria-label="mostrar ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+                        tabindex="-1"
+                    >
+                        <x-heroicon-o-eye-slash x-show="mostrar" x-cloak class="h-4 w-4" />
+                        <x-heroicon-o-eye x-show="! mostrar" class="h-4 w-4" />
+                    </button>
+                </div>
 
                 <x-input-error :messages="$errors->get('form.password')" class="mt-2" />
             </div>
