@@ -194,7 +194,7 @@ new #[Layout('layouts.app')] class extends Component
             @forelse ($misPagos as $pago)
                 <div class="flex items-center justify-between py-3 text-sm">
                     <div>
-                        <p class="text-ink">{{ $pago->concepto->nombre }}</p>
+                        <p class="text-ink">{{ $pago->nombreConcepto() }}</p>
                         <p class="text-xs text-ink-faint">{{ $pago->fecha_pago->format('d/m/Y') }} · {{ $pago->metodo->label() }}</p>
                     </div>
                     <div class="text-right">

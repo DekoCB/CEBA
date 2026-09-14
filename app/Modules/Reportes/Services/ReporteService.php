@@ -102,7 +102,7 @@ class ReporteService
         $sinFiltros = $this->sinFiltros($cicloId, $gradoId, $cursoId, $franja, $siagieId);
 
         $pagos = Pago::query()
-            ->with(['estudiante', 'concepto'])
+            ->with(['estudiante', 'concepto', 'cargoAdicional'])
             ->when(! $sinFiltros, fn ($query) => $query->whereHas(
                 'estudiante.matriculas',
                 fn ($sub) => $this->filtrarMatriculasPorFiltros($sub, $cicloId, $gradoId, $cursoId, $franja, $siagieId),
@@ -114,7 +114,7 @@ class ReporteService
             'columnas' => ['Estudiante', 'Concepto', 'Monto', 'Método', 'Estado', 'Fecha de pago'],
             'filas' => $pagos->map(fn (Pago $pago) => [
                 $pago->estudiante?->nombreCompleto() ?? '—',
-                $pago->concepto->nombre,
+                $pago->nombreConcepto(),
                 number_format((float) $pago->monto, 2),
                 $pago->metodo->label(),
                 $pago->estado->label(),

@@ -14,6 +14,8 @@ use App\Modules\Matricula\Enums\TipoDocumentoEnum;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Services\DocumentoEstudianteService;
+use App\Modules\Pagos\Models\CargoAdicional;
+use App\Modules\Pagos\Models\Pago;
 use App\Modules\Pagos\Models\PlanPago;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -536,6 +538,154 @@ class MatriculaPermisosTest extends TestCase
     }
 
     /**
+     * Pedido del cliente: al matricular, poder anotar cobros futuros
+     * puntuales aparte de la mensualidad (Convalidación, Exoneración...),
+     * con concepto y monto libres editables caso por caso.
+     */
+    public function test_confirmar_matricula_con_cargos_adicionales_crea_los_registros_correctos(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Camila')
+            ->set('apellidos', 'Rojas Díaz')
+            ->set('dni', '55667711')
+            ->set('fechaNacimiento', now()->subYears(30)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertSet('paso', 3)
+            ->set('dniEstudianteCaraArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->call('avanzar')
+            ->assertSet('paso', 4)
+            ->call('avanzar')
+            ->assertSet('paso', 5)
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->call('avanzar')
+            ->assertSet('paso', 6)
+            ->call('agregarCargoAdicional')
+            ->call('agregarCargoAdicional')
+            ->set('cargosAdicionales.0.concepto', 'Convalidación')
+            ->set('cargosAdicionales.0.monto', '50')
+            ->set('cargosAdicionales.1.concepto', 'Exoneración')
+            ->set('cargosAdicionales.1.monto', '30')
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $estudiante = Estudiante::query()->where('dni', '55667711')->firstOrFail();
+        $cargos = CargoAdicional::query()->where('estudiante_id', $estudiante->id)->get();
+
+        $this->assertCount(2, $cargos);
+        $this->assertSame('50.00', $cargos->firstWhere('concepto', 'Convalidación')->monto);
+        $this->assertSame('30.00', $cargos->firstWhere('concepto', 'Exoneración')->monto);
+        $this->assertTrue($cargos->every(fn (CargoAdicional $cargo) => $cargo->estado->value === 'pendiente'));
+    }
+
+    public function test_confirmar_matricula_ignora_una_fila_de_cargo_adicional_completamente_vacia(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Camila')
+            ->set('apellidos', 'Rojas Díaz')
+            ->set('dni', '55667712')
+            ->set('fechaNacimiento', now()->subYears(30)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertSet('paso', 3)
+            ->set('dniEstudianteCaraArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->call('avanzar')
+            ->assertSet('paso', 4)
+            ->call('avanzar')
+            ->assertSet('paso', 5)
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->call('avanzar')
+            ->assertSet('paso', 6)
+            ->call('agregarCargoAdicional')
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $estudiante = Estudiante::query()->where('dni', '55667712')->firstOrFail();
+
+        $this->assertSame(0, CargoAdicional::query()->where('estudiante_id', $estudiante->id)->count());
+    }
+
+    public function test_confirmar_matricula_exige_el_monto_si_una_fila_de_cargo_adicional_tiene_concepto(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Camila')
+            ->set('apellidos', 'Rojas Díaz')
+            ->set('dni', '55667713')
+            ->set('fechaNacimiento', now()->subYears(30)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertSet('paso', 3)
+            ->set('dniEstudianteCaraArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->call('avanzar')
+            ->assertSet('paso', 4)
+            ->call('avanzar')
+            ->assertSet('paso', 5)
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->call('avanzar')
+            ->assertSet('paso', 6)
+            ->call('agregarCargoAdicional')
+            ->set('cargosAdicionales.0.concepto', 'Convalidación')
+            ->call('confirmar')
+            ->assertHasErrors(['cargosAdicionales.0.concepto'])
+            ->assertNotDispatched('matricula-registrada');
+
+        $this->assertDatabaseMissing('estudiantes', ['dni' => '55667713']);
+    }
+
+    /**
      * Avanza el wizard hasta el paso 5 (Matrícula) para un estudiante mayor
      * de edad recién creado, listo para setear cicloId/gradoId.
      */
@@ -870,5 +1020,113 @@ class MatriculaPermisosTest extends TestCase
             ->assertHasErrors(['montoTotal']);
 
         $this->assertSame('600.00', $plan->fresh()->monto_total);
+    }
+
+    /**
+     * Pedido del cliente: que los cargos adicionales (Convalidación,
+     * Exoneración...) aparezcan en la ficha del estudiante, debajo del
+     * plan de pago de cuotas, y que su monto se pueda editar ahí mismo.
+     */
+    public function test_editar_monto_de_un_cargo_adicional_desde_la_pagina_completa_de_la_ficha(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $cargo = CargoAdicional::factory()->create(['estudiante_id' => $estudiante->id, 'monto' => 50]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('editarMontoCargo', $cargo->id)
+            ->assertSet('montoCargoNuevo', '50.00')
+            ->set('montoCargoNuevo', '80')
+            ->call('guardarMontoCargo')
+            ->assertHasNoErrors();
+
+        $this->assertSame('80.00', $cargo->fresh()->monto);
+    }
+
+    public function test_editar_monto_de_un_cargo_adicional_desde_el_modal_de_ficha(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $cargo = CargoAdicional::factory()->create(['estudiante_id' => $estudiante->id, 'monto' => 50]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.ficha-modal')
+            ->call('abrir', $estudiante->id)
+            ->call('editarMontoCargo', $cargo->id)
+            ->set('montoCargoNuevo', '80')
+            ->call('guardarMontoCargo')
+            ->assertHasNoErrors();
+
+        $this->assertSame('80.00', $cargo->fresh()->monto);
+    }
+
+    public function test_no_se_puede_editar_monto_de_un_cargo_adicional_sin_el_permiso_de_gestionar_pagos(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $cargo = CargoAdicional::factory()->create(['estudiante_id' => $estudiante->id]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('editarMontoCargo', $cargo->id)
+            ->assertForbidden();
+    }
+
+    public function test_editar_monto_de_cargo_adicional_menor_a_lo_ya_pagado_muestra_error(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $cargo = CargoAdicional::factory()->create(['estudiante_id' => $estudiante->id, 'monto' => 80]);
+        Pago::factory()->aprobado()->create(['estudiante_id' => $estudiante->id, 'cargo_adicional_id' => $cargo->id, 'monto' => 40]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('editarMontoCargo', $cargo->id)
+            ->set('montoCargoNuevo', '30')
+            ->call('guardarMontoCargo')
+            ->assertHasErrors(['montoCargoNuevo']);
+
+        $this->assertSame('80.00', $cargo->fresh()->monto);
+    }
+
+    /**
+     * Subir el monto de un cargo ya pagado del todo deja saldo pendiente
+     * otra vez -- el estado debe reflejarlo, no quedarse en "pagado" con
+     * un saldo real mayor a cero (el mismo requisito de "sin huecos").
+     */
+    public function test_subir_el_monto_de_un_cargo_ya_pagado_lo_vuelve_a_pendiente(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $cargo = CargoAdicional::factory()->pagado()->create(['estudiante_id' => $estudiante->id, 'monto' => 50]);
+        Pago::factory()->aprobado()->create(['estudiante_id' => $estudiante->id, 'cargo_adicional_id' => $cargo->id, 'monto' => 50]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('editarMontoCargo', $cargo->id)
+            ->set('montoCargoNuevo', '70')
+            ->call('guardarMontoCargo')
+            ->assertHasNoErrors();
+
+        $cargo->refresh();
+        $this->assertSame('70.00', $cargo->monto);
+        $this->assertSame('pendiente', $cargo->estado->value);
+        $this->assertSame(20.0, $cargo->saldoPendiente());
     }
 }

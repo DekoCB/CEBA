@@ -10,6 +10,7 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Pagos\Enums\EstadoCuotaEnum;
 use App\Modules\Pagos\Enums\EstadoPagoEnum;
 use App\Modules\Pagos\Enums\TipoConceptoEnum;
+use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Models\Pago;
@@ -21,20 +22,21 @@ use Illuminate\Support\Collection;
  * Cobranza), o qué estudiantes deben uno o más conceptos dentro de un
  * Grupo/Grado/Curso filtrado (vista grupal).
  *
- * "Deber" se resuelve distinto según el tipo de concepto, porque solo
- * Mensualidad tiene una obligación real registrada en el sistema (las
- * Cuotas de un PlanPago -- ver Matricula/PlanPago/Cuota). Los demás
- * conceptos (Matrícula, Certificado, Constancia, Penalidad, Otro) no
- * tienen ninguna obligación registrada de antemano: solo existe un Pago
- * si alguien ya intentó pagar. Ahí "deber" se interpreta como tener un
- * Pago Pendiente (esperando aprobación de Tesorería) o Rechazado (hay
- * que volver a pagar) para ese concepto -- la única señal real que ya
- * existe en el sistema para esos casos.
+ * "Deber" se resuelve distinto según el tipo de concepto. Mensualidad
+ * (Cuotas de un PlanPago) y los cargos adicionales puntuales por estudiante
+ * (CargoAdicional -- Convalidación, Exoneración, Recuperación, Visación...,
+ * agregados al matricular) sí tienen una obligación real registrada de
+ * antemano. El resto del catálogo (Matrícula, Certificado, Constancia,
+ * Penalidad, Otro) no tiene ninguna obligación registrada de antemano:
+ * solo existe un Pago si alguien ya intentó pagar. Ahí "deber" se
+ * interpreta como tener un Pago Pendiente (esperando aprobación de
+ * Tesorería) o Rechazado (hay que volver a pagar) para ese concepto -- la
+ * única señal real que existe en el sistema para esos casos.
  */
 class CobranzaService
 {
     /**
-     * @return array{cuotasPendientes: Collection<int, Cuota>, pagosPendientes: Collection<int, Pago>, pagosAprobados: Collection<int, Pago>}
+     * @return array{cuotasPendientes: Collection<int, Cuota>, cargosAdicionalesPendientes: Collection<int, CargoAdicional>, pagosPendientes: Collection<int, Pago>, pagosAprobados: Collection<int, Pago>}
      */
     public function deudaDeEstudiante(Estudiante $estudiante): array
     {
@@ -45,24 +47,31 @@ class CobranzaService
             ->orderBy('fecha_vencimiento')
             ->get();
 
+        $cargosAdicionalesPendientes = CargoAdicional::query()
+            ->where('estudiante_id', $estudiante->id)
+            ->where('estado', EstadoCuotaEnum::PENDIENTE)
+            ->latest()
+            ->get();
+
         $pagosPendientes = Pago::query()
             ->where('estudiante_id', $estudiante->id)
             ->whereIn('estado', [EstadoPagoEnum::PENDIENTE, EstadoPagoEnum::RECHAZADO])
-            ->with('concepto')
+            ->with(['concepto', 'cargoAdicional'])
             ->latest('fecha_pago')
             ->get();
 
         // Lo ya cobrado (aprobado): el detalle completo de "ya pagado", a
-        // diferencia de las dos colecciones de arriba que son deuda.
+        // diferencia de las colecciones de arriba que son deuda.
         $pagosAprobados = Pago::query()
             ->where('estudiante_id', $estudiante->id)
             ->where('estado', EstadoPagoEnum::APROBADO)
-            ->with(['concepto', 'recibo', 'partes'])
+            ->with(['concepto', 'cargoAdicional', 'recibo', 'partes'])
             ->latest('fecha_pago')
             ->get();
 
         return [
             'cuotasPendientes' => $cuotasPendientes,
+            'cargosAdicionalesPendientes' => $cargosAdicionalesPendientes,
             'pagosPendientes' => $pagosPendientes,
             'pagosAprobados' => $pagosAprobados,
         ];

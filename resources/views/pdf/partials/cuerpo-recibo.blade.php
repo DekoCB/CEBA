@@ -62,7 +62,7 @@
     <tbody>
         <tr>
             <td class="col-cant">1</td>
-            <td>{{ $pago->concepto->nombre }}{{ $pago->detalle ? ' — '.$pago->detalle : '' }}</td>
+            <td>{{ $pago->nombreConcepto() }}{{ $pago->detalle ? ' — '.$pago->detalle : '' }}</td>
             <td class="col-monto">S/ {{ number_format((float) $pago->monto, 2) }}</td>
             <td class="col-monto">S/ {{ number_format((float) $pago->monto, 2) }}</td>
         </tr>

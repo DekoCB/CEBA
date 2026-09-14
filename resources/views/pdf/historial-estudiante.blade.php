@@ -81,7 +81,7 @@
             @forelse ($pagos as $pago)
                 <tr>
                     <td>{{ $pago->fecha_pago->format('d/m/Y') }}</td>
-                    <td>{{ $pago->concepto->nombre }}{{ $pago->detalle ? " — {$pago->detalle}" : '' }}</td>
+                    <td>{{ $pago->nombreConcepto() }}{{ $pago->detalle ? " — {$pago->detalle}" : '' }}</td>
                     <td>{{ $pago->metodo->label() }}</td>
                     <td>{{ $pago->estado->label() }}{{ $pago->estado->value === 'rechazado' && $pago->motivo_rechazo ? " — {$pago->motivo_rechazo}" : '' }}</td>
                     <td>S/ {{ number_format((float) $pago->monto, 2) }}</td>

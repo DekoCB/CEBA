@@ -12,6 +12,7 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Enums\EstadoCuotaEnum;
 use App\Modules\Pagos\Enums\EstadoPagoEnum;
+use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Models\Pago;
 use App\Modules\Pagos\Models\PlanPago;
@@ -91,6 +92,27 @@ class HistorialEstudianteServiceTest extends TestCase
 
         $this->assertSame(40.0, $historial['resumenPagos']['totalPagado']);
         $this->assertSame(40.0, $historial['resumenPagos']['totalPendiente']);
+    }
+
+    /**
+     * Mismo requisito que la regresión de cuotas de arriba, ahora para
+     * cargos adicionales (Convalidación, Exoneración...): un pago parcial
+     * aprobado contra un cargo debe sumar/restar igual de bien, no dejar
+     * huecos -- pedido explícito del cliente al aprobar esta funcionalidad.
+     */
+    public function test_un_cargo_adicional_con_pago_parcial_aprobado_se_refleja_en_pagado_y_en_pendiente(): void
+    {
+        $estudiante = Estudiante::factory()->create(['dni' => '77778888']);
+        $cargo = CargoAdicional::factory()->create(['estudiante_id' => $estudiante->id, 'concepto' => 'Convalidación', 'monto' => 80]);
+
+        Pago::factory()->aprobado()->create(['estudiante_id' => $estudiante->id, 'cargo_adicional_id' => $cargo->id, 'monto' => 40]);
+
+        $historial = $this->service()->porDni('77778888');
+
+        $this->assertSame(40.0, $historial['resumenPagos']['totalPagado']);
+        $this->assertSame(40.0, $historial['resumenPagos']['totalPendiente']);
+        $this->assertCount(1, $historial['resumenPagos']['cargosAdicionalesPendientes']);
+        $this->assertSame(40.0, $historial['resumenPagos']['cargosAdicionalesPendientes']->first()->saldoPendiente());
     }
 
     public function test_pagos_trae_el_detalle_de_cada_pago_sin_importar_su_estado(): void

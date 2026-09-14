@@ -9,6 +9,7 @@ use App\Modules\Pagos\Enums\EstadoCuotaEnum;
 use App\Modules\Pagos\Enums\EstadoPagoEnum;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use App\Modules\Pagos\Enums\SerieReciboEnum;
+use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Models\Pago;
@@ -46,6 +47,7 @@ class PagoService
         ?string $detalle = null,
         ?string $observacion = null,
         ?string $fechaPago = null,
+        ?CargoAdicional $cargoAdicional = null,
     ): Pago {
         if ($partes === []) {
             throw new InvalidArgumentException('Un pago necesita al menos una parte (monto y método).');
@@ -54,6 +56,12 @@ class PagoService
         if ($cuota && Pago::query()->where('cuota_id', $cuota->id)->where('estado', EstadoPagoEnum::PENDIENTE)->exists()) {
             throw ValidationException::withMessages([
                 'cuota' => 'Ya existe un pago pendiente de aprobación para esta cuota.',
+            ]);
+        }
+
+        if ($cargoAdicional && Pago::query()->where('cargo_adicional_id', $cargoAdicional->id)->where('estado', EstadoPagoEnum::PENDIENTE)->exists()) {
+            throw ValidationException::withMessages([
+                'cargoAdicional' => 'Ya existe un pago pendiente de aprobación para este cargo.',
             ]);
         }
 
@@ -67,7 +75,7 @@ class PagoService
         // siempre la del momento en que Tesorería aprueba), que no se toca.
         $fecha = $fechaPago !== null ? Carbon::parse($fechaPago) : now();
 
-        return DB::transaction(function () use ($estudiante, $concepto, $detalle, $observacion, $cuota, $montoTotal, $metodo, $registradoPor, $comprobante, $partes, $fecha) {
+        return DB::transaction(function () use ($estudiante, $concepto, $detalle, $observacion, $cuota, $cargoAdicional, $montoTotal, $metodo, $registradoPor, $comprobante, $partes, $fecha) {
             /** @var Pago $pago */
             $pago = Pago::query()->create([
                 'estudiante_id' => $estudiante->id,
@@ -75,6 +83,7 @@ class PagoService
                 'detalle' => $detalle,
                 'observacion' => $observacion,
                 'cuota_id' => $cuota?->id,
+                'cargo_adicional_id' => $cargoAdicional?->id,
                 'monto' => $montoTotal,
                 'metodo' => $metodo,
                 'estado' => EstadoPagoEnum::PENDIENTE,
@@ -119,11 +128,52 @@ class PagoService
                 ]);
             }
 
+            if ($pago->cargoAdicional) {
+                // Mismo criterio que las cuotas: puede ser un pago parcial.
+                $pago->cargoAdicional->update([
+                    'estado' => $pago->cargoAdicional->saldoPendiente() <= 0.0 ? EstadoCuotaEnum::PAGADO : EstadoCuotaEnum::PENDIENTE,
+                ]);
+            }
+
             $this->recibos->emitir($pago, $serie);
             $this->bloqueos->evaluarYDesbloquear($pago->estudiante);
         });
 
         return $pago->refresh();
+    }
+
+    /**
+     * Corrige el monto nominal de un cargo adicional (ej. se anotó mal el
+     * precio de la Convalidación al matricular). No puede bajar del monto
+     * ya cobrado -- mismo criterio que PlanPagoService::editarMontoTotal()
+     * para cuotas. Si el cargo ya estaba "pagado" y el nuevo monto deja
+     * saldo pendiente, vuelve a "pendiente": el estado siempre refleja el
+     * saldo real, nunca al revés.
+     */
+    public function editarMontoCargoAdicional(CargoAdicional $cargoAdicional, float $nuevoMonto): CargoAdicional
+    {
+        if ($nuevoMonto <= 0) {
+            throw ValidationException::withMessages([
+                'montoCargoNuevo' => 'El monto debe ser mayor a cero.',
+            ]);
+        }
+
+        $montoPagado = $cargoAdicional->montoPagado();
+
+        if ($nuevoMonto < $montoPagado) {
+            throw ValidationException::withMessages([
+                'montoCargoNuevo' => 'El nuevo monto no puede ser menor a lo ya pagado (S/ '.number_format($montoPagado, 2).').',
+            ]);
+        }
+
+        $cargoAdicional->update([
+            'monto' => $nuevoMonto,
+            'estado' => $cargoAdicional->estado === EstadoCuotaEnum::PAGADO && $nuevoMonto > $montoPagado
+                ? EstadoCuotaEnum::PENDIENTE
+                : $cargoAdicional->estado,
+        ]);
+
+        return $cargoAdicional->fresh();
     }
 
     public function rechazar(Pago $pago, int $aprobadoPor, string $motivo): Pago
@@ -147,7 +197,7 @@ class PagoService
     {
         return Pago::query()
             ->where('estudiante_id', $estudiante->id)
-            ->with(['concepto', 'cuota', 'recibo', 'partes'])
+            ->with(['concepto', 'cuota', 'cargoAdicional', 'recibo', 'partes'])
             ->latest('fecha_pago')
             ->get();
     }
@@ -159,7 +209,7 @@ class PagoService
     {
         return Pago::query()
             ->where('estado', EstadoPagoEnum::PENDIENTE)
-            ->with(['estudiante', 'concepto', 'cuota', 'partes'])
+            ->with(['estudiante', 'concepto', 'cuota', 'cargoAdicional', 'partes'])
             ->oldest('fecha_pago')
             ->get();
     }
@@ -170,7 +220,7 @@ class PagoService
     public function todos(): Collection
     {
         return Pago::query()
-            ->with(['estudiante', 'concepto', 'cuota', 'recibo', 'partes'])
+            ->with(['estudiante', 'concepto', 'cuota', 'cargoAdicional', 'recibo', 'partes'])
             ->latest('fecha_pago')
             ->get();
     }

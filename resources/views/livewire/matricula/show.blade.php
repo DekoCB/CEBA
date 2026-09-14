@@ -7,7 +7,9 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Services\DocumentoEstudianteService;
 use App\Modules\Matricula\Services\MatriculaService;
+use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Models\PlanPago;
+use App\Modules\Pagos\Services\PagoService;
 use App\Modules\Pagos\Services\PlanPagoService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -34,6 +36,10 @@ new #[Layout('layouts.app')] class extends Component
     public ?int $editandoMontoPlanId = null;
 
     public string $montoTotalNuevo = '';
+
+    public ?int $editandoMontoCargoId = null;
+
+    public string $montoCargoNuevo = '';
 
     public function mount(Estudiante $estudiante): void
     {
@@ -195,6 +201,42 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('status', 'Monto del plan de pago actualizado.');
     }
 
+    public function editarMontoCargo(int $cargoId): void
+    {
+        Gate::authorize('pagos.gestionar');
+
+        $cargo = CargoAdicional::query()->findOrFail($cargoId);
+
+        $this->editandoMontoCargoId = $cargoId;
+        $this->montoCargoNuevo = (string) $cargo->monto;
+    }
+
+    public function cancelarEdicionMontoCargo(): void
+    {
+        $this->editandoMontoCargoId = null;
+        $this->montoCargoNuevo = '';
+    }
+
+    public function guardarMontoCargo(PagoService $service): void
+    {
+        Gate::authorize('pagos.gestionar');
+
+        if ($this->editandoMontoCargoId === null) {
+            return;
+        }
+
+        $this->validate(['montoCargoNuevo' => 'required|numeric|min:0.01']);
+
+        $cargo = CargoAdicional::query()->findOrFail($this->editandoMontoCargoId);
+
+        $service->editarMontoCargoAdicional($cargo, (float) $this->montoCargoNuevo);
+
+        $this->editandoMontoCargoId = null;
+        $this->montoCargoNuevo = '';
+
+        session()->flash('status', 'Monto del cargo adicional actualizado.');
+    }
+
     /**
      * Los cursos del grado y ciclo de esta matrícula, cada uno con sus
      * horarios disponibles (por si tiene varias secciones), cuál está
@@ -240,6 +282,9 @@ new #[Layout('layouts.app')] class extends Component
             'planesPorMatricula' => Auth::user()->hasPermissionTo('pagos.ver')
                 ? $matriculas->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $planes->planDe($matricula)])
                 : collect(),
+            'cargosAdicionales' => Auth::user()->hasPermissionTo('pagos.ver')
+                ? CargoAdicional::query()->where('estudiante_id', $this->estudiante->id)->get()
+                : collect(),
         ];
     }
 }; ?>
@@ -278,5 +323,8 @@ new #[Layout('layouts.app')] class extends Component
         :planes-por-matricula="$planesPorMatricula"
         :editando-monto-plan-id="$editandoMontoPlanId"
         :monto-total-nuevo="$montoTotalNuevo"
+        :cargos-adicionales="$cargosAdicionales"
+        :editando-monto-cargo-id="$editandoMontoCargoId"
+        :monto-cargo-nuevo="$montoCargoNuevo"
     />
 </div>

@@ -8,6 +8,7 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Enums\EstadoPagoEnum;
 use App\Modules\Pagos\Enums\TipoConceptoEnum;
+use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Models\Pago;
@@ -42,6 +43,21 @@ class CobranzaServiceTest extends TestCase
         $this->assertCount(1, $deuda['pagosAprobados']);
     }
 
+    public function test_deuda_de_estudiante_incluye_el_cargo_adicional_pendiente_con_su_saldo_real(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $cargo = CargoAdicional::factory()->create(['estudiante_id' => $estudiante->id, 'monto' => 80]);
+        Pago::factory()->aprobado()->create(['estudiante_id' => $estudiante->id, 'cargo_adicional_id' => $cargo->id, 'monto' => 30]);
+
+        // No debería contar: ya está pagado del todo.
+        CargoAdicional::factory()->pagado()->create(['estudiante_id' => $estudiante->id]);
+
+        $deuda = app(CobranzaService::class)->deudaDeEstudiante($estudiante);
+
+        $this->assertCount(1, $deuda['cargosAdicionalesPendientes']);
+        $this->assertSame(50.0, $deuda['cargosAdicionalesPendientes']->first()->saldoPendiente());
+    }
+
     public function test_deuda_de_estudiante_no_incluye_cuotas_ni_pagos_de_otro_estudiante(): void
     {
         $estudiante = Estudiante::factory()->create();
@@ -51,12 +67,14 @@ class CobranzaServiceTest extends TestCase
         Cuota::factory()->create(['plan_pago_id' => $planOtro->id]);
         Pago::factory()->create(['estudiante_id' => $otro->id, 'estado' => EstadoPagoEnum::PENDIENTE]);
         Pago::factory()->aprobado()->create(['estudiante_id' => $otro->id]);
+        CargoAdicional::factory()->create(['estudiante_id' => $otro->id]);
 
         $deuda = app(CobranzaService::class)->deudaDeEstudiante($estudiante);
 
         $this->assertCount(0, $deuda['cuotasPendientes']);
         $this->assertCount(0, $deuda['pagosPendientes']);
         $this->assertCount(0, $deuda['pagosAprobados']);
+        $this->assertCount(0, $deuda['cargosAdicionalesPendientes']);
     }
 
     public function test_deudores_por_concepto_mensualidad_filtra_por_grupo_y_grado(): void

@@ -249,12 +249,24 @@ new #[Layout('layouts.app')] class extends Component
                     </div>
                 @endif
 
+                @if ($historial['resumenPagos']['cargosAdicionalesPendientes']->isNotEmpty())
+                    <h3 class="mt-4 text-xs font-semibold uppercase tracking-wide text-warn">Cargos adicionales pendientes</h3>
+                    <div class="mt-2 divide-y divide-border">
+                        @foreach ($historial['resumenPagos']['cargosAdicionalesPendientes'] as $cargo)
+                            <div class="flex items-center justify-between py-2 text-sm">
+                                <span class="text-ink-dim">{{ $cargo->concepto }}</span>
+                                <span class="text-warn">S/ {{ number_format($cargo->saldoPendiente(), 2) }} pendiente</span>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+
                 <h3 class="mt-4 text-xs font-semibold uppercase tracking-wide text-ink-faint">Detalle de pagos</h3>
                 <div class="mt-2 divide-y divide-border">
                     @forelse ($historial['pagos'] as $pago)
                         <div class="flex items-center justify-between gap-4 py-3 text-sm">
                             <div>
-                                <p class="text-ink">{{ $pago->concepto->nombre }}{{ $pago->detalle ? " — {$pago->detalle}" : '' }}</p>
+                                <p class="text-ink">{{ $pago->nombreConcepto() }}{{ $pago->detalle ? " — {$pago->detalle}" : '' }}</p>
                                 <p class="text-xs text-ink-faint">{{ $pago->fecha_pago->format('d/m/Y') }} · {{ $pago->medioPagoResumen() }}</p>
                                 @if ($pago->partes->count() > 1)
                                     <p class="text-xs text-ink-faint">

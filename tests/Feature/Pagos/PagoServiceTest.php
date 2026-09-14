@@ -7,6 +7,7 @@ use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Pagos\Enums\EstadoPagoEnum;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use App\Modules\Pagos\Enums\SerieReciboEnum;
+use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Services\PagoService;
@@ -132,6 +133,107 @@ class PagoServiceTest extends TestCase
         $cuota->refresh();
         $this->assertSame('pagado', $cuota->estado->value);
         $this->assertSame(0.0, $cuota->saldoPendiente());
+    }
+
+    public function test_no_permite_registrar_dos_pagos_pendientes_para_el_mismo_cargo_adicional(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+        $cargo = CargoAdicional::factory()->create();
+
+        $this->service()->registrar($estudiante, $concepto, [['monto' => 50.0, 'metodo' => 'yape']], null, null, null, cargoAdicional: $cargo);
+
+        $this->expectException(ValidationException::class);
+
+        $this->service()->registrar($estudiante, $concepto, [['monto' => 50.0, 'metodo' => 'transferencia']], null, null, null, cargoAdicional: $cargo);
+    }
+
+    public function test_un_pago_parcial_no_marca_el_cargo_adicional_como_pagado_y_el_saldo_se_va_descontando(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+        $cargo = CargoAdicional::factory()->create(['monto' => 80]);
+
+        $primerPago = $this->service()->registrar($estudiante, $concepto, [['monto' => 40.0, 'metodo' => 'yape']], null, null, null, cargoAdicional: $cargo);
+        $this->service()->aprobar($primerPago, $this->aprobador(), SerieReciboEnum::ORIGINAL);
+
+        $cargo->refresh();
+        $this->assertSame('pendiente', $cargo->estado->value);
+        $this->assertSame(40.0, $cargo->saldoPendiente());
+
+        $segundoPago = $this->service()->registrar($estudiante, $concepto, [['monto' => 40.0, 'metodo' => 'efectivo']], null, null, null, cargoAdicional: $cargo);
+        $this->service()->aprobar($segundoPago, $this->aprobador(), SerieReciboEnum::ORIGINAL);
+
+        $cargo->refresh();
+        $this->assertSame('pagado', $cargo->estado->value);
+        $this->assertSame(0.0, $cargo->saldoPendiente());
+    }
+
+    public function test_editar_monto_de_cargo_adicional_actualiza_el_monto(): void
+    {
+        $cargo = CargoAdicional::factory()->create(['monto' => 50]);
+
+        $actualizado = $this->service()->editarMontoCargoAdicional($cargo, 80.0);
+
+        $this->assertSame('80.00', $actualizado->monto);
+    }
+
+    public function test_editar_monto_de_cargo_adicional_a_cero_o_negativo_lanza_excepcion(): void
+    {
+        $cargo = CargoAdicional::factory()->create(['monto' => 50]);
+
+        $this->expectException(ValidationException::class);
+
+        $this->service()->editarMontoCargoAdicional($cargo, 0.0);
+    }
+
+    public function test_editar_monto_de_cargo_adicional_menor_a_lo_ya_pagado_lanza_excepcion(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+        $cargo = CargoAdicional::factory()->create(['estudiante_id' => $estudiante->id, 'monto' => 80]);
+
+        $pago = $this->service()->registrar($estudiante, $concepto, [['monto' => 40.0, 'metodo' => 'yape']], null, null, null, cargoAdicional: $cargo);
+        $this->service()->aprobar($pago, $this->aprobador(), SerieReciboEnum::ORIGINAL);
+
+        $this->expectException(ValidationException::class);
+
+        $this->service()->editarMontoCargoAdicional($cargo, 30.0);
+    }
+
+    /**
+     * Subir el monto de un cargo ya pagado del todo debe reabrirlo: el
+     * estado siempre tiene que reflejar el saldo real, no quedarse en
+     * "pagado" con un saldo pendiente mayor a cero -- mismo requisito de
+     * "sin huecos" que el resto de la funcionalidad.
+     */
+    public function test_editar_monto_de_cargo_adicional_ya_pagado_lo_vuelve_a_pendiente_si_deja_saldo(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+        $cargo = CargoAdicional::factory()->create(['estudiante_id' => $estudiante->id, 'monto' => 50]);
+
+        $pago = $this->service()->registrar($estudiante, $concepto, [['monto' => 50.0, 'metodo' => 'yape']], null, null, null, cargoAdicional: $cargo);
+        $this->service()->aprobar($pago, $this->aprobador(), SerieReciboEnum::ORIGINAL);
+
+        $cargo->refresh();
+        $this->assertSame('pagado', $cargo->estado->value);
+
+        $actualizado = $this->service()->editarMontoCargoAdicional($cargo, 70.0);
+
+        $this->assertSame('pendiente', $actualizado->estado->value);
+        $this->assertSame(20.0, $actualizado->saldoPendiente());
+    }
+
+    public function test_nombre_concepto_usa_el_concepto_del_cargo_adicional_cuando_corresponde(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create(['nombre' => 'Otro']);
+        $cargo = CargoAdicional::factory()->create(['concepto' => 'Convalidación']);
+
+        $pago = $this->service()->registrar($estudiante, $concepto, [['monto' => 50.0, 'metodo' => 'yape']], null, null, null, cargoAdicional: $cargo);
+
+        $this->assertSame('Convalidación', $pago->nombreConcepto());
     }
 
     public function test_registrar_guarda_la_nota_de_una_parte_cuando_se_indica(): void

@@ -9,6 +9,7 @@ use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use App\Modules\Pagos\Enums\NumeroCuotasEnum;
 use App\Modules\Pagos\Enums\SerieReciboEnum;
+use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Pago;
 use App\Modules\Pagos\Services\PagoService;
@@ -457,6 +458,100 @@ class PagosFlujoTest extends TestCase
 
         $pago = Pago::query()->where('estudiante_id', $estudiante->id)->firstOrFail();
         $this->assertSame('2026-09-01', $pago->fecha_pago->format('Y-m-d'));
+    }
+
+    /**
+     * Pedido del cliente: al captar un estudiante se registran cobros
+     * futuros puntuales (Convalidación, Exoneración...) que deben poder
+     * cobrarse desde Registrar pago, y el estado solo debe pasar a
+     * "pagado" cuando el saldo real llega a 0 -- mismo criterio de "no
+     * huecos" que las cuotas de mensualidad.
+     */
+    public function test_cobrar_un_cargo_adicional_pasa_a_pagado_solo_cuando_el_saldo_llega_a_cero(): void
+    {
+        $administrativo = User::factory()->create();
+        $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
+        $tesoreria = User::factory()->create();
+        $tesoreria->assignRole(RolEnum::TESORERIA->value);
+
+        $estudiante = Estudiante::factory()->create();
+        ConceptoPago::factory()->create(['tipo' => 'otro']);
+        $cargo = CargoAdicional::factory()->create(['estudiante_id' => $estudiante->id, 'concepto' => 'Convalidación', 'monto' => 80]);
+
+        $this->actingAs($administrativo);
+
+        Volt::test('pagos.index')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->call('seleccionarCargoAdicional', $cargo->id)
+            ->assertSet('partes.0.monto', '80')
+            ->set('partes.0.monto', '40')
+            ->set('partes.0.metodo', 'yape')
+            ->call('registrarPago')
+            ->assertHasNoErrors();
+
+        $primerPago = Pago::query()->where('cargo_adicional_id', $cargo->id)->firstOrFail();
+        $this->assertSame('40.00', $primerPago->monto);
+        $this->assertSame('Convalidación', $primerPago->nombreConcepto());
+
+        $this->actingAs($tesoreria);
+        Volt::test('pagos.index')->call('aprobar', $primerPago->id)->assertHasNoErrors();
+
+        $cargo->refresh();
+        $this->assertSame('pendiente', $cargo->estado->value);
+        $this->assertSame(40.0, $cargo->saldoPendiente());
+
+        $this->actingAs($administrativo);
+        Volt::test('pagos.index')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->call('seleccionarCargoAdicional', $cargo->id)
+            ->assertSet('partes.0.monto', '40')
+            ->set('partes.0.metodo', 'efectivo')
+            ->call('registrarPago')
+            ->assertHasNoErrors();
+
+        $segundoPago = Pago::query()->where('cargo_adicional_id', $cargo->id)->where('id', '!=', $primerPago->id)->firstOrFail();
+
+        $this->actingAs($tesoreria);
+        Volt::test('pagos.index')->call('aprobar', $segundoPago->id)->assertHasNoErrors();
+
+        $cargo->refresh();
+        $this->assertSame('pagado', $cargo->estado->value);
+        $this->assertSame(0.0, $cargo->saldoPendiente());
+    }
+
+    /**
+     * Elegir un cargo adicional es excluyente con elegir un concepto del
+     * catálogo -- limpiarCargoAdicional() debe poder volver al flujo
+     * normal sin arrastrar el cargo elegido antes.
+     */
+    public function test_limpiar_el_cargo_adicional_elegido_permite_volver_al_concepto_del_catalogo(): void
+    {
+        $administrativo = User::factory()->create();
+        $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+        $cargo = CargoAdicional::factory()->create(['estudiante_id' => $estudiante->id]);
+
+        $this->actingAs($administrativo);
+
+        Volt::test('pagos.index')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->call('seleccionarCargoAdicional', $cargo->id)
+            ->assertSet('cargoAdicionalId', $cargo->id)
+            ->call('limpiarCargoAdicional')
+            ->assertSet('cargoAdicionalId', null)
+            ->set('conceptoId', (string) $concepto->id)
+            ->set('partes.0.monto', '30')
+            ->set('partes.0.metodo', 'efectivo')
+            ->call('registrarPago')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('pagos', [
+            'estudiante_id' => $estudiante->id,
+            'concepto_id' => $concepto->id,
+            'cargo_adicional_id' => null,
+        ]);
     }
 
     public function test_no_permite_una_fecha_de_pago_futura(): void

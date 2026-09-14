@@ -66,12 +66,12 @@ class FlujoCajaService
         $ingresos = Pago::query()
             ->where('estado', EstadoPagoEnum::APROBADO)
             ->whereBetween('fecha_aprobacion', [$inicio, $fin])
-            ->with(['concepto', 'recibo'])
+            ->with(['concepto', 'cargoAdicional', 'recibo'])
             ->get()
             ->map(fn (Pago $pago) => [
                 'tipo' => 'ingreso',
                 'fecha' => $pago->fecha_aprobacion ?? $pago->fecha_pago,
-                'concepto' => $pago->concepto->nombre.($pago->detalle ? " — {$pago->detalle}" : ''),
+                'concepto' => $pago->nombreConcepto().($pago->detalle ? " — {$pago->detalle}" : ''),
                 'metodo' => $pago->metodo->label(),
                 'monto' => (float) $pago->monto,
                 'comprobanteUrl' => $pago->recibo?->getFirstMediaUrl('pdf') ?: null,

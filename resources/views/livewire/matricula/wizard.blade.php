@@ -15,7 +15,9 @@ use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Services\DocumentoEstudianteService;
 use App\Modules\Matricula\Services\ExamenUbicacionService;
 use App\Modules\Matricula\Services\MatriculaService;
+use App\Modules\Pagos\Enums\EstadoCuotaEnum;
 use App\Modules\Pagos\Enums\NumeroCuotasEnum;
+use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Services\PlanPagoService;
 use App\Shared\ValueObjects\Dni;
 use App\Shared\ValueObjects\Telefono;
@@ -137,6 +139,12 @@ new class extends Component
 
     /** @var array<int, string> */
     public array $cuotaFechas = [];
+
+    // Paso 6 — cargos adicionales puntuales (opcional, aparte de la
+    // mensualidad): Convalidación, Exoneración, Recuperación, Visación...
+    // concepto y monto libres, editables caso por caso por estudiante.
+    /** @var array<int, array{concepto: string, monto: string}> */
+    public array $cargosAdicionales = [];
 
     public function mount(): void
     {
@@ -345,6 +353,17 @@ new class extends Component
         }
     }
 
+    public function agregarCargoAdicional(): void
+    {
+        $this->cargosAdicionales[] = ['concepto' => '', 'monto' => ''];
+    }
+
+    public function quitarCargoAdicional(int $indice): void
+    {
+        unset($this->cargosAdicionales[$indice]);
+        $this->cargosAdicionales = array_values($this->cargosAdicionales);
+    }
+
     public function retroceder(): void
     {
         if ($this->esRematricula && $this->paso === 5) {
@@ -392,6 +411,20 @@ new class extends Component
             }
         }
 
+        // Cada fila de cargo adicional necesita concepto Y monto juntos --
+        // una fila con solo uno de los dos es casi seguro un olvido, no un
+        // cargo válido que crear.
+        foreach ($this->cargosAdicionales as $indice => $cargo) {
+            $tieneConcepto = trim($cargo['concepto']) !== '';
+            $tieneMonto = $cargo['monto'] !== '';
+
+            if ($tieneConcepto !== $tieneMonto) {
+                $this->addError("cargosAdicionales.{$indice}.concepto", 'Completa el concepto y el monto de este cargo, o quítalo.');
+
+                return;
+            }
+        }
+
         // Rematrícula: la ficha (datos, apoderado, documentos, examen de
         // ubicación) ya existe -- solo hace falta la nueva matrícula (y su
         // cronograma opcional), reutilizando matricular() tal cual la usa
@@ -410,6 +443,7 @@ new class extends Component
                 ));
 
                 $this->crearCronogramaSiCorresponde($matricula, $planPagoService);
+                $this->crearCargosAdicionalesSiCorresponde($estudiante);
 
                 return $estudiante;
             });
@@ -503,6 +537,7 @@ new class extends Component
             ));
 
             $this->crearCronogramaSiCorresponde($matricula, $planPagoService);
+            $this->crearCargosAdicionalesSiCorresponde($estudiante);
 
             return $estudiante;
         });
@@ -530,6 +565,23 @@ new class extends Component
             array_sum(array_column($cuotas, 'monto')),
             $cuotas,
         );
+    }
+
+    private function crearCargosAdicionalesSiCorresponde(Estudiante $estudiante): void
+    {
+        foreach ($this->cargosAdicionales as $cargo) {
+            if (trim($cargo['concepto']) === '' || $cargo['monto'] === '') {
+                continue;
+            }
+
+            CargoAdicional::query()->create([
+                'estudiante_id' => $estudiante->id,
+                'concepto' => $cargo['concepto'],
+                'monto' => (float) $cargo['monto'],
+                'estado' => EstadoCuotaEnum::PENDIENTE,
+                'registrado_por' => auth()->id(),
+            ]);
+        }
     }
 
     public function with(CicloService $ciclos): array
@@ -990,6 +1042,43 @@ new class extends Component
                     <x-input-error :messages="$errors->get('cuotaFechas.*')" class="mt-1" />
                 @endif
             @endif
+
+            <div class="mt-8 border-t border-border pt-6">
+                <h3 class="font-display text-base text-ink">Cargos adicionales (opcional)</h3>
+                <p class="mt-1 text-xs text-ink-faint">Otros cobros futuros propios de este estudiante — Convalidación, Exoneración, Recuperación, Visación, etc. Concepto y monto libres, editables aquí mismo.</p>
+
+                @if (count($cargosAdicionales) > 0)
+                    <div class="mt-4 overflow-hidden rounded-lg border border-border">
+                        <table class="min-w-full divide-y divide-border text-sm">
+                            <thead class="bg-surface-2">
+                                <tr>
+                                    <th class="px-4 py-2 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Concepto</th>
+                                    <th class="px-4 py-2 text-left font-mono text-xs uppercase tracking-wide text-ink-faint">Monto (S/)</th>
+                                    <th class="px-4 py-2"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-border">
+                                @foreach ($cargosAdicionales as $indice => $cargo)
+                                    <tr wire:key="cargo-adicional-{{ $indice }}">
+                                        <td class="px-4 py-2">
+                                            <x-text-input wire:model="cargosAdicionales.{{ $indice }}.concepto" type="text" placeholder="Ej. Convalidación" class="w-full" />
+                                            <x-input-error :messages="$errors->get('cargosAdicionales.'.$indice.'.concepto')" class="mt-1" />
+                                        </td>
+                                        <td class="px-4 py-2">
+                                            <input type="number" step="0.01" min="0" wire:model="cargosAdicionales.{{ $indice }}.monto" class="w-28 rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
+                                        </td>
+                                        <td class="px-4 py-2 text-right">
+                                            <button type="button" wire:click="quitarCargoAdicional({{ $indice }})" wire:loading.attr="disabled" class="text-xs text-danger hover:underline disabled:cursor-not-allowed disabled:opacity-50">Quitar</button>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+
+                <button type="button" wire:click="agregarCargoAdicional" wire:loading.attr="disabled" class="mt-3 text-xs font-medium text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50">+ Agregar cargo</button>
+            </div>
         @endif
 
         <div class="mt-6 flex justify-between border-t border-border pt-4">
