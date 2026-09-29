@@ -64,6 +64,30 @@ class UsuariosTest extends TestCase
         $this->assertTrue($creado->hasRole(RolEnum::DOCENTE->value));
     }
 
+    /**
+     * Regresión: un celular mal escrito (ej. una nota en vez de un número)
+     * reventaba con un 500 al construir el value object Telefono sin que
+     * nada lo capturara antes. Ahora debe quedar como error de formulario.
+     */
+    public function test_un_celular_mal_escrito_no_tumba_la_pagina_y_queda_como_error_de_formulario(): void
+    {
+        $direccion = User::factory()->create();
+        $direccion->assignRole(RolEnum::DIRECCION->value);
+
+        $this->actingAs($direccion);
+
+        Volt::test('usuarios.index')
+            ->set('name', 'Nueva Docente')
+            ->set('dni', '87654322')
+            ->set('phone', 'Sólo al Papá escribirle de la pensión 966775990 / mamá 977 187 160')
+            ->set('password', 'password123')
+            ->set('rol', RolEnum::DOCENTE->value)
+            ->call('crear')
+            ->assertHasErrors(['phone']);
+
+        $this->assertDatabaseMissing('users', ['dni' => '87654322']);
+    }
+
     public function test_no_permite_crear_dos_usuarios_con_el_mismo_dni(): void
     {
         $direccion = User::factory()->create();

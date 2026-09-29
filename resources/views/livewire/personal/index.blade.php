@@ -2,6 +2,7 @@
 
 use App\Modules\Personal\Models\Personal;
 use App\Modules\Personal\Services\PersonalService;
+use App\Shared\Rules\CelularValido;
 use App\Shared\ValueObjects\Dni;
 use App\Shared\ValueObjects\Telefono;
 use Illuminate\Support\Facades\Gate;
@@ -83,7 +84,7 @@ new #[Layout('layouts.app')] class extends Component
             'nombres' => 'required|string|max:150',
             'apellidos' => 'required|string|max:150',
             'dni' => 'required|string|min:8|max:12',
-            'celular' => 'nullable|string',
+            'celular' => ['nullable', 'string', new CelularValido],
             'cargo' => 'required|string|max:150',
             'area' => 'nullable|string|max:150',
             'fechaIngreso' => 'nullable|date',

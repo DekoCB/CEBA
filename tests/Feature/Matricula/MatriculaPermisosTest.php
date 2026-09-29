@@ -245,6 +245,76 @@ class MatriculaPermisosTest extends TestCase
         $this->assertDatabaseHas('estudiante_telefonos', ['estudiante_id' => $estudiante->id, 'numero' => '923456789']);
     }
 
+    /**
+     * Regresión en producción: alguien escribió una nota en el campo de
+     * celular en vez de un número (ej. "Sólo al Papá escribirle de la
+     * pensión 966775990 / mamá 977 187 160") y la página reventaba con un
+     * 500 -- Telefono::__construct() lanzaba una excepción sin capturar en
+     * vez de que avanzar() la rechazara como error de formulario. Ahora
+     * debe quedar como un error normal bajo el campo, sin tumbar la página.
+     */
+    public function test_un_celular_mal_escrito_no_tumba_la_pagina_y_queda_como_error_de_formulario(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Patricia')
+            ->set('apellidos', 'Salcedo Nina')
+            ->set('dni', '55667723')
+            ->set('fechaNacimiento', now()->subYears(30)->format('Y-m-d'))
+            ->set('celular', 'Sólo al Papá escribirle de la pensión 966775990 / mamá 977 187 160')
+            ->call('avanzar')
+            ->assertHasErrors(['celular'])
+            ->assertSet('paso', 1);
+
+        $this->assertDatabaseMissing('estudiantes', ['dni' => '55667723']);
+    }
+
+    public function test_un_celular_adicional_mal_escrito_no_tumba_la_pagina_y_queda_como_error_de_formulario(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Patricia')
+            ->set('apellidos', 'Salcedo Nina')
+            ->set('dni', '55667724')
+            ->set('fechaNacimiento', now()->subYears(30)->format('Y-m-d'))
+            ->call('agregarCelular')
+            ->set('celularesAdicionales.0', 'Sólo al Papá escribirle de la pensión 966775990 / mamá 977 187 160')
+            ->call('avanzar')
+            ->assertHasErrors(['celularesAdicionales.0'])
+            ->assertSet('paso', 1);
+    }
+
+    public function test_el_celular_del_apoderado_mal_escrito_no_tumba_la_pagina_y_queda_como_error_de_formulario(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Patricia')
+            ->set('apellidos', 'Salcedo Nina')
+            ->set('dni', '55667725')
+            ->set('fechaNacimiento', now()->subYears(10)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertSet('paso', 2)
+            ->set('apoderadoNombres', 'José Salcedo')
+            ->set('apoderadoDni', '44556677')
+            ->set('apoderadoCelular', 'Sólo al Papá escribirle de la pensión 966775990 / mamá 977 187 160')
+            ->set('apoderadoParentesco', 'Padre')
+            ->call('avanzar')
+            ->assertHasErrors(['apoderadoCelular'])
+            ->assertSet('paso', 2);
+    }
+
     public function test_quitar_celular_adicional_lo_remueve_de_la_lista(): void
     {
         $usuario = User::factory()->create();

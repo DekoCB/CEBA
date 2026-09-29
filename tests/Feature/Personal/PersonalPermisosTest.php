@@ -84,6 +84,31 @@ class PersonalPermisosTest extends TestCase
         ]);
     }
 
+    /**
+     * Regresión: un celular mal escrito (ej. una nota en vez de un número)
+     * reventaba con un 500 al construir el value object Telefono sin que
+     * nada lo capturara antes. Ahora debe quedar como error de formulario.
+     */
+    public function test_un_celular_mal_escrito_no_tumba_la_pagina_y_queda_como_error_de_formulario(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('personal.index')
+            ->call('abrirModalCrear')
+            ->set('nombres', 'Rosa')
+            ->set('apellidos', 'Mendoza Díaz')
+            ->set('dni', '41234568')
+            ->set('celular', 'Sólo al Papá escribirle de la pensión 966775990 / mamá 977 187 160')
+            ->set('cargo', 'Psicóloga')
+            ->call('guardar')
+            ->assertHasErrors(['celular']);
+
+        $this->assertDatabaseMissing('personal', ['dni' => '41234568']);
+    }
+
     public function test_no_permite_registrar_dos_personas_con_el_mismo_dni(): void
     {
         $coordinador = User::factory()->create();
