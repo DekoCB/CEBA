@@ -241,9 +241,14 @@ new #[Layout('layouts.app')] class extends Component
                     <h3 class="mt-4 text-xs font-semibold uppercase tracking-wide text-danger">Cuotas vencidas</h3>
                     <div class="mt-2 divide-y divide-border">
                         @foreach ($historial['resumenPagos']['cuotasVencidas'] as $cuota)
-                            <div class="flex items-center justify-between py-2 text-sm">
-                                <span class="text-ink-dim">Cuota {{ $cuota->numero }} · {{ $cuota->planPago->matricula?->grado->nombre }} · {{ $cuota->planPago->matricula?->ciclo->nombre }}</span>
-                                <span class="text-danger">S/ {{ number_format((float) $cuota->monto, 2) }} · venció {{ $cuota->fecha_vencimiento->format('d/m/Y') }}</span>
+                            <div class="py-2 text-sm">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-ink-dim">Cuota {{ $cuota->numero }} · {{ $cuota->planPago->matricula?->grado->nombre }} · {{ $cuota->planPago->matricula?->ciclo->nombre }}</span>
+                                    <span class="text-danger">S/ {{ number_format((float) $cuota->monto, 2) }} · venció {{ $cuota->fecha_vencimiento->format('d/m/Y') }}</span>
+                                </div>
+                                @if ($cuota->fecha_compromiso)
+                                    <p class="text-xs text-info">Compromiso de pago: {{ $cuota->fecha_compromiso->format('d/m/Y') }}</p>
+                                @endif
                             </div>
                         @endforeach
                     </div>
@@ -253,9 +258,14 @@ new #[Layout('layouts.app')] class extends Component
                     <h3 class="mt-4 text-xs font-semibold uppercase tracking-wide text-warn">Cuotas pendientes</h3>
                     <div class="mt-2 divide-y divide-border">
                         @foreach ($historial['resumenPagos']['cuotasPendientes'] as $cuota)
-                            <div class="flex items-center justify-between py-2 text-sm">
-                                <span class="text-ink-dim">Cuota {{ $cuota->numero }} · {{ $cuota->planPago->matricula?->grado->nombre }} · {{ $cuota->planPago->matricula?->ciclo->nombre }}</span>
-                                <span class="text-warn">S/ {{ number_format($cuota->saldoPendiente(), 2) }} · vence {{ $cuota->fecha_vencimiento->format('d/m/Y') }}</span>
+                            <div class="py-2 text-sm">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-ink-dim">Cuota {{ $cuota->numero }} · {{ $cuota->planPago->matricula?->grado->nombre }} · {{ $cuota->planPago->matricula?->ciclo->nombre }}</span>
+                                    <span class="text-warn">S/ {{ number_format($cuota->saldoPendiente(), 2) }} · vence {{ $cuota->fecha_vencimiento->format('d/m/Y') }}</span>
+                                </div>
+                                @if ($cuota->fecha_compromiso)
+                                    <p class="text-xs text-info">Compromiso de pago: {{ $cuota->fecha_compromiso->format('d/m/Y') }}</p>
+                                @endif
                             </div>
                         @endforeach
                     </div>

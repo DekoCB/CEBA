@@ -13,6 +13,7 @@ use App\Modules\Pagos\Enums\SerieReciboEnum;
 use App\Modules\Pagos\Enums\TipoConceptoEnum;
 use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Models\ConceptoPago;
+use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Models\Pago;
 use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Pagos\Services\CobranzaService;
@@ -107,6 +108,11 @@ new #[Layout('layouts.app')] class extends Component
     /** @var array<int, string> */
     public array $cobrosConceptoIds = [];
 
+    // Fecha de compromiso de pago — indexada por cuota_id, porque la vista
+    // de Cobros individual lista varias cuotas pendientes a la vez.
+    /** @var array<int, string> */
+    public array $fechaCompromisoPorCuota = [];
+
     public function mount(): void
     {
         $user = Auth::user();
@@ -196,6 +202,17 @@ new #[Layout('layouts.app')] class extends Component
         $this->cobrosEstudianteId = $estudianteId;
         $this->cobrosEstudianteNombre = $nombre;
         $this->cobrosTerminoBusqueda = '';
+    }
+
+    public function registrarCompromiso(int $cuotaId, PlanPagoService $service): void
+    {
+        Gate::authorize('pagos.gestionar');
+
+        $this->validate(["fechaCompromisoPorCuota.{$cuotaId}" => ['required', 'date']]);
+
+        $service->registrarCompromiso(Cuota::query()->findOrFail($cuotaId), $this->fechaCompromisoPorCuota[$cuotaId]);
+
+        session()->flash('status', 'Fecha de compromiso registrada.');
     }
 
     /**
@@ -425,6 +442,10 @@ new #[Layout('layouts.app')] class extends Component
         if ($puedeVerCobros && $this->cobrosEstudianteId) {
             $cobrosEstudiante = Estudiante::query()->find($this->cobrosEstudianteId);
             $cobrosDeudaIndividual = $cobrosEstudiante ? $cobranza->deudaDeEstudiante($cobrosEstudiante) : null;
+
+            foreach ($cobrosDeudaIndividual['cuotasPendientes'] ?? [] as $cuota) {
+                $this->fechaCompromisoPorCuota[$cuota->id] ??= $cuota->fecha_compromiso?->format('Y-m-d') ?? '';
+            }
         }
 
         $cobrosReporteGrupal = ['columnas' => [], 'filas' => []];
@@ -887,14 +908,26 @@ new #[Layout('layouts.app')] class extends Component
                             </div>
                             <div class="divide-y divide-border">
                                 @forelse ($cobrosDeudaIndividual['cuotasPendientes'] as $cuota)
-                                    <div class="flex items-center justify-between px-4 py-3 text-sm">
-                                        <div>
-                                            <p class="text-ink">Cuota {{ $cuota->numero }} — {{ $cuota->planPago->matricula->grado->nombre ?? '—' }}</p>
-                                            <p @class(['text-xs', 'text-danger' => $cuota->estaVencida(), 'text-ink-faint' => ! $cuota->estaVencida()])>
-                                                {{ $cuota->estaVencida() ? 'Vencida desde' : 'Vence el' }} {{ $cuota->fecha_vencimiento->format('d/m/Y') }}
-                                            </p>
+                                    <div class="px-4 py-3 text-sm">
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <p class="text-ink">Cuota {{ $cuota->numero }} — {{ $cuota->planPago->matricula->grado->nombre ?? '—' }}</p>
+                                                <p @class(['text-xs', 'text-danger' => $cuota->estaVencida(), 'text-ink-faint' => ! $cuota->estaVencida()])>
+                                                    {{ $cuota->estaVencida() ? 'Vencida desde' : 'Vence el' }} {{ $cuota->fecha_vencimiento->format('d/m/Y') }}
+                                                </p>
+                                                @if ($cuota->fecha_compromiso)
+                                                    <p class="text-xs text-info">Compromiso de pago: {{ $cuota->fecha_compromiso->format('d/m/Y') }}</p>
+                                                @endif
+                                            </div>
+                                            <p class="font-display text-ink">S/ {{ number_format($cuota->saldoPendiente(), 2) }}</p>
                                         </div>
-                                        <p class="font-display text-ink">S/ {{ number_format($cuota->saldoPendiente(), 2) }}</p>
+                                        @can('pagos.gestionar')
+                                            <div class="mt-2 flex flex-wrap items-center gap-2">
+                                                <x-date-input wire:model="fechaCompromisoPorCuota.{{ $cuota->id }}" class="w-40 text-xs" />
+                                                <x-secondary-button type="button" wire:click="registrarCompromiso({{ $cuota->id }})">Registrar compromiso</x-secondary-button>
+                                            </div>
+                                            <x-input-error :messages="$errors->get('fechaCompromisoPorCuota.'.$cuota->id)" class="mt-1" />
+                                        @endcan
                                     </div>
                                 @empty
                                     <p class="px-4 py-6 text-center text-sm text-ink-faint">Sin cuotas pendientes.</p>

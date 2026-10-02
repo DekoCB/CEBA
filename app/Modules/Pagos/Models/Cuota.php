@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
  * @property int $numero
  * @property float $monto
  * @property Carbon $fecha_vencimiento
+ * @property Carbon|null $fecha_compromiso
  * @property EstadoCuotaEnum $estado
  * @property-read PlanPago $planPago
  */
@@ -35,6 +36,7 @@ class Cuota extends Model
         'numero',
         'monto',
         'fecha_vencimiento',
+        'fecha_compromiso',
         'estado',
     ];
 
@@ -43,6 +45,7 @@ class Cuota extends Model
         return [
             'monto' => 'decimal:2',
             'fecha_vencimiento' => 'date',
+            'fecha_compromiso' => 'date',
             'estado' => EstadoCuotaEnum::class,
         ];
     }

@@ -133,4 +133,23 @@ class PlanPagoService
             return $plan->fresh('cuotas');
         });
     }
+
+    /**
+     * Registra la fecha en la que el estudiante/deudor se comprometió a
+     * pagar esta cuota -- vencida o no todavía, para que el staff pueda
+     * anotarlo apenas lo acuerden. No tiene sentido en una cuota que ya no
+     * está pendiente (pagada o exonerada): ahí ya no hay nada que prometer.
+     */
+    public function registrarCompromiso(Cuota $cuota, string $fecha): Cuota
+    {
+        if ($cuota->estado !== EstadoCuotaEnum::PENDIENTE) {
+            throw ValidationException::withMessages([
+                'fechaCompromiso' => 'Solo se puede registrar una fecha de compromiso en cuotas pendientes.',
+            ]);
+        }
+
+        $cuota->update(['fecha_compromiso' => $fecha]);
+
+        return $cuota;
+    }
 }
