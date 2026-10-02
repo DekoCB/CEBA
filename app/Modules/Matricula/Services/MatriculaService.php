@@ -25,6 +25,8 @@ use App\Modules\Matricula\Models\InstitucionProcedencia;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Repositories\Contracts\EstudianteRepositoryInterface;
 use App\Modules\Matricula\Repositories\Contracts\MatriculaRepositoryInterface;
+use App\Modules\Pagos\Models\Cuota;
+use App\Modules\Pagos\Models\PlanPago;
 use App\Shared\Enums\RolEnum;
 use App\Shared\Support\ImportaFilasDeExcel;
 use App\Shared\ValueObjects\Dni;
@@ -252,6 +254,47 @@ class MatriculaService
                 'ciclo' => "No hay un periodo de matrícula abierto hoy para el ciclo «{$ciclo->nombre}».",
             ]);
         }
+    }
+
+    /**
+     * Elimina una matrícula por error de registro (grado equivocado,
+     * duplicada, etc.) -- solo si ESA matrícula específica todavía no tiene
+     * ningún pago registrado (sin importar el estado: un pago rechazado
+     * sigue siendo un intento de pago registrado). Es un borrado lógico
+     * (Matricula usa SoftDeletes); el plan de pago y sus cuotas, si existen
+     * y no tienen pagos, se eliminan con ella porque quedarían huérfanos y
+     * sin ningún uso posible.
+     */
+    public function eliminar(Matricula $matricula): void
+    {
+        if ($this->tienePagosRegistrados($matricula)) {
+            throw ValidationException::withMessages([
+                'matricula' => 'No se puede eliminar esta matrícula: ya tiene pagos registrados.',
+            ]);
+        }
+
+        DB::transaction(function () use ($matricula): void {
+            $plan = PlanPago::query()->where('matricula_id', $matricula->id)->first();
+
+            if ($plan !== null) {
+                Cuota::query()->where('plan_pago_id', $plan->id)->delete();
+                $plan->delete();
+            }
+
+            $matricula->delete();
+        });
+    }
+
+    public function esEliminable(Matricula $matricula): bool
+    {
+        return ! $this->tienePagosRegistrados($matricula);
+    }
+
+    private function tienePagosRegistrados(Matricula $matricula): bool
+    {
+        $plan = PlanPago::query()->where('matricula_id', $matricula->id)->first();
+
+        return $plan !== null && Cuota::query()->where('plan_pago_id', $plan->id)->whereHas('pagos')->exists();
     }
 
     /**

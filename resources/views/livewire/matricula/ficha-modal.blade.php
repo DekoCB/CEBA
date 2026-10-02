@@ -2,6 +2,8 @@
 
 use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Horario;
+use App\Modules\Identidad\Services\AuditService;
+use App\Modules\Matricula\Enums\TipoDocumentoEnum;
 use App\Modules\Matricula\Models\DocumentoEstudiante;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
@@ -12,11 +14,16 @@ use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Pagos\Services\PagoService;
 use App\Modules\Pagos\Services\PlanPagoService;
+use App\Shared\Rules\CelularValido;
+use App\Shared\ValueObjects\Telefono;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\On;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 /**
  * Modal "Ver" de matricula/index.blade.php, aislado en su propio componente
@@ -26,9 +33,18 @@ use Livewire\Volt\Component;
  */
 new class extends Component
 {
+    use WithFileUploads;
+
     public ?int $estudianteId = null;
 
     public string $observacionesTexto = '';
+
+    /** @var array<string, UploadedFile|null> */
+    public array $documentoNuevo = [];
+
+    public ?string $editandoCelular = null;
+
+    public string $celularNuevo = '';
 
     public ?int $editandoFechaFinMatriculaId = null;
 
@@ -73,6 +89,9 @@ new class extends Component
         $this->agregandoCargo = false;
         $this->cargoConceptoNuevo = '';
         $this->cargoMontoNuevo = '';
+        $this->documentoNuevo = [];
+        $this->editandoCelular = null;
+        $this->celularNuevo = '';
     }
 
     public function verificarDocumento(int $documentoId, DocumentoEstudianteService $service): void
@@ -81,6 +100,68 @@ new class extends Component
 
         $documento = DocumentoEstudiante::query()->findOrFail($documentoId);
         $service->verificar($documento);
+    }
+
+    public function subirDocumento(string $tipoValor, DocumentoEstudianteService $service): void
+    {
+        Gate::authorize('matricula.editar');
+
+        if ($this->estudianteId === null) {
+            return;
+        }
+
+        $tipo = TipoDocumentoEnum::from($tipoValor);
+
+        $this->validate([
+            "documentoNuevo.{$tipoValor}" => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:4096'],
+        ]);
+
+        $estudiante = Estudiante::query()->findOrFail($this->estudianteId);
+
+        $service->subir($estudiante, $tipo, $this->documentoNuevo[$tipoValor], Auth::id());
+
+        unset($this->documentoNuevo[$tipoValor]);
+    }
+
+    public function editarCelular(string $quien): void
+    {
+        Gate::authorize('matricula.editar');
+
+        $estudiante = Estudiante::query()->with('apoderado')->findOrFail($this->estudianteId);
+
+        $this->editandoCelular = $quien;
+        $this->celularNuevo = $quien === 'estudiante'
+            ? ($estudiante->celular ?? '')
+            : ($estudiante->apoderado?->celular ?? '');
+    }
+
+    public function cancelarEdicionCelular(): void
+    {
+        $this->editandoCelular = null;
+        $this->celularNuevo = '';
+    }
+
+    public function guardarCelular(): void
+    {
+        Gate::authorize('matricula.editar');
+
+        if ($this->editandoCelular === null || $this->estudianteId === null) {
+            return;
+        }
+
+        $this->validate(['celularNuevo' => ['required', 'string', new CelularValido]]);
+
+        $numero = (new Telefono($this->celularNuevo))->numero();
+        $estudiante = Estudiante::query()->with('apoderado')->findOrFail($this->estudianteId);
+
+        if ($this->editandoCelular === 'estudiante') {
+            $estudiante->update(['celular' => $numero]);
+        } else {
+            $estudiante->apoderado?->update(['celular' => $numero]);
+        }
+
+        $this->editandoCelular = null;
+        $this->celularNuevo = '';
     }
 
     /**
@@ -181,6 +262,18 @@ new class extends Component
         $this->editandoHorarioMatriculaId = null;
         $this->editandoHorarioCursoId = null;
         $this->horarioSeleccionado = '';
+    }
+
+    public function eliminarMatricula(int $matriculaId, MatriculaService $service): void
+    {
+        Gate::authorize('matricula.eliminar');
+
+        try {
+            $service->eliminar(Matricula::query()->findOrFail($matriculaId));
+            session()->flash('status', 'Matrícula eliminada correctamente.');
+        } catch (ValidationException $e) {
+            session()->flash('error', $e->validator->errors()->first());
+        }
     }
 
     public function editarMontoPlan(int $planId): void
@@ -322,9 +415,9 @@ new class extends Component
             ->values();
     }
 
-    public function with(PlanPagoService $planes): array
+    public function with(PlanPagoService $planes, MatriculaService $matriculaService, AuditService $audit): array
     {
-        $estudiante = $this->estudianteId ? Estudiante::query()->with(['media', 'user.media', 'telefonos'])->find($this->estudianteId) : null;
+        $estudiante = $this->estudianteId ? Estudiante::query()->with(['media', 'user.media', 'telefonos', 'apoderado'])->find($this->estudianteId) : null;
 
         $matriculas = $estudiante?->matriculas()->with(['ciclo', 'grado', 'horarios.curso', 'horarios.docente', 'media'])->latest('fecha_matricula')->get();
 
@@ -339,6 +432,13 @@ new class extends Component
                 : collect(),
             'cargosAdicionales' => $estudiante !== null && Auth::user()->hasPermissionTo('pagos.ver')
                 ? CargoAdicional::query()->where('estudiante_id', $estudiante->id)->get()
+                : collect(),
+            'matriculasEliminables' => $matriculas?->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $matriculaService->esEliminable($matricula)]) ?? collect(),
+            'historialCelularEstudiante' => $estudiante
+                ? $audit->historialDe($estudiante)->filter(fn ($entrada) => array_key_exists('celular', $entrada->new_values ?? []))
+                : collect(),
+            'historialCelularApoderado' => $estudiante?->apoderado
+                ? $audit->historialDe($estudiante->apoderado)->filter(fn ($entrada) => array_key_exists('celular', $entrada->new_values ?? []))
                 : collect(),
         ];
     }
@@ -359,6 +459,14 @@ new class extends Component
         </div>
 
         <div class="max-h-[75vh] overflow-y-auto p-6" wire:loading.class="opacity-50">
+            @if (session('status'))
+                <x-alert class="mb-4">{{ session('status') }}</x-alert>
+            @endif
+
+            @if (session('error'))
+                <x-alert variant="danger" class="mb-4">{{ session('error') }}</x-alert>
+            @endif
+
             @if ($estudiante)
                 <x-matricula.ficha-estudiante
                     :estudiante="$estudiante"
@@ -380,6 +488,11 @@ new class extends Component
                     :agregando-cargo="$agregandoCargo"
                     :cargo-concepto-nuevo="$cargoConceptoNuevo"
                     :cargo-monto-nuevo="$cargoMontoNuevo"
+                    :matriculas-eliminables="$matriculasEliminables"
+                    :editando-celular="$editandoCelular"
+                    :celular-nuevo="$celularNuevo"
+                    :historial-celular-estudiante="$historialCelularEstudiante"
+                    :historial-celular-apoderado="$historialCelularApoderado"
                 />
             @else
                 <p class="py-8 text-center text-sm text-ink-faint">Cargando…</p>

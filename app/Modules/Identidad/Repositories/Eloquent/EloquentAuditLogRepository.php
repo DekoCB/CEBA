@@ -25,9 +25,15 @@ class EloquentAuditLogRepository extends BaseRepository implements AuditLogRepos
     public function paraModelo(Model $modelo): Collection
     {
         return AuditLog::query()
+            ->with('user:id,name')
             ->where('auditable_type', $modelo->getMorphClass())
             ->where('auditable_id', $modelo->getKey())
-            ->latest('created_at')
+            // created_at es un timestamp de resolución de segundo: dos
+            // cambios en el mismo segundo (p. ej. en pruebas, o ediciones
+            // seguidas) empatan ahí, así que el id (autoincremental) desempata
+            // y garantiza el orden cronológico real.
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->get();
     }
 

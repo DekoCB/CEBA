@@ -2,6 +2,8 @@
 
 use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Horario;
+use App\Modules\Identidad\Services\AuditService;
+use App\Modules\Matricula\Enums\TipoDocumentoEnum;
 use App\Modules\Matricula\Models\DocumentoEstudiante;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
@@ -12,17 +14,31 @@ use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Pagos\Services\PagoService;
 use App\Modules\Pagos\Services\PlanPagoService;
+use App\Shared\Rules\CelularValido;
+use App\Shared\ValueObjects\Telefono;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 new #[Layout('layouts.app')] class extends Component
 {
+    use WithFileUploads;
+
     public Estudiante $estudiante;
 
     public string $observacionesTexto = '';
+
+    /** @var array<string, UploadedFile|null> */
+    public array $documentoNuevo = [];
+
+    public ?string $editandoCelular = null;
+
+    public string $celularNuevo = '';
 
     public ?int $editandoFechaFinMatriculaId = null;
 
@@ -64,6 +80,63 @@ new #[Layout('layouts.app')] class extends Component
         $service->verificar($documento);
 
         session()->flash('status', 'Documento marcado como verificado.');
+    }
+
+    public function subirDocumento(string $tipoValor, DocumentoEstudianteService $service): void
+    {
+        Gate::authorize('matricula.editar');
+
+        $tipo = TipoDocumentoEnum::from($tipoValor);
+
+        $this->validate([
+            "documentoNuevo.{$tipoValor}" => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:4096'],
+        ]);
+
+        $service->subir($this->estudiante, $tipo, $this->documentoNuevo[$tipoValor], Auth::id());
+
+        unset($this->documentoNuevo[$tipoValor]);
+
+        session()->flash('status', 'Documento subido correctamente.');
+    }
+
+    public function editarCelular(string $quien): void
+    {
+        Gate::authorize('matricula.editar');
+
+        $this->editandoCelular = $quien;
+        $this->celularNuevo = $quien === 'estudiante'
+            ? ($this->estudiante->celular ?? '')
+            : ($this->estudiante->apoderado?->celular ?? '');
+    }
+
+    public function cancelarEdicionCelular(): void
+    {
+        $this->editandoCelular = null;
+        $this->celularNuevo = '';
+    }
+
+    public function guardarCelular(): void
+    {
+        Gate::authorize('matricula.editar');
+
+        if ($this->editandoCelular === null) {
+            return;
+        }
+
+        $this->validate(['celularNuevo' => ['required', 'string', new CelularValido]]);
+
+        $numero = (new Telefono($this->celularNuevo))->numero();
+
+        if ($this->editandoCelular === 'estudiante') {
+            $this->estudiante->update(['celular' => $numero]);
+        } else {
+            $this->estudiante->apoderado?->update(['celular' => $numero]);
+        }
+
+        $this->editandoCelular = null;
+        $this->celularNuevo = '';
+
+        session()->flash('status', 'Celular actualizado.');
     }
 
     /**
@@ -170,6 +243,18 @@ new #[Layout('layouts.app')] class extends Component
         $this->horarioSeleccionado = '';
 
         session()->flash('status', 'Horario actualizado.');
+    }
+
+    public function eliminarMatricula(int $matriculaId, MatriculaService $service): void
+    {
+        Gate::authorize('matricula.eliminar');
+
+        try {
+            $service->eliminar(Matricula::query()->findOrFail($matriculaId));
+            session()->flash('status', 'Matrícula eliminada correctamente.');
+        } catch (ValidationException $e) {
+            session()->flash('error', $e->validator->errors()->first());
+        }
     }
 
     public function editarMontoPlan(int $planId): void
@@ -313,7 +398,7 @@ new #[Layout('layouts.app')] class extends Component
             ->values();
     }
 
-    public function with(PlanPagoService $planes): array
+    public function with(PlanPagoService $planes, MatriculaService $matriculaService, AuditService $audit): array
     {
         $this->estudiante->refresh();
 
@@ -329,6 +414,12 @@ new #[Layout('layouts.app')] class extends Component
                 : collect(),
             'cargosAdicionales' => Auth::user()->hasPermissionTo('pagos.ver')
                 ? CargoAdicional::query()->where('estudiante_id', $this->estudiante->id)->get()
+                : collect(),
+            'matriculasEliminables' => $matriculas->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $matriculaService->esEliminable($matricula)]),
+            'historialCelularEstudiante' => $audit->historialDe($this->estudiante)
+                ->filter(fn ($entrada) => array_key_exists('celular', $entrada->new_values ?? [])),
+            'historialCelularApoderado' => $this->estudiante->apoderado
+                ? $audit->historialDe($this->estudiante->apoderado)->filter(fn ($entrada) => array_key_exists('celular', $entrada->new_values ?? []))
                 : collect(),
         ];
     }
@@ -354,6 +445,10 @@ new #[Layout('layouts.app')] class extends Component
         <x-alert>{{ session('status') }}</x-alert>
     @endif
 
+    @if (session('error'))
+        <x-alert variant="danger">{{ session('error') }}</x-alert>
+    @endif
+
     <x-matricula.ficha-estudiante
         :estudiante="$estudiante"
         :documentos="$documentos"
@@ -374,5 +469,10 @@ new #[Layout('layouts.app')] class extends Component
         :agregando-cargo="$agregandoCargo"
         :cargo-concepto-nuevo="$cargoConceptoNuevo"
         :cargo-monto-nuevo="$cargoMontoNuevo"
+        :matriculas-eliminables="$matriculasEliminables"
+        :editando-celular="$editandoCelular"
+        :celular-nuevo="$celularNuevo"
+        :historial-celular-estudiante="$historialCelularEstudiante"
+        :historial-celular-apoderado="$historialCelularApoderado"
     />
 </div>
