@@ -315,4 +315,61 @@ class ReportesPermisosTest extends TestCase
             ->assertSee('Ana')
             ->assertDontSee('Beto');
     }
+
+    /**
+     * Pedido del cliente: que Grupo/Grado/Curso sean filtros opcionales de
+     * verdad, igual que "Horario (opcional)" -- antes quedaban deshabilitados
+     * en cascada hasta elegir el anterior, aunque el backend nunca lo exigió.
+     */
+    public function test_los_filtros_de_grupo_grado_y_curso_ya_no_quedan_deshabilitados_en_cascada(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $this->actingAs($coordinador);
+
+        $html = Volt::test('reportes.index')->html();
+
+        // select-input.blade.php solo imprime el atributo "disabled" (vía
+        // @disabled()) justo antes del id cuando el select está realmente
+        // deshabilitado -- la clase Tailwind "disabled:opacity-60" siempre
+        // está presente en el markup y no debe confundirse con esto.
+        $this->assertDoesNotMatchRegularExpression('/disabled\s+id="cicloId"/', $html);
+        $this->assertDoesNotMatchRegularExpression('/disabled\s+id="gradoId"/', $html);
+        $this->assertDoesNotMatchRegularExpression('/disabled\s+id="cursoId"/', $html);
+    }
+
+    public function test_las_etiquetas_de_los_4_filtros_indican_que_son_opcionales(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $this->actingAs($coordinador);
+
+        Volt::test('reportes.index')
+            ->assertSee('SIAGIE (opcional)')
+            ->assertSee('Grupo (opcional)')
+            ->assertSee('Grado (opcional)')
+            ->assertSee('Curso (opcional)');
+    }
+
+    public function test_se_puede_filtrar_por_grado_sin_elegir_grupo_ni_siagie_primero(): void
+    {
+        $horarioA = Horario::factory()->create();
+        $horarioB = Horario::factory()->create();
+        $estudianteA = Estudiante::factory()->create(['nombres' => 'Ana', 'apellidos' => 'Quispe']);
+        $estudianteB = Estudiante::factory()->create(['nombres' => 'Beto', 'apellidos' => 'Salas']);
+        Matricula::factory()->create(['estudiante_id' => $estudianteA->id, 'grado_id' => $horarioA->grado_id, 'ciclo_id' => $horarioA->ciclo_id]);
+        Matricula::factory()->create(['estudiante_id' => $estudianteB->id, 'grado_id' => $horarioB->grado_id, 'ciclo_id' => $horarioB->ciclo_id]);
+
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $this->actingAs($coordinador);
+
+        Volt::test('reportes.index')
+            ->set('tipo', 'matricula')
+            ->assertSee('Ana')
+            ->assertSee('Beto')
+            ->set('gradoId', (string) $horarioA->grado_id)
+            ->assertSee('Ana')
+            ->assertDontSee('Beto');
+    }
 }

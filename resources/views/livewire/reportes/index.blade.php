@@ -187,6 +187,13 @@ new #[Layout('layouts.app')] class extends Component
     }
 
     /**
+     * A diferencia de gradosDisponibles()/ciclosDisponibles(), este sí
+     * necesita un Grado elegido: a diferencia de esos dos filtros (listas
+     * fijas e independientes), un Curso sin acotar por grado sería una
+     * lista larga y, para "Mis evaluaciones", filtrar la noción de qué
+     * dependencia significaría exponer nombres de cursos de otros docentes
+     * en el propio selector aunque el reporte igual los excluya.
+     *
      * @return Collection<int, Curso>
      */
     private function cursosDisponibles(): Collection
@@ -264,7 +271,7 @@ new #[Layout('layouts.app')] class extends Component
                 />
             </div>
             <div>
-                <x-input-label for="siagieId" value="SIAGIE" />
+                <x-input-label for="siagieId" value="SIAGIE (opcional)" />
                 <x-select-input
                     wire:model.live="siagieId"
                     id="siagieId"
@@ -277,35 +284,37 @@ new #[Layout('layouts.app')] class extends Component
                 cuando cambia de qué depende su lista de opciones -- si no,
                 el x-data de x-select-input (que solo se evalúa una vez, al
                 crearse el nodo) queda con las opciones "congeladas" del
-                primer render y nunca ve las nuevas tras un morph.
+                primer render y nunca ve las nuevas tras un morph. Cada
+                filtro es independiente (ninguno exige elegir los anteriores
+                primero), pero elegir uno sigue limpiando los que dependen
+                de él (ver updatedSiagieId()/updatedCicloId()/updatedGradoId())
+                para no dejar una combinación incoherente (p. ej. un Curso
+                de un Grado distinto al recién elegido).
             --}}
             <div wire:key="ciclo-select-{{ $siagieId }}">
-                <x-input-label for="cicloId" value="Grupo" />
+                <x-input-label for="cicloId" value="Grupo (opcional)" />
                 <x-select-input
                     wire:model.live="cicloId"
                     id="cicloId"
                     class="mt-1 block w-56"
-                    :disabled="$siagieId === ''"
                     :options="collect($ciclosDisponibles)->mapWithKeys(fn ($ciclo) => [$ciclo->id => $ciclo->nombre])->prepend('Todos los grupos', '')"
                 />
             </div>
             <div wire:key="grado-select-{{ $cicloId }}">
-                <x-input-label for="gradoId" value="Grado" />
+                <x-input-label for="gradoId" value="Grado (opcional)" />
                 <x-select-input
                     wire:model.live="gradoId"
                     id="gradoId"
                     class="mt-1 block w-48"
-                    :disabled="$cicloId === ''"
                     :options="collect($gradosDisponibles)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])->prepend('Todos los grados', '')"
                 />
             </div>
             <div wire:key="curso-select-{{ $gradoId }}">
-                <x-input-label for="cursoId" value="Curso" />
+                <x-input-label for="cursoId" value="Curso (opcional)" />
                 <x-select-input
                     wire:model.live="cursoId"
                     id="cursoId"
                     class="mt-1 block w-48"
-                    :disabled="$gradoId === ''"
                     :options="collect($cursosDisponibles)->mapWithKeys(fn ($curso) => [$curso->id => $curso->nombre])->prepend('Todos los cursos', '')"
                 />
             </div>
