@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * @property string $titulo
  * @property string|null $descripcion
- * @property int|null $semana
+ * @property string|null $semana
  * @property int $puntaje_max
  */
 class PlantillaTarea extends Model

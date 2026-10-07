@@ -183,9 +183,21 @@ class AulaVirtualServiceTest extends TestCase
     {
         $curso = CursoVirtual::factory()->create();
 
-        $material = $this->app->make(MaterialService::class)->crear($curso, TipoMaterialEnum::ENLACE, 'Video', 'https://ejemplo.test/video', null, 3);
+        $material = $this->app->make(MaterialService::class)->crear($curso, TipoMaterialEnum::ENLACE, 'Video', 'https://ejemplo.test/video', null, 'Semana 3');
 
-        $this->assertSame(3, $material->fresh()->semana);
+        $this->assertSame('Semana 3', $material->fresh()->semana);
+    }
+
+    /**
+     * Pedido del cliente: "Semana" ahora es texto libre -- no solo números.
+     */
+    public function test_crear_material_persiste_un_tema_en_vez_de_un_numero_de_semana(): void
+    {
+        $curso = CursoVirtual::factory()->create();
+
+        $material = $this->app->make(MaterialService::class)->crear($curso, TipoMaterialEnum::ENLACE, 'Video', 'https://ejemplo.test/video', null, 'Trigonometría');
+
+        $this->assertSame('Trigonometría', $material->fresh()->semana);
     }
 
     public function test_crear_material_sin_semana_la_deja_nula(): void
@@ -279,9 +291,9 @@ class AulaVirtualServiceTest extends TestCase
     {
         $curso = CursoVirtual::factory()->create();
 
-        $claseGrabada = $this->app->make(ClaseGrabadaService::class)->crear($curso, TipoClaseGrabadaEnum::ENLACE, 'Clase del 15 de julio', 'https://youtube.test/clase', null, 2);
+        $claseGrabada = $this->app->make(ClaseGrabadaService::class)->crear($curso, TipoClaseGrabadaEnum::ENLACE, 'Clase del 15 de julio', 'https://youtube.test/clase', null, 'Semana 2');
 
-        $this->assertSame(2, $claseGrabada->fresh()->semana);
+        $this->assertSame('Semana 2', $claseGrabada->fresh()->semana);
     }
 
     public function test_crear_tarea_persiste_la_semana_indicada(): void
@@ -293,10 +305,10 @@ class AulaVirtualServiceTest extends TestCase
             'descripcion' => null,
             'fecha_limite' => now()->addDay(),
             'puntaje_max' => 20,
-            'semana' => 1,
+            'semana' => 'Semana 1',
         ]);
 
-        $this->assertSame(1, $tarea->fresh()->semana);
+        $this->assertSame('Semana 1', $tarea->fresh()->semana);
     }
 
     public function test_entregar_tarea_antes_de_la_fecha_limite_queda_como_entregado(): void

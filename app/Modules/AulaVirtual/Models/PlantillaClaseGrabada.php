@@ -15,7 +15,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property string $titulo
  * @property TipoClaseGrabadaEnum $tipo
  * @property string|null $url
- * @property int|null $semana
+ * @property string|null $semana
  * @property int $orden
  */
 class PlantillaClaseGrabada extends Model implements HasMedia

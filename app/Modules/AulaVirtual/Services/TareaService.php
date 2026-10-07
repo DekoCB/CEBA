@@ -43,7 +43,7 @@ class TareaService
     }
 
     /**
-     * @param  array{titulo: string, descripcion: ?string, fecha_limite: string, puntaje_max: int, semana?: ?int}  $datos
+     * @param  array{titulo: string, descripcion: ?string, fecha_limite: string, puntaje_max: int, semana?: ?string}  $datos
      */
     public function crear(CursoVirtual $curso, array $datos): Tarea
     {
@@ -55,7 +55,7 @@ class TareaService
      * distintas aulas/grupos de un mismo curso).
      *
      * @param  Collection<int, CursoVirtual>  $cursos
-     * @param  array{titulo: string, descripcion: ?string, fecha_limite: string, puntaje_max: int, semana?: ?int}  $datos
+     * @param  array{titulo: string, descripcion: ?string, fecha_limite: string, puntaje_max: int, semana?: ?string}  $datos
      * @return Collection<int, Tarea>
      */
     public function crearParaVarios(Collection $cursos, array $datos): Collection

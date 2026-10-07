@@ -126,12 +126,24 @@ class PlantillaCursoVirtualService
             }
 
             foreach ($plantilla->tareas as $plantillaTarea) {
+                // "semana" ahora es texto libre (puede ser una fecha o un
+                // tema, no necesariamente un número de semana) -- la fecha
+                // límite solo se recalcula sumando semanas cuando de verdad
+                // hay un número. "tareas.fecha_limite" no admite null (y
+                // esta pantalla no tiene edición de tareas todavía), así
+                // que una semana no numérica cae al inicio del ciclo -- el
+                // staff debe corregirla a mano, igual que si se olvida de
+                // tocarla, pero sin romper el guardado.
+                $fechaLimite = is_numeric($plantillaTarea->semana)
+                    ? $inicioCiclo->copy()->addWeeks((int) $plantillaTarea->semana)->setTime(23, 59)
+                    : $inicioCiclo->copy()->setTime(23, 59);
+
                 $cursoVirtual->tareas()->create([
                     'semana' => $plantillaTarea->semana,
                     'titulo' => $plantillaTarea->titulo,
                     'descripcion' => $plantillaTarea->descripcion,
                     'puntaje_max' => $plantillaTarea->puntaje_max,
-                    'fecha_limite' => $inicioCiclo->copy()->addWeeks($plantillaTarea->semana ?? 0)->setTime(23, 59),
+                    'fecha_limite' => $fechaLimite,
                 ]);
                 $aplicados++;
             }

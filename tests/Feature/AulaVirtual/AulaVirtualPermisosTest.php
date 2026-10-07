@@ -169,6 +169,11 @@ class AulaVirtualPermisosTest extends TestCase
         $this->assertSame(1, $cursoDos->materiales()->count());
     }
 
+    /**
+     * Pedido del cliente: "Semana" ahora es texto libre (ver también
+     * AulaVirtualSemanaLibreTest) -- el encabezado del grupo ya no antepone
+     * "Semana " a la fuerza, muestra tal cual lo que el staff escribió.
+     */
     public function test_el_material_creado_con_semana_se_agrupa_bajo_su_semana(): void
     {
         $docente = User::factory()->create();
@@ -181,7 +186,7 @@ class AulaVirtualPermisosTest extends TestCase
             ->set('materialTipo', 'enlace')
             ->set('materialTitulo', 'Video de repaso')
             ->set('materialUrl', 'https://ejemplo.test/video')
-            ->set('materialSemana', '2')
+            ->set('materialSemana', 'Semana 2')
             ->set('materialCursosSeleccionados', [$curso->id])
             ->call('crearMaterial')
             ->assertHasNoErrors()
@@ -344,7 +349,7 @@ class AulaVirtualPermisosTest extends TestCase
         $this->actingAs($usuario);
 
         Volt::test('aula-virtual.show', ['curso' => $curso])
-            ->set('tab', 'clases-grabadas')
+            ->set('tab', 'contenido')
             ->assertSee('Clase del 15 de julio')
             ->assertDontSee('Nueva clase grabada');
     }

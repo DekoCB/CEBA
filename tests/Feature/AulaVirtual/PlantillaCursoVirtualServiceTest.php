@@ -32,14 +32,14 @@ class PlantillaCursoVirtualServiceTest extends TestCase
         $curso = CursoVirtual::factory()->create();
         $autor = User::factory()->create();
 
-        $this->app->make(MaterialService::class)->crear($curso, TipoMaterialEnum::ENLACE, 'Video', 'https://ejemplo.test', null, 1);
-        $this->app->make(ClaseGrabadaService::class)->crear($curso, TipoClaseGrabadaEnum::ENLACE, 'Clase', 'https://youtube.test', null, 2);
+        $this->app->make(MaterialService::class)->crear($curso, TipoMaterialEnum::ENLACE, 'Video', 'https://ejemplo.test', null, '1');
+        $this->app->make(ClaseGrabadaService::class)->crear($curso, TipoClaseGrabadaEnum::ENLACE, 'Clase', 'https://youtube.test', null, '2');
         $this->app->make(TareaService::class)->crear($curso, [
             'titulo' => 'Ensayo',
             'descripcion' => null,
             'fecha_limite' => now()->addDay(),
             'puntaje_max' => 20,
-            'semana' => 1,
+            'semana' => '1',
         ]);
         $this->app->make(ForoService::class)->crear($curso, $autor->id, 'Dudas', null, 1);
 
@@ -51,7 +51,7 @@ class PlantillaCursoVirtualServiceTest extends TestCase
         $this->assertSame(1, $plantilla->clasesGrabadas()->count());
         $this->assertSame(1, $plantilla->tareas()->count());
         $this->assertSame(1, $plantilla->foros()->count());
-        $this->assertSame(1, $plantilla->materiales()->first()->semana);
+        $this->assertSame('1', $plantilla->materiales()->first()->semana);
     }
 
     public function test_guardar_copia_el_archivo_del_material_y_de_la_clase_grabada(): void
@@ -118,6 +118,51 @@ class PlantillaCursoVirtualServiceTest extends TestCase
 
         $tareaAplicada = $cursoDestino->tareas()->first();
         $this->assertSame('2027-01-18', $tareaAplicada->fecha_limite->format('Y-m-d'));
+    }
+
+    /**
+     * "Semana" ahora es texto libre -- cuando no es un número, no hay nada
+     * que sumarle al inicio del ciclo. La tarea igual se crea (con una
+     * fecha de respaldo, "tareas.fecha_limite" no admite null), sin que
+     * aplicar la plantilla truene.
+     */
+    public function test_aplicar_con_una_semana_de_texto_libre_no_revienta_y_no_inventa_una_fecha_numerica(): void
+    {
+        $cursoOrigen = CursoVirtual::factory()->create();
+        $autor = User::factory()->create();
+        $this->app->make(TareaService::class)->crear($cursoOrigen, [
+            'titulo' => 'Ensayo sobre Trigonometría',
+            'descripcion' => null,
+            'fecha_limite' => now()->addDay(),
+            'puntaje_max' => 20,
+            'semana' => 'Trigonometría',
+        ]);
+        $plantilla = $this->service()->guardarDesdeCursoVirtual($cursoOrigen, 'Plantilla', $autor);
+
+        $ciclo = Ciclo::factory()->create(['fecha_inicio' => '2027-01-04']);
+        $horarioDestino = Horario::factory()->create(['ciclo_id' => $ciclo->id]);
+        $cursoDestino = CursoVirtual::factory()->create(['horario_id' => $horarioDestino->id]);
+
+        $aplicados = $this->service()->aplicar($plantilla, $cursoDestino, $autor);
+
+        $this->assertSame(1, $aplicados);
+        $tareaAplicada = $cursoDestino->tareas()->first();
+        $this->assertSame('Trigonometría', $tareaAplicada->semana);
+        // No hubo número que sumar: cae al inicio del ciclo en vez de
+        // calcular una fecha a partir de texto, y no lanza excepción.
+        $this->assertSame('2027-01-04', $tareaAplicada->fecha_limite->format('Y-m-d'));
+    }
+
+    public function test_guardar_plantilla_copia_una_semana_de_texto_libre_sin_error(): void
+    {
+        $curso = CursoVirtual::factory()->create();
+        $autor = User::factory()->create();
+        $this->app->make(MaterialService::class)
+            ->crear($curso, TipoMaterialEnum::ENLACE, 'Video', 'https://ejemplo.test', null, 'Semana final');
+
+        $plantilla = $this->service()->guardarDesdeCursoVirtual($curso, 'Plantilla', $autor);
+
+        $this->assertSame('Semana final', $plantilla->materiales()->first()->semana);
     }
 
     public function test_eliminar_borra_la_plantilla_y_sus_hijos(): void

@@ -29,7 +29,7 @@ new #[Layout('layouts.app')] class extends Component
 
     public CursoVirtual $curso;
 
-    public string $tab = 'materiales';
+    public string $tab = 'contenido';
 
     // Nuevo material
     public bool $mostrarFormMaterial = false;
@@ -146,7 +146,7 @@ new #[Layout('layouts.app')] class extends Component
             'materialTitulo' => 'required|string|max:150',
             'materialUrl' => 'nullable|url|max:500',
             'materialArchivo' => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx,xls,xlsx,txt,zip,jpg,jpeg,png|max:10240',
-            'materialSemana' => 'nullable|integer|min:1',
+            'materialSemana' => 'nullable|string|max:100',
             'materialCursosSeleccionados' => 'required|array|min:1',
             'materialCursosSeleccionados.*' => 'integer|exists:aula_virtual_cursos,id',
         ]);
@@ -161,7 +161,7 @@ new #[Layout('layouts.app')] class extends Component
             $this->materialTitulo,
             $this->materialUrl ?: null,
             $this->materialArchivo,
-            $this->materialSemana !== '' ? (int) $this->materialSemana : null,
+            $this->materialSemana !== '' ? trim($this->materialSemana) : null,
         );
 
         $this->reset(['materialTipo', 'materialTitulo', 'materialUrl', 'materialArchivo', 'materialSemana', 'mostrarFormMaterial']);
@@ -184,7 +184,7 @@ new #[Layout('layouts.app')] class extends Component
             'grabacionTitulo' => 'required|string|max:150',
             'grabacionUrl' => 'nullable|url|max:500',
             'grabacionArchivo' => 'nullable|file|mimes:mp4,mov,avi,wmv,mkv,webm|max:40000',
-            'grabacionSemana' => 'nullable|integer|min:1',
+            'grabacionSemana' => 'nullable|string|max:100',
             'grabacionCursosSeleccionados' => 'required|array|min:1',
             'grabacionCursosSeleccionados.*' => 'integer|exists:aula_virtual_cursos,id',
         ]);
@@ -199,7 +199,7 @@ new #[Layout('layouts.app')] class extends Component
             $this->grabacionTitulo,
             $this->grabacionUrl ?: null,
             $this->grabacionArchivo,
-            $this->grabacionSemana !== '' ? (int) $this->grabacionSemana : null,
+            $this->grabacionSemana !== '' ? trim($this->grabacionSemana) : null,
         );
 
         $this->reset(['grabacionTipo', 'grabacionTitulo', 'grabacionUrl', 'grabacionArchivo', 'grabacionSemana', 'mostrarFormGrabacion']);
@@ -222,7 +222,7 @@ new #[Layout('layouts.app')] class extends Component
             'tareaDescripcion' => 'nullable|string',
             'tareaFechaLimite' => 'required|date',
             'tareaPuntajeMax' => 'required|integer|min:1|max:20',
-            'tareaSemana' => 'nullable|integer|min:1',
+            'tareaSemana' => 'nullable|string|max:100',
             'tareaCursosSeleccionados' => 'required|array|min:1',
             'tareaCursosSeleccionados.*' => 'integer|exists:aula_virtual_cursos,id',
         ]);
@@ -236,7 +236,7 @@ new #[Layout('layouts.app')] class extends Component
             'descripcion' => $this->tareaDescripcion ?: null,
             'fecha_limite' => $this->tareaFechaLimite,
             'puntaje_max' => (int) $this->tareaPuntajeMax,
-            'semana' => $this->tareaSemana !== '' ? (int) $this->tareaSemana : null,
+            'semana' => $this->tareaSemana !== '' ? trim($this->tareaSemana) : null,
         ]);
 
         $this->reset(['tareaTitulo', 'tareaDescripcion', 'tareaFechaLimite', 'tareaPuntajeMax', 'tareaSemana', 'mostrarFormTarea']);
@@ -376,28 +376,43 @@ new #[Layout('layouts.app')] class extends Component
     }
 
     /**
-     * Agrupa por número de semana (clave 0 = "Bienvenida", antes de la
-     * Semana 1, para el contenido sin clasificar) y ordena las semanas de
-     * forma ascendente.
+     * Agrupa por el valor crudo de "semana" (clave '' = "Bienvenida", para
+     * lo sin clasificar) y ordena los GRUPOS por el created_at más antiguo
+     * de sus miembros -- "semana" ahora es texto libre (fecha, número o
+     * tema, ver Material/ClaseGrabada/Tarea), así que ordenar por la clave
+     * en sí sería alfabético ("10" antes que "2"), no cronológico. Acepta
+     * tanto modelos Eloquent ($item->semana) como los arrays etiquetados
+     * del panel unificado de Materiales+Clases+Tareas ($item['semana']).
      *
      * @param  Collection<int, mixed>  $items
-     * @return SupportCollection<int, Collection<int, mixed>>
+     * @return SupportCollection<string, Collection<int, mixed>>
      */
     private function agruparPorSemana($items): SupportCollection
     {
-        return $items->groupBy(fn ($item) => $item->semana ?? 0)->sortKeys();
+        $valorDe = fn ($entry) => is_array($entry) ? ($entry['semana'] ?? null) : ($entry->semana ?? null);
+        $fechaDe = fn ($entry) => is_array($entry) ? $entry['created_at'] : $entry->created_at;
+
+        $grupos = $items->groupBy(fn ($entry) => trim((string) ($valorDe($entry) ?? '')));
+
+        return $grupos->sortBy(
+            fn ($itemsDelGrupo, $clave) => $clave === '' ? [-1, 0] : [0, $itemsDelGrupo->min($fechaDe)->timestamp],
+            SORT_REGULAR,
+        );
     }
 
     public function with(CursoVirtualService $cursos, PlantillaCursoVirtualService $plantillas): array
     {
         $user = Auth::user();
 
+        $contenido = $this->curso->materiales
+            ->map(fn ($material) => ['kind' => 'material', 'item' => $material, 'semana' => $material->semana, 'created_at' => $material->created_at])
+            ->concat($this->curso->clasesGrabadas->map(fn ($clase) => ['kind' => 'clase_grabada', 'item' => $clase, 'semana' => $clase->semana, 'created_at' => $clase->created_at]))
+            ->concat($this->curso->tareas()->latest('fecha_limite')->get()->map(fn ($tarea) => ['kind' => 'tarea', 'item' => $tarea, 'semana' => $tarea->semana, 'created_at' => $tarea->created_at]));
+
         return [
             'puedeGestionar' => Gate::allows('manage', $this->curso),
             'puedeGestionarPortada' => $user->hasRole('coordinador') || $user->hasRole('direccion'),
-            'materialesPorSemana' => $this->agruparPorSemana($this->curso->materiales),
-            'clasesGrabadasPorSemana' => $this->agruparPorSemana($this->curso->clasesGrabadas),
-            'tareasPorSemana' => $this->agruparPorSemana($this->curso->tareas()->latest('fecha_limite')->get()),
+            'contenidoPorSemana' => $this->agruparPorSemana($contenido),
             'publicaciones' => $this->curso->publicaciones()->with(['autor', 'comentarios.autor'])->latest()->get(),
             'forosPorSemana' => $this->agruparPorSemana($this->curso->foros()->with(['autor', 'respuestas.autor'])->latest()->get()),
             'tiposMaterial' => TipoMaterialEnum::cases(),
@@ -461,7 +476,7 @@ new #[Layout('layouts.app')] class extends Component
     @endcan
 
     <div class="mb-6 flex gap-1 border-b border-border">
-        @foreach (['materiales' => 'Materiales', 'clases-grabadas' => 'Clases grabadas', 'tareas' => 'Tareas', 'publicaciones' => 'Publicaciones', 'foros' => 'Foros'] as $valor => $etiqueta)
+        @foreach (['contenido' => 'Contenido', 'publicaciones' => 'Publicaciones', 'foros' => 'Foros'] as $valor => $etiqueta)
             <button
                 wire:click="$set('tab', '{{ $valor }}')"
                 @class([
@@ -475,12 +490,17 @@ new #[Layout('layouts.app')] class extends Component
         @endforeach
     </div>
 
-    {{-- Materiales --}}
-    @if ($tab === 'materiales')
+    {{-- Contenido: Materiales + Clases grabadas + Tareas, un solo panel
+         cronológico estilo Classroom -- agrupado por semana con
+         agruparPorSemana() sobre la colección combinada ($contenidoPorSemana,
+         ver with()), un ícono/acción por tipo dentro del mismo bloque. --}}
+    @if ($tab === 'contenido')
         <div class="space-y-4">
             @can('manage', $curso)
-                <div class="flex justify-end">
+                <div class="flex flex-wrap justify-end gap-2">
                     <x-secondary-button type="button" wire:click="$set('mostrarFormMaterial', true)">+ Nuevo material</x-secondary-button>
+                    <x-secondary-button type="button" wire:click="$set('mostrarFormGrabacion', true)">+ Nueva clase grabada</x-secondary-button>
+                    <x-secondary-button type="button" wire:click="$set('mostrarFormTarea', true)">+ Nueva tarea</x-secondary-button>
                 </div>
             @endcan
 
@@ -505,8 +525,8 @@ new #[Layout('layouts.app')] class extends Component
                     </div>
                     <div>
                         <x-input-label for="materialSemana" value="Semana (opcional)" />
-                        <x-text-input wire:model="materialSemana" id="materialSemana" type="number" min="1" class="mt-1 block w-full" placeholder="Ej. 1" />
-                        <p class="mt-1 text-xs text-ink-faint">Déjalo vacío para que aparezca en «Bienvenida», antes de la Semana 1.</p>
+                        <x-text-input wire:model="materialSemana" id="materialSemana" type="text" maxlength="100" class="mt-1 block w-full" placeholder="Ej. Semana 1, 15/03, Trigonometría" />
+                        <p class="mt-1 text-xs text-ink-faint">Déjalo vacío para que aparezca en «Bienvenida». Puede ser un número, una fecha o un tema.</p>
                         <x-input-error :messages="$errors->get('materialSemana')" class="mt-1" />
                     </div>
                     @if (in_array($materialTipo, ['pdf', 'archivo']))
@@ -532,47 +552,6 @@ new #[Layout('layouts.app')] class extends Component
                 </form>
             @endif
 
-            <div class="space-y-4">
-                @forelse ($materialesPorSemana as $numeroSemana => $materialesDeSemana)
-                    <div>
-                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $numeroSemana === 0 ? 'Bienvenida' : 'Semana '.$numeroSemana }}</p>
-                        <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
-                            @foreach ($materialesDeSemana as $material)
-                                <div class="flex items-center justify-between px-4 py-3 text-sm">
-                                    <div class="flex items-center gap-3">
-                                        <span class="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-mono text-ink-faint">{{ $material->tipo->label() }}</span>
-                                        <span class="text-ink">{{ $material->titulo }}</span>
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        @if ($material->tipo->requiereArchivo() && $material->getFirstMedia('archivo'))
-                                            <a href="{{ $material->getFirstMediaUrl('archivo') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Descargar</a>
-                                        @elseif ($material->url)
-                                            <a href="{{ $material->url }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Abrir enlace</a>
-                                        @endif
-                                        @can('manage', $curso)
-                                            <button x-on:click="$store.confirm.preguntar('¿Eliminar este material?', () => $wire.eliminarMaterial({{ $material->id }}), { peligro: true, etiquetaConfirmar: 'Eliminar' })" class="text-xs font-medium text-danger hover:underline">Eliminar</button>
-                                        @endcan
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                @empty
-                    <p class="px-4 py-8 text-center text-sm text-ink-faint">Todavía no hay materiales.</p>
-                @endforelse
-            </div>
-        </div>
-    @endif
-
-    {{-- Clases grabadas --}}
-    @if ($tab === 'clases-grabadas')
-        <div class="space-y-4">
-            @can('manage', $curso)
-                <div class="flex justify-end">
-                    <x-secondary-button type="button" wire:click="$set('mostrarFormGrabacion', true)">+ Nueva clase grabada</x-secondary-button>
-                </div>
-            @endcan
-
             @if ($mostrarFormGrabacion)
                 <form wire:submit="crearGrabacion" class="rounded-2xl border border-border bg-surface shadow-sm p-4 space-y-3">
                     <div class="grid grid-cols-2 gap-3">
@@ -594,8 +573,8 @@ new #[Layout('layouts.app')] class extends Component
                     </div>
                     <div>
                         <x-input-label for="grabacionSemana" value="Semana (opcional)" />
-                        <x-text-input wire:model="grabacionSemana" id="grabacionSemana" type="number" min="1" class="mt-1 block w-full" placeholder="Ej. 1" />
-                        <p class="mt-1 text-xs text-ink-faint">Déjalo vacío para que aparezca en «Bienvenida», antes de la Semana 1.</p>
+                        <x-text-input wire:model="grabacionSemana" id="grabacionSemana" type="text" maxlength="100" class="mt-1 block w-full" placeholder="Ej. Semana 1, 15/03, Trigonometría" />
+                        <p class="mt-1 text-xs text-ink-faint">Déjalo vacío para que aparezca en «Bienvenida». Puede ser un número, una fecha o un tema.</p>
                         <x-input-error :messages="$errors->get('grabacionSemana')" class="mt-1" />
                     </div>
                     @if ($grabacionTipo === 'archivo')
@@ -621,47 +600,6 @@ new #[Layout('layouts.app')] class extends Component
                 </form>
             @endif
 
-            <div class="space-y-4">
-                @forelse ($clasesGrabadasPorSemana as $numeroSemana => $clasesDeSemana)
-                    <div>
-                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $numeroSemana === 0 ? 'Bienvenida' : 'Semana '.$numeroSemana }}</p>
-                        <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
-                            @foreach ($clasesDeSemana as $claseGrabada)
-                                <div class="flex items-center justify-between px-4 py-3 text-sm">
-                                    <div class="flex items-center gap-3">
-                                        <span class="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-mono text-ink-faint">{{ $claseGrabada->tipo->label() }}</span>
-                                        <span class="text-ink">{{ $claseGrabada->titulo }}</span>
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        @if ($claseGrabada->tipo->requiereArchivo() && $claseGrabada->getFirstMedia('video'))
-                                            <a href="{{ $claseGrabada->getFirstMediaUrl('video') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver video</a>
-                                        @elseif ($claseGrabada->url)
-                                            <a href="{{ $claseGrabada->url }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Abrir enlace</a>
-                                        @endif
-                                        @can('manage', $curso)
-                                            <button x-on:click="$store.confirm.preguntar('¿Eliminar esta clase grabada?', () => $wire.eliminarGrabacion({{ $claseGrabada->id }}), { peligro: true, etiquetaConfirmar: 'Eliminar' })" class="text-xs font-medium text-danger hover:underline">Eliminar</button>
-                                        @endcan
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                @empty
-                    <p class="px-4 py-8 text-center text-sm text-ink-faint">Todavía no hay clases grabadas.</p>
-                @endforelse
-            </div>
-        </div>
-    @endif
-
-    {{-- Tareas --}}
-    @if ($tab === 'tareas')
-        <div class="space-y-4">
-            @can('manage', $curso)
-                <div class="flex justify-end">
-                    <x-secondary-button type="button" wire:click="$set('mostrarFormTarea', true)">+ Nueva tarea</x-secondary-button>
-                </div>
-            @endcan
-
             @if ($mostrarFormTarea)
                 <form wire:submit="crearTarea" class="rounded-2xl border border-border bg-surface shadow-sm p-4 space-y-3">
                     <div>
@@ -686,8 +624,8 @@ new #[Layout('layouts.app')] class extends Component
                     </div>
                     <div>
                         <x-input-label for="tareaSemana" value="Semana (opcional)" />
-                        <x-text-input wire:model="tareaSemana" id="tareaSemana" type="number" min="1" class="mt-1 block w-full" placeholder="Ej. 1" />
-                        <p class="mt-1 text-xs text-ink-faint">Déjalo vacío para que aparezca en «Bienvenida», antes de la Semana 1.</p>
+                        <x-text-input wire:model="tareaSemana" id="tareaSemana" type="text" maxlength="100" class="mt-1 block w-full" placeholder="Ej. Semana 1, 15/03, Trigonometría" />
+                        <p class="mt-1 text-xs text-ink-faint">Déjalo vacío para que aparezca en «Bienvenida». Puede ser un número, una fecha o un tema.</p>
                         <x-input-error :messages="$errors->get('tareaSemana')" class="mt-1" />
                     </div>
 
@@ -701,25 +639,71 @@ new #[Layout('layouts.app')] class extends Component
             @endif
 
             <div class="space-y-4">
-                @forelse ($tareasPorSemana as $numeroSemana => $tareasDeSemana)
+                @forelse ($contenidoPorSemana as $claveSemana => $itemsDeSemana)
                     <div>
-                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $numeroSemana === 0 ? 'Bienvenida' : 'Semana '.$numeroSemana }}</p>
+                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $claveSemana === '' ? 'Bienvenida' : $claveSemana }}</p>
                         <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
-                            @foreach ($tareasDeSemana as $tarea)
-                                <a href="{{ route('aula-virtual.tarea', [$curso, $tarea]) }}" wire:navigate class="flex items-center justify-between px-4 py-3 text-sm hover:bg-surface-2">
-                                    <div>
-                                        <p class="text-ink">{{ $tarea->titulo }}</p>
-                                        <p class="text-xs text-ink-faint">Vence {{ $tarea->fecha_limite->format('d/m/Y H:i') }} · {{ $tarea->puntaje_max }} pts</p>
-                                    </div>
-                                    @if ($tarea->estaVencida())
-                                        <x-badge variant="danger">Vencida</x-badge>
-                                    @endif
-                                </a>
+                            @foreach ($itemsDeSemana as $entry)
+                                @php $item = $entry['item']; @endphp
+                                @switch ($entry['kind'])
+                                    @case ('material')
+                                        <div class="flex items-center justify-between px-4 py-3 text-sm">
+                                            <div class="flex items-center gap-3">
+                                                <span class="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-mono text-ink-faint">{{ $item->tipo->label() }}</span>
+                                                <span class="text-ink">{{ $item->titulo }}</span>
+                                            </div>
+                                            <div class="flex items-center gap-3">
+                                                @if ($item->tipo->requiereArchivo() && $item->getFirstMedia('archivo'))
+                                                    <a href="{{ $item->getFirstMediaUrl('archivo') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Descargar</a>
+                                                @elseif ($item->url)
+                                                    <a href="{{ $item->url }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Abrir enlace</a>
+                                                @endif
+                                                @can('manage', $curso)
+                                                    <button x-on:click="$store.confirm.preguntar('¿Eliminar este material?', () => $wire.eliminarMaterial({{ $item->id }}), { peligro: true, etiquetaConfirmar: 'Eliminar' })" class="text-xs font-medium text-danger hover:underline">Eliminar</button>
+                                                @endcan
+                                            </div>
+                                        </div>
+                                        @break
+
+                                    @case ('clase_grabada')
+                                        <div class="flex items-center justify-between px-4 py-3 text-sm">
+                                            <div class="flex items-center gap-3">
+                                                <span class="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-mono text-ink-faint">{{ $item->tipo->label() }}</span>
+                                                <span class="text-ink">{{ $item->titulo }}</span>
+                                            </div>
+                                            <div class="flex items-center gap-3">
+                                                @if ($item->tipo->requiereArchivo() && $item->getFirstMedia('video'))
+                                                    <a href="{{ $item->getFirstMediaUrl('video') }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Ver video</a>
+                                                @elseif ($item->url)
+                                                    <a href="{{ $item->url }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Abrir enlace</a>
+                                                @endif
+                                                @can('manage', $curso)
+                                                    <button x-on:click="$store.confirm.preguntar('¿Eliminar esta clase grabada?', () => $wire.eliminarGrabacion({{ $item->id }}), { peligro: true, etiquetaConfirmar: 'Eliminar' })" class="text-xs font-medium text-danger hover:underline">Eliminar</button>
+                                                @endcan
+                                            </div>
+                                        </div>
+                                        @break
+
+                                    @case ('tarea')
+                                        <a href="{{ route('aula-virtual.tarea', [$curso, $item]) }}" wire:navigate class="flex items-center justify-between px-4 py-3 text-sm hover:bg-surface-2">
+                                            <div class="flex items-center gap-3">
+                                                <span class="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-mono text-ink-faint">Tarea</span>
+                                                <div>
+                                                    <p class="text-ink">{{ $item->titulo }}</p>
+                                                    <p class="text-xs text-ink-faint">Vence {{ $item->fecha_limite->format('d/m/Y H:i') }} · {{ $item->puntaje_max }} pts</p>
+                                                </div>
+                                            </div>
+                                            @if ($item->estaVencida())
+                                                <x-badge variant="danger">Vencida</x-badge>
+                                            @endif
+                                        </a>
+                                        @break
+                                @endswitch
                             @endforeach
                         </div>
                     </div>
                 @empty
-                    <p class="px-4 py-8 text-center text-sm text-ink-faint">Todavía no hay tareas.</p>
+                    <p class="px-4 py-8 text-center text-sm text-ink-faint">Todavía no hay materiales, clases grabadas ni tareas.</p>
                 @endforelse
             </div>
         </div>
@@ -832,7 +816,7 @@ new #[Layout('layouts.app')] class extends Component
             <div class="space-y-4">
                 @forelse ($forosPorSemana as $numeroSemana => $forosDeSemana)
                     <div>
-                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $numeroSemana === 0 ? 'Bienvenida' : 'Semana '.$numeroSemana }}</p>
+                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $numeroSemana === '' ? 'Bienvenida' : 'Semana '.$numeroSemana }}</p>
                         <div class="space-y-4">
                             @foreach ($forosDeSemana as $foro)
                                 <div class="rounded-2xl border border-border bg-surface shadow-sm p-4">
