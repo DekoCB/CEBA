@@ -49,7 +49,7 @@ class HorarioFormTest extends TestCase
         Volt::test('academico.horarios.index')
             ->call('abrirModal')
             ->set('cicloId', (string) $ciclo->id)
-            ->set('gradoId', (string) $grado->id)
+            ->set('gradosSeleccionados', [$grado->id])
             ->set('cursoId', (string) $curso->id)
             ->set('docenteId', (string) $docente->id)
             ->set('aulaId', (string) $aula->id)
@@ -94,7 +94,7 @@ class HorarioFormTest extends TestCase
         Volt::test('academico.horarios.index')
             ->call('abrirModal')
             ->set('cicloId', (string) $existente->ciclo_id)
-            ->set('gradoId', (string) $existente->grado_id)
+            ->set('gradosSeleccionados', [$existente->grado_id])
             ->set('cursoId', (string) Curso::factory()->create()->id)
             ->set('docenteId', (string) User::factory()->create()->id)
             ->set('aulaId', (string) $existente->aula_id)
@@ -144,7 +144,7 @@ class HorarioFormTest extends TestCase
         Volt::test('academico.horarios.index')
             ->call('abrirModal')
             ->set('cicloId', (string) $ciclo->id)
-            ->set('gradoId', (string) $grado->id)
+            ->set('gradosSeleccionados', [$grado->id])
             ->set('cursoId', (string) $curso->id)
             ->set('docenteId', (string) $docente->id)
             ->set('aulaId', (string) $aula->id)
@@ -305,5 +305,248 @@ class HorarioFormTest extends TestCase
         $this->assertLessThan($posicionGradoA, $posicionLunMie);
         $this->assertLessThan($posicionDomingo, $posicionGradoA);
         $this->assertLessThan($posicionGradoB, $posicionDomingo);
+    }
+
+    /**
+     * Pedido del cliente: los cursos en franja "Lunes y Miércoles" a veces
+     * se dictan en forma alternada -- no necesariamente los 2 días. La hora
+     * debe poder quedar sin definir para uno de ellos.
+     */
+    public function test_permite_guardar_un_dia_sin_horas_definidas(): void
+    {
+        $this->actingAs($this->actorCoordinador());
+
+        $grado = Grado::factory()->create();
+
+        Volt::test('academico.horarios.index')
+            ->call('abrirModal')
+            ->set('cicloId', (string) Ciclo::factory()->create()->id)
+            ->set('gradosSeleccionados', [$grado->id])
+            ->set('cursoId', (string) Curso::factory()->create()->id)
+            ->set('docenteId', (string) User::factory()->create()->id)
+            ->set('aulaId', (string) Aula::factory()->create()->id)
+            ->set('franjasSeleccionadas', ['lun_mie'])
+            ->set('horaInicioHoraPorDia.lunes', '18')
+            ->set('horaInicioMinutoPorDia.lunes', '00')
+            ->set('horaFinHoraPorDia.lunes', '20')
+            ->set('horaFinMinutoPorDia.lunes', '00')
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $horario = Horario::query()->where('grado_id', $grado->id)->firstOrFail();
+        $miercoles = $horario->dias->firstWhere('dia_semana', DiaSemanaEnum::MIERCOLES);
+        $this->assertNull($miercoles->hora_inicio);
+        $this->assertNull($miercoles->hora_fin);
+    }
+
+    public function test_rechaza_llenar_solo_la_hora_de_inicio_sin_la_hora_de_fin(): void
+    {
+        $this->actingAs($this->actorCoordinador());
+
+        Volt::test('academico.horarios.index')
+            ->call('abrirModal')
+            ->set('cicloId', (string) Ciclo::factory()->create()->id)
+            ->set('gradosSeleccionados', [Grado::factory()->create()->id])
+            ->set('cursoId', (string) Curso::factory()->create()->id)
+            ->set('docenteId', (string) User::factory()->create()->id)
+            ->set('aulaId', (string) Aula::factory()->create()->id)
+            ->set('franjasSeleccionadas', ['lun_mie'])
+            ->set('horaInicioHoraPorDia.lunes', '18')
+            ->set('horaInicioMinutoPorDia.lunes', '00')
+            ->set('horaFinHoraPorDia.lunes', '20')
+            ->set('horaFinMinutoPorDia.lunes', '00')
+            ->set('horaInicioHoraPorDia.miercoles', '18')
+            ->set('horaInicioMinutoPorDia.miercoles', '00')
+            // horaFin de miércoles queda vacía a propósito
+            ->call('guardar')
+            ->assertHasErrors(['horaFinHoraPorDia.miercoles', 'horaFinMinutoPorDia.miercoles']);
+
+        $this->assertSame(0, Horario::query()->count());
+    }
+
+    public function test_el_listado_muestra_sin_horario_definido_para_un_dia_sin_horas(): void
+    {
+        $this->actingAs($this->actorCoordinador());
+
+        $ciclo = Ciclo::factory()->create();
+        $this->app->make(HorarioService::class)->crear([
+            'curso_id' => Curso::factory()->create()->id,
+            'docente_id' => User::factory()->create()->id,
+            'aula_id' => Aula::factory()->create()->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => Grado::factory()->create()->id,
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+                ['dia_semana' => DiaSemanaEnum::MIERCOLES, 'hora_inicio' => null, 'hora_fin' => null],
+            ],
+        ]);
+
+        Volt::test('academico.horarios.index')
+            ->set('cicloFiltro', (string) $ciclo->id)
+            ->assertSee('sin horario definido');
+    }
+
+    /**
+     * Pedido del cliente: poder elegir varios grados a la vez al crear un
+     * horario, para no repetir todo el formulario grado por grado.
+     */
+    public function test_seleccionar_varios_grados_crea_un_horario_independiente_por_cada_uno(): void
+    {
+        $this->actingAs($this->actorCoordinador());
+
+        $gradoA = Grado::factory()->create();
+        $gradoB = Grado::factory()->create();
+
+        Volt::test('academico.horarios.index')
+            ->call('abrirModal')
+            ->set('cicloId', (string) Ciclo::factory()->create()->id)
+            ->set('gradosSeleccionados', [$gradoA->id, $gradoB->id])
+            ->set('cursoId', (string) Curso::factory()->create()->id)
+            ->set('docenteId', (string) User::factory()->create()->id)
+            ->set('aulaId', (string) Aula::factory()->create()->id)
+            ->set('franjasSeleccionadas', ['lun_mie'])
+            ->set('horaInicioHoraPorDia.lunes', '18')
+            ->set('horaInicioMinutoPorDia.lunes', '00')
+            ->set('horaFinHoraPorDia.lunes', '20')
+            ->set('horaFinMinutoPorDia.lunes', '00')
+            ->set('horaInicioHoraPorDia.miercoles', '18')
+            ->set('horaInicioMinutoPorDia.miercoles', '00')
+            ->set('horaFinHoraPorDia.miercoles', '20')
+            ->set('horaFinMinutoPorDia.miercoles', '00')
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $this->assertSame(2, Horario::query()->count());
+        $this->assertTrue(Horario::query()->where('grado_id', $gradoA->id)->exists());
+        $this->assertTrue(Horario::query()->where('grado_id', $gradoB->id)->exists());
+    }
+
+    /**
+     * Los horarios creados juntos en la misma tanda comparten a propósito
+     * la misma aula/horario (es el mismo formulario, para varios grados) --
+     * no deben chocar entre sí, aunque la validación de choque normal
+     * (aula+día+hora, sin importar el grado) sí los habría marcado como
+     * conflicto si no se excluyeran explícitamente unos a otros.
+     */
+    public function test_los_grados_creados_juntos_no_chocan_entre_si_aunque_compartan_aula_y_horario(): void
+    {
+        $this->actingAs($this->actorCoordinador());
+
+        $gradoA = Grado::factory()->create();
+        $gradoB = Grado::factory()->create();
+        $gradoC = Grado::factory()->create();
+
+        Volt::test('academico.horarios.index')
+            ->call('abrirModal')
+            ->set('cicloId', (string) Ciclo::factory()->create()->id)
+            ->set('gradosSeleccionados', [$gradoA->id, $gradoB->id, $gradoC->id])
+            ->set('cursoId', (string) Curso::factory()->create()->id)
+            ->set('docenteId', (string) User::factory()->create()->id)
+            ->set('aulaId', (string) Aula::factory()->create()->id)
+            ->set('franjasSeleccionadas', ['lun_mie'])
+            ->set('horaInicioHoraPorDia.lunes', '18')
+            ->set('horaInicioMinutoPorDia.lunes', '00')
+            ->set('horaFinHoraPorDia.lunes', '20')
+            ->set('horaFinMinutoPorDia.lunes', '00')
+            ->set('horaInicioHoraPorDia.miercoles', '18')
+            ->set('horaInicioMinutoPorDia.miercoles', '00')
+            ->set('horaFinHoraPorDia.miercoles', '20')
+            ->set('horaFinMinutoPorDia.miercoles', '00')
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $this->assertSame(3, Horario::query()->count());
+    }
+
+    /**
+     * Un horario que YA EXISTÍA de antes (no de esta misma tanda) sí sigue
+     * bloqueando -- como todos los grados elegidos apuntan a la misma
+     * aula/día/hora, un choque previo los afecta a todos por igual.
+     */
+    public function test_un_horario_ya_existente_de_antes_bloquea_a_todos_los_grados_de_la_tanda(): void
+    {
+        $this->actingAs($this->actorCoordinador());
+
+        $aula = Aula::factory()->create();
+        $ciclo = Ciclo::factory()->create();
+        $gradoA = Grado::factory()->create();
+        $gradoB = Grado::factory()->create();
+
+        // Ya existe un horario en esa misma aula/día/hora, de antes.
+        $this->app->make(HorarioService::class)->crear([
+            'curso_id' => Curso::factory()->create()->id,
+            'docente_id' => User::factory()->create()->id,
+            'aula_id' => $aula->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => Grado::factory()->create()->id,
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+            ],
+        ]);
+
+        Volt::test('academico.horarios.index')
+            ->call('abrirModal')
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradosSeleccionados', [$gradoA->id, $gradoB->id])
+            ->set('cursoId', (string) Curso::factory()->create()->id)
+            ->set('docenteId', (string) User::factory()->create()->id)
+            ->set('aulaId', (string) $aula->id)
+            ->set('franjasSeleccionadas', ['lun_mie'])
+            ->set('horaInicioHoraPorDia.lunes', '18')
+            ->set('horaInicioMinutoPorDia.lunes', '00')
+            ->set('horaFinHoraPorDia.lunes', '20')
+            ->set('horaFinMinutoPorDia.lunes', '00')
+            ->set('horaInicioHoraPorDia.miercoles', '18')
+            ->set('horaInicioMinutoPorDia.miercoles', '00')
+            ->set('horaFinHoraPorDia.miercoles', '20')
+            ->set('horaFinMinutoPorDia.miercoles', '00')
+            ->call('guardar')
+            ->assertSee('ya está ocupada');
+
+        $this->assertSame(0, Horario::query()->where('grado_id', $gradoA->id)->count());
+        $this->assertSame(0, Horario::query()->where('grado_id', $gradoB->id)->count());
+    }
+
+    public function test_editar_sigue_usando_un_solo_grado(): void
+    {
+        $this->actingAs($this->actorCoordinador());
+
+        $horario = $this->app->make(HorarioService::class)->crear([
+            'curso_id' => Curso::factory()->create()->id,
+            'docente_id' => User::factory()->create()->id,
+            'aula_id' => Aula::factory()->create()->id,
+            'ciclo_id' => Ciclo::factory()->create()->id,
+            'grado_id' => Grado::factory()->create()->id,
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+            ],
+        ]);
+        $nuevoGrado = Grado::factory()->create();
+
+        Volt::test('academico.horarios.index')
+            ->call('abrirModalEditar', $horario->id)
+            ->assertSet('gradoId', (string) $horario->grado_id)
+            ->set('gradoId', (string) $nuevoGrado->id)
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $this->assertSame($nuevoGrado->id, $horario->fresh()->grado_id);
+    }
+
+    public function test_no_deja_guardar_sin_elegir_ningun_grado(): void
+    {
+        $this->actingAs($this->actorCoordinador());
+
+        Volt::test('academico.horarios.index')
+            ->call('abrirModal')
+            ->set('cicloId', (string) Ciclo::factory()->create()->id)
+            ->set('cursoId', (string) Curso::factory()->create()->id)
+            ->set('docenteId', (string) User::factory()->create()->id)
+            ->set('aulaId', (string) Aula::factory()->create()->id)
+            ->set('franjasSeleccionadas', ['lun_mie'])
+            ->call('guardar')
+            ->assertHasErrors('gradosSeleccionados');
+
+        $this->assertSame(0, Horario::query()->count());
     }
 }

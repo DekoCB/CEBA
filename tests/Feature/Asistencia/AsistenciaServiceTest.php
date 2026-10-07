@@ -367,6 +367,40 @@ class AsistenciaServiceTest extends TestCase
         $this->assertNull($this->service()->horarioEnCursoDelEstudiante($estudiante));
     }
 
+    /**
+     * Un día sin horario definido (curso dictado en forma alternada) nunca
+     * cuenta como "clase en curso ahora" -- no hay hora contra la cual
+     * comparar.
+     */
+    public function test_horario_en_curso_del_estudiante_ignora_un_dia_sin_horas_definidas(): void
+    {
+        $domingo = Carbon::now()->next(Carbon::SUNDAY);
+
+        $ciclo = Ciclo::factory()->create([
+            'fecha_inicio' => $domingo->copy()->subMonth()->format('Y-m-d'),
+            'fecha_fin' => $domingo->copy()->addMonth()->format('Y-m-d'),
+        ]);
+        $horario = Horario::factory()->create(['ciclo_id' => $ciclo->id]);
+        $horario->dias()->delete();
+        $horario->dias()->create([
+            'dia_semana' => DiaSemanaEnum::DOMINGO,
+            'hora_inicio' => null,
+            'hora_fin' => null,
+        ]);
+
+        $estudiante = Estudiante::factory()->create();
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'grado_id' => $horario->grado_id,
+            'ciclo_id' => $horario->ciclo_id,
+            'estado' => 'aprobada',
+        ]);
+
+        $this->travelTo($domingo->copy()->setTime(18, 5));
+
+        $this->assertNull($this->service()->horarioEnCursoDelEstudiante($estudiante));
+    }
+
     public function test_autorregistrar_marca_presente_dentro_de_la_tolerancia(): void
     {
         [$horario, $estudiante, $domingo] = $this->horarioMatriculadoUnDomingo();

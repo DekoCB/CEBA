@@ -158,6 +158,10 @@ class Horario extends Model
 
     private function rangoHorario(HorarioDia $dia): string
     {
+        if ($dia->hora_inicio === null || $dia->hora_fin === null) {
+            return 'sin horario definido';
+        }
+
         return substr($dia->hora_inicio, 0, 5).'–'.substr($dia->hora_fin, 0, 5);
     }
 }

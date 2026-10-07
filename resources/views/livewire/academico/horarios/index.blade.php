@@ -38,6 +38,21 @@ new #[Layout('layouts.app')] class extends Component
     public string $gradoId = '';
 
     /**
+     * Grados marcados al crear (selección múltiple): se crea un Horario
+     * independiente por cada uno, mismo curso/docente/aula/días/horas.
+     * Al editar se sigue usando $gradoId (un horario ya existente es de
+     * un solo grado).
+     *
+     * @var list<int>
+     */
+    public array $gradosSeleccionados = [];
+
+    /**
+     * @var array{exitosos: int, errores: list<array{grado: string, mensaje: string}>}|null
+     */
+    public ?array $resultadoCreacionMasiva = null;
+
+    /**
      * Al crear: las franjas institucionales marcadas (pueden combinarse
      * más de una a la vez). Al editar, en cambio, se usan los días
      * sueltos ya reales del horario (ver $diasSueltosSeleccionados) --
@@ -130,7 +145,7 @@ new #[Layout('layouts.app')] class extends Component
 
         $this->resetValidation();
         $this->reset([
-            'editandoId', 'cursoId', 'docenteId', 'aulaId', 'gradoId',
+            'editandoId', 'cursoId', 'docenteId', 'aulaId', 'gradoId', 'gradosSeleccionados', 'resultadoCreacionMasiva',
             'franjasSeleccionadas', 'diasSueltosSeleccionados',
             'horaInicioHoraPorDia', 'horaInicioMinutoPorDia', 'horaFinHoraPorDia', 'horaFinMinutoPorDia',
         ]);
@@ -166,12 +181,17 @@ new #[Layout('layouts.app')] class extends Component
         $this->horaFinMinutoPorDia = [];
 
         foreach ($horario->dias as $dia) {
-            [$horaInicio, $minutoInicio] = explode(':', $dia->hora_inicio);
-            [$horaFin, $minutoFin] = explode(':', $dia->hora_fin);
-            $this->horaInicioHoraPorDia[$dia->dia_semana->value] = $horaInicio;
-            $this->horaInicioMinutoPorDia[$dia->dia_semana->value] = $minutoInicio;
-            $this->horaFinHoraPorDia[$dia->dia_semana->value] = $horaFin;
-            $this->horaFinMinutoPorDia[$dia->dia_semana->value] = $minutoFin;
+            if ($dia->hora_inicio !== null) {
+                [$horaInicio, $minutoInicio] = explode(':', $dia->hora_inicio);
+                $this->horaInicioHoraPorDia[$dia->dia_semana->value] = $horaInicio;
+                $this->horaInicioMinutoPorDia[$dia->dia_semana->value] = $minutoInicio;
+            }
+
+            if ($dia->hora_fin !== null) {
+                [$horaFin, $minutoFin] = explode(':', $dia->hora_fin);
+                $this->horaFinHoraPorDia[$dia->dia_semana->value] = $horaFin;
+                $this->horaFinMinutoPorDia[$dia->dia_semana->value] = $minutoFin;
+            }
         }
 
         $this->mostrarModal = true;
@@ -208,50 +228,94 @@ new #[Layout('layouts.app')] class extends Component
             'docenteId' => 'required|integer|exists:users,id',
             'aulaId' => 'required|integer|exists:aulas,id',
             'cicloId' => 'required|integer|exists:ciclos,id',
-            'gradoId' => 'required|integer|exists:grados,id',
         ];
 
         if ($this->editandoId === null) {
+            $reglas['gradosSeleccionados'] = 'required|array|min:1';
+            $reglas['gradosSeleccionados.*'] = 'integer|exists:grados,id';
             $reglas['franjasSeleccionadas'] = 'required|array|min:1';
             $reglas['franjasSeleccionadas.*'] = 'string|in:'.implode(',', array_keys($this->franjasDisponibles()));
         } else {
+            $reglas['gradoId'] = 'required|integer|exists:grados,id';
             $reglas['diasSueltosSeleccionados'] = 'required|array|min:1';
             $reglas['diasSueltosSeleccionados.*'] = 'string|in:'.implode(',', array_map(fn (DiaSemanaEnum $dia) => $dia->value, DiaSemanaEnum::cases()));
         }
 
+        // Un día es todo-o-nada: si cualquiera de sus 4 sub-campos tiene
+        // valor, los 4 pasan a ser obligatorios (así no se puede guardar
+        // una hora de inicio sin su hora de fin, o viceversa). Si ninguno
+        // tiene valor, el día queda sin horario definido -- el curso se
+        // dicta en forma alternada y ese día en particular no tiene clase
+        // esta vez.
         foreach ($dias as $dia) {
-            $reglas["horaInicioHoraPorDia.{$dia->value}"] = 'required|string|in:'.implode(',', array_keys($this->horasDisponibles()));
-            $reglas["horaInicioMinutoPorDia.{$dia->value}"] = 'required|string|in:'.implode(',', array_keys($this->minutosDisponibles()));
-            $reglas["horaFinHoraPorDia.{$dia->value}"] = 'required|string|in:'.implode(',', array_keys($this->horasDisponibles()));
-            $reglas["horaFinMinutoPorDia.{$dia->value}"] = 'required|string|in:'.implode(',', array_keys($this->minutosDisponibles()));
+            $algunoLleno = ($this->horaInicioHoraPorDia[$dia->value] ?? '') !== ''
+                || ($this->horaInicioMinutoPorDia[$dia->value] ?? '') !== ''
+                || ($this->horaFinHoraPorDia[$dia->value] ?? '') !== ''
+                || ($this->horaFinMinutoPorDia[$dia->value] ?? '') !== '';
+            $regla = $algunoLleno ? 'required' : 'nullable';
+
+            $reglas["horaInicioHoraPorDia.{$dia->value}"] = "{$regla}|string|in:".implode(',', array_keys($this->horasDisponibles()));
+            $reglas["horaInicioMinutoPorDia.{$dia->value}"] = "{$regla}|string|in:".implode(',', array_keys($this->minutosDisponibles()));
+            $reglas["horaFinHoraPorDia.{$dia->value}"] = "{$regla}|string|in:".implode(',', array_keys($this->horasDisponibles()));
+            $reglas["horaFinMinutoPorDia.{$dia->value}"] = "{$regla}|string|in:".implode(',', array_keys($this->minutosDisponibles()));
         }
 
         $this->validate($reglas);
 
-        $diasParaGuardar = array_map(fn (DiaSemanaEnum $dia) => [
-            'dia_semana' => $dia,
-            'hora_inicio' => "{$this->horaInicioHoraPorDia[$dia->value]}:{$this->horaInicioMinutoPorDia[$dia->value]}:00",
-            'hora_fin' => "{$this->horaFinHoraPorDia[$dia->value]}:{$this->horaFinMinutoPorDia[$dia->value]}:00",
-        ], $dias);
+        $diasParaGuardar = array_map(function (DiaSemanaEnum $dia) {
+            $horaInicioHora = $this->horaInicioHoraPorDia[$dia->value] ?? '';
+            $horaFinHora = $this->horaFinHoraPorDia[$dia->value] ?? '';
 
-        $datos = [
+            return [
+                'dia_semana' => $dia,
+                'hora_inicio' => $horaInicioHora !== '' ? "{$horaInicioHora}:{$this->horaInicioMinutoPorDia[$dia->value]}:00" : null,
+                'hora_fin' => $horaFinHora !== '' ? "{$horaFinHora}:{$this->horaFinMinutoPorDia[$dia->value]}:00" : null,
+            ];
+        }, $dias);
+
+        $datosComunes = [
             'curso_id' => (int) $this->cursoId,
             'docente_id' => (int) $this->docenteId,
             'aula_id' => (int) $this->aulaId,
             'ciclo_id' => (int) $this->cicloId,
-            'grado_id' => (int) $this->gradoId,
             'dias' => $diasParaGuardar,
         ];
 
         if ($this->editandoId === null) {
-            $service->crear($datos);
-            session()->flash('status', 'Horario creado correctamente.');
-        } else {
-            $service->actualizar(Horario::query()->findOrFail($this->editandoId), $datos);
-            session()->flash('status', 'Horario actualizado correctamente.');
-        }
+            // Cada grado elegido se crea de forma independiente frente a
+            // cualquier horario que ya existiera de antes -- si uno choca,
+            // ese en particular queda reportado como error pero no bloquea
+            // a los demás (mismo criterio que la carga masiva de
+            // estudiantes). Entre ELLOS (los creados en esta misma tanda)
+            // no chocan: comparten a propósito la misma aula/horario, así
+            // que cada uno se excluye de la validación de los que vienen
+            // después.
+            $exitosos = 0;
+            $errores = [];
+            $horariosCreadosEnEstaTanda = [];
 
-        $this->mostrarModal = false;
+            foreach ($this->gradosSeleccionados as $gradoIdSeleccionado) {
+                try {
+                    $horario = $service->crear([...$datosComunes, 'grado_id' => (int) $gradoIdSeleccionado], $horariosCreadosEnEstaTanda);
+                    $horariosCreadosEnEstaTanda[] = $horario->id;
+                    $exitosos++;
+                } catch (ValidationException $e) {
+                    $nombreGrado = Grado::query()->find($gradoIdSeleccionado)?->nombre ?? "Grado #{$gradoIdSeleccionado}";
+                    $errores[] = ['grado' => $nombreGrado, 'mensaje' => $e->validator->errors()->first()];
+                }
+            }
+
+            $this->resultadoCreacionMasiva = ['exitosos' => $exitosos, 'errores' => $errores];
+
+            if ($errores === []) {
+                $this->mostrarModal = false;
+                session()->flash('status', $exitosos === 1 ? 'Horario creado correctamente.' : "{$exitosos} horarios creados correctamente.");
+            }
+        } else {
+            $service->actualizar(Horario::query()->findOrFail($this->editandoId), [...$datosComunes, 'grado_id' => (int) $this->gradoId]);
+            session()->flash('status', 'Horario actualizado correctamente.');
+            $this->mostrarModal = false;
+        }
     }
 
     /**
@@ -461,7 +525,14 @@ new #[Layout('layouts.app')] class extends Component
                         >
                             <p class="font-medium text-ink">{{ $horarioDia->horario->curso->nombre }}</p>
                             <p class="text-ink-dim">{{ $horarioDia->horario->docente->name }}</p>
-                            <p class="text-ink-faint">{{ $horarioDia->horario->grado->nombre }} · {{ substr($horarioDia->hora_inicio, 0, 5) }}–{{ substr($horarioDia->hora_fin, 0, 5) }}</p>
+                            <p class="text-ink-faint">
+                                {{ $horarioDia->horario->grado->nombre }} ·
+                                @if ($horarioDia->hora_inicio !== null)
+                                    {{ substr($horarioDia->hora_inicio, 0, 5) }}–{{ substr($horarioDia->hora_fin, 0, 5) }}
+                                @else
+                                    sin horario
+                                @endif
+                            </p>
                         </div>
                     @endforeach
                 </div>
@@ -505,17 +576,40 @@ new #[Layout('layouts.app')] class extends Component
                             />
                             <x-input-error :messages="$errors->get('cicloId')" class="mt-1" />
                         </div>
-                        <div>
-                            <x-input-label for="gradoId" value="Grado" />
-                            <x-select-input
-                                wire:model="gradoId"
-                                id="gradoId"
-                                class="mt-1 block w-full"
-                                :options="collect($grados)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])"
-                            />
-                            <x-input-error :messages="$errors->get('gradoId')" class="mt-1" />
-                        </div>
+                        @if ($editandoId !== null)
+                            <div>
+                                <x-input-label for="gradoId" value="Grado" />
+                                <x-select-input
+                                    wire:model="gradoId"
+                                    id="gradoId"
+                                    class="mt-1 block w-full"
+                                    :options="collect($grados)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])"
+                                />
+                                <x-input-error :messages="$errors->get('gradoId')" class="mt-1" />
+                            </div>
+                        @endif
                     </div>
+
+                    @if ($editandoId === null)
+                        <div>
+                            <x-input-label value="Grados" />
+                            <p class="mt-1 text-xs text-ink-faint">Marca uno o varios: se crea un horario independiente por cada uno (mismo curso/docente/aula/días/horas).</p>
+                            <div class="mt-2 grid grid-cols-2 gap-2">
+                                @foreach ($grados as $grado)
+                                    <label class="flex items-center gap-2 rounded-md border border-border p-2 text-sm text-ink">
+                                        <input
+                                            type="checkbox"
+                                            value="{{ $grado->id }}"
+                                            wire:model="gradosSeleccionados"
+                                            class="rounded border-border text-accent focus:ring-accent"
+                                        >
+                                        {{ $grado->nombre }}
+                                    </label>
+                                @endforeach
+                            </div>
+                            <x-input-error :messages="$errors->get('gradosSeleccionados')" class="mt-1" />
+                        </div>
+                    @endif
 
                     <div>
                         <x-input-label for="cursoId" value="Curso" />
@@ -630,6 +724,22 @@ new #[Layout('layouts.app')] class extends Component
 
                     {{-- Los choques de aula/docente los valida HorarioService::crear()/actualizar(), que lanza sus errores bajo la clave "dias". --}}
                     <x-input-error :messages="$errors->get('dias')" class="mt-1" />
+
+                    @if ($resultadoCreacionMasiva)
+                        <div class="rounded-md border border-ok/30 bg-ok/10 px-4 py-3 text-sm text-ok">
+                            {{ $resultadoCreacionMasiva['exitosos'] }} de {{ count($gradosSeleccionados) }} horario(s) creado(s) correctamente.
+                        </div>
+                        @if (count($resultadoCreacionMasiva['errores']) > 0)
+                            <div class="rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+                                <p class="font-semibold">{{ count($resultadoCreacionMasiva['errores']) }} grado(s) con errores:</p>
+                                <ul class="mt-1 list-disc pl-4">
+                                    @foreach ($resultadoCreacionMasiva['errores'] as $error)
+                                        <li>{{ $error['grado'] }}: {{ $error['mensaje'] }}</li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @endif
+                    @endif
 
                     <div class="flex justify-end gap-3 pt-2">
                         <x-secondary-button type="button" wire:click="$set('mostrarModal', false)">Cancelar</x-secondary-button>

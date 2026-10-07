@@ -204,7 +204,9 @@ class AsistenciaService
         foreach ($this->horariosDelEstudiante($estudiante) as $horario) {
             $diaDeHoy = $horario->diaParaFecha($ahora);
 
-            if (! $diaDeHoy) {
+            if (! $diaDeHoy || $diaDeHoy->hora_inicio === null || $diaDeHoy->hora_fin === null) {
+                // Sin horario también cuenta como "no hay clase ahora": el
+                // curso se dicta en forma alternada y hoy no le toca.
                 continue;
             }
 

@@ -265,4 +265,26 @@ class HorarioTraslapeTest extends TestCase
 
         $this->assertNull($horario->franja());
     }
+
+    /**
+     * Un día sin horario definido (curso dictado en forma alternada) no
+     * tiene nada contra lo que chocar -- no debe bloquear ni ser bloqueado.
+     */
+    public function test_un_dia_sin_horas_no_participa_en_la_validacion_de_traslape(): void
+    {
+        $base = $this->datosBase();
+        $this->service()->crear($base);
+
+        $horario = $this->service()->crear([
+            ...$base,
+            'curso_id' => Curso::factory()->create()->id,
+            'docente_id' => User::factory()->create()->id,
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => null, 'hora_fin' => null],
+            ],
+        ]);
+
+        $this->assertDatabaseHas('horarios', ['id' => $horario->id]);
+        $this->assertNull($horario->dias->first()->hora_inicio);
+    }
 }

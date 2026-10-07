@@ -80,7 +80,11 @@ new #[Layout('layouts.app')] class extends Component
                     {{ $horarioEnCurso->grado->nombre }}
                     @if ($diaDeHoy)
                         · {{ $diaDeHoy->dia_semana->label() }}
-                        {{ substr($diaDeHoy->hora_inicio, 0, 5) }}–{{ substr($diaDeHoy->hora_fin, 0, 5) }}
+                        @if ($diaDeHoy->hora_inicio !== null)
+                            {{ substr($diaDeHoy->hora_inicio, 0, 5) }}–{{ substr($diaDeHoy->hora_fin, 0, 5) }}
+                        @else
+                            (horario no definido para hoy)
+                        @endif
                     @endif
                 </p>
 
