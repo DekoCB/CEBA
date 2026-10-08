@@ -30,7 +30,13 @@ class MatriculaCelularHistorialTest extends TestCase
         $this->seed(RolesAndPermissionsSeeder::class);
     }
 
-    public function test_editar_celular_del_estudiante_lo_actualiza_y_normaliza(): void
+    /**
+     * Telefono ya no normaliza a un formato peruano canónico (sin eso no
+     * se puede aceptar números internacionales) -- se guardan los dígitos
+     * tal cual se escribieron, símbolos y espacios aparte, con o sin
+     * código de país.
+     */
+    public function test_editar_celular_del_estudiante_lo_actualiza_limpiando_simbolos(): void
     {
         $usuario = User::factory()->create();
         $usuario->assignRole(RolEnum::COORDINADOR->value);
@@ -47,7 +53,7 @@ class MatriculaCelularHistorialTest extends TestCase
             ->assertHasNoErrors()
             ->assertSet('editandoCelular', null);
 
-        $this->assertSame('912345678', $estudiante->fresh()->celular);
+        $this->assertSame('51912345678', $estudiante->fresh()->celular);
     }
 
     public function test_editar_celular_del_apoderado_lo_actualiza(): void

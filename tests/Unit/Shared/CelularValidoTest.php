@@ -48,13 +48,29 @@ class CelularValidoTest extends TestCase
         $this->assertTrue($this->falla('Sólo al Papá escribirle de la pensión 966775990 / mamá 977 187 160'));
     }
 
-    public function test_un_numero_que_no_empieza_en_nueve_falla(): void
+    /**
+     * Se quitó la restricción de que un celular peruano tenga que empezar
+     * en 9 -- ya no se exige formato peruano, así que este número sigue
+     * siendo un celular válido (pedido del cliente: flexibilidad para
+     * alumnos peruanos en el extranjero).
+     */
+    public function test_un_numero_que_no_empieza_en_nueve_ya_no_falla(): void
     {
-        $this->assertTrue($this->falla('812345678'));
+        $this->assertFalse($this->falla('812345678'));
     }
 
-    public function test_un_numero_con_menos_de_nueve_digitos_falla(): void
+    public function test_un_numero_demasiado_corto_falla(): void
     {
         $this->assertTrue($this->falla('98765'));
+    }
+
+    public function test_un_numero_espanol_con_prefijo_internacional_pasa(): void
+    {
+        $this->assertFalse($this->falla('+34 659 40 08 04'));
+    }
+
+    public function test_un_numero_demasiado_largo_falla(): void
+    {
+        $this->assertTrue($this->falla('1234567890123456'));
     }
 }

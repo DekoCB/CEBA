@@ -8,8 +8,12 @@ use InvalidArgumentException;
 use Stringable;
 
 /**
- * Número de celular peruano (9 dígitos, empieza en 9). Acepta el prefijo
- * internacional +51 al construirse pero siempre se normaliza sin él.
+ * Número de celular, peruano o internacional (hay alumnos peruanos que
+ * estudian desde el extranjero). Solo valida que sea plausible como
+ * número de teléfono: nada de letras (para seguir atrapando notas en
+ * prosa escritas por error en este campo) y una cantidad de dígitos
+ * razonable (7 a 15, el rango que permite el estándar E.164). Se guarda
+ * tal cual se escribió, con o sin código de país.
  */
 final readonly class Telefono implements Stringable
 {
@@ -17,24 +21,21 @@ final readonly class Telefono implements Stringable
 
     public function __construct(string $valor)
     {
-        $digitos = preg_replace('/[^0-9]/', '', $valor) ?? '';
-
-        if (str_starts_with($digitos, '51') && strlen($digitos) === 11) {
-            $digitos = substr($digitos, 2);
+        if (preg_match('/\p{L}/u', $valor) === 1) {
+            throw new InvalidArgumentException(
+                "El número «{$valor}» no es un celular válido (no puede contener letras)."
+            );
         }
 
-        if (! preg_match('/^9[0-9]{8}$/', $digitos)) {
+        $digitos = preg_replace('/[^0-9]/', '', $valor) ?? '';
+
+        if (strlen($digitos) < 7 || strlen($digitos) > 15) {
             throw new InvalidArgumentException(
-                "El número «{$valor}» no es un celular peruano válido (debe tener 9 dígitos y empezar en 9)."
+                "El número «{$valor}» no es un celular válido (debe tener entre 7 y 15 dígitos)."
             );
         }
 
         $this->numero = $digitos;
-    }
-
-    public function conPrefijoInternacional(): string
-    {
-        return '+51'.$this->numero;
     }
 
     public function numero(): string
