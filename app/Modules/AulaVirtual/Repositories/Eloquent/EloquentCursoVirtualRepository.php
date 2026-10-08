@@ -27,9 +27,7 @@ class EloquentCursoVirtualRepository extends BaseRepository implements CursoVirt
 
     public function delDocente(int $docenteId): Collection
     {
-        return $this->query()
-            ->whereHas('horario', fn ($query) => $query->where('docente_id', $docenteId))
-            ->get();
+        return $this->query()->where('docente_id', $docenteId)->get();
     }
 
     public function delEstudiante(Estudiante $estudiante): Collection
@@ -60,8 +58,13 @@ class EloquentCursoVirtualRepository extends BaseRepository implements CursoVirt
             ->get();
     }
 
-    public function paraHorario(int $horarioId): ?CursoVirtual
+    public function paraGrupo(int $cursoId, int $gradoId, int $cicloId, int $docenteId): ?CursoVirtual
     {
-        return $this->query()->where('horario_id', $horarioId)->first();
+        return $this->query()
+            ->where('curso_id', $cursoId)
+            ->where('grado_id', $gradoId)
+            ->where('ciclo_id', $cicloId)
+            ->where('docente_id', $docenteId)
+            ->first();
     }
 }

@@ -35,14 +35,10 @@ class CursoVirtualService
      */
     public function cursosVirtualesRelacionados(CursoVirtual $curso): Collection
     {
-        $horario = $curso->horario;
-
         return CursoVirtual::query()
-            ->whereHas('horario', function ($query) use ($horario) {
-                $query->where('curso_id', $horario->curso_id)
-                    ->where('grado_id', $horario->grado_id)
-                    ->where('ciclo_id', $horario->ciclo_id);
-            })
+            ->where('curso_id', $curso->curso_id)
+            ->where('grado_id', $curso->grado_id)
+            ->where('ciclo_id', $curso->ciclo_id)
             ->with(['horario.curso', 'horario.grado', 'horario.ciclo', 'horario.docente'])
             ->get()
             ->sortBy(fn (CursoVirtual $cursoVirtual) => $cursoVirtual->horario->docente->name ?? '');
@@ -68,13 +64,15 @@ class CursoVirtualService
     }
 
     /**
-     * Activa el aula virtual para un horario. Si ya existe, simplemente la
-     * retorna (idempotente): un docente puede volver a "activar" sin miedo
-     * a duplicar el curso.
+     * Activa el aula virtual para un horario. Si ya existe una para el
+     * mismo curso+grado+ciclo+docente (ej. otra franja del mismo curso ya
+     * la activó antes), la reutiliza en vez de crear una duplicada --
+     * idempotente, un docente puede volver a "activar" sin miedo a
+     * duplicar el curso.
      */
     public function activarParaHorario(Horario $horario): CursoVirtual
     {
-        $existente = $this->cursos->paraHorario($horario->id);
+        $existente = $this->cursos->paraGrupo($horario->curso_id, $horario->grado_id, $horario->ciclo_id, $horario->docente_id);
 
         if ($existente) {
             return $existente;

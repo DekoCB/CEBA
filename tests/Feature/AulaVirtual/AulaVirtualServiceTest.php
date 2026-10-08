@@ -42,6 +42,41 @@ class AulaVirtualServiceTest extends TestCase
         $this->assertSame(1, CursoVirtual::query()->count());
     }
 
+    /**
+     * Pedido del cliente: un admin que envía el formulario "Nuevo horario"
+     * varias veces para el mismo curso+grado+docente (ej. una franja por
+     * envío) ya no debe terminar con un aula virtual separada por cada
+     * envío -- deben compartir una sola, con su contenido junto.
+     */
+    public function test_activar_dos_horarios_del_mismo_curso_grado_ciclo_y_docente_reutiliza_el_mismo_curso_virtual(): void
+    {
+        $horarioA = Horario::factory()->create();
+        $horarioB = Horario::factory()->create([
+            'curso_id' => $horarioA->curso_id,
+            'grado_id' => $horarioA->grado_id,
+            'ciclo_id' => $horarioA->ciclo_id,
+            'docente_id' => $horarioA->docente_id,
+        ]);
+
+        $cursoVirtualA = $this->cursoVirtualService()->activarParaHorario($horarioA);
+        $cursoVirtualB = $this->cursoVirtualService()->activarParaHorario($horarioB);
+
+        $this->assertSame($cursoVirtualA->id, $cursoVirtualB->id);
+        $this->assertSame(1, CursoVirtual::query()->count());
+    }
+
+    public function test_crear_un_curso_virtual_autocompleta_curso_grado_ciclo_y_docente_desde_el_horario(): void
+    {
+        $horario = Horario::factory()->create();
+
+        $cursoVirtual = CursoVirtual::factory()->create(['horario_id' => $horario->id]);
+
+        $this->assertSame($horario->curso_id, $cursoVirtual->curso_id);
+        $this->assertSame($horario->grado_id, $cursoVirtual->grado_id);
+        $this->assertSame($horario->ciclo_id, $cursoVirtual->ciclo_id);
+        $this->assertSame($horario->docente_id, $cursoVirtual->docente_id);
+    }
+
     public function test_del_estudiante_no_mezcla_otros_grados_o_ciclos(): void
     {
         $horarioA = Horario::factory()->create();

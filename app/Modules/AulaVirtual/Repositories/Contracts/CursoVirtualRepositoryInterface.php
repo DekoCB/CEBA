@@ -29,5 +29,11 @@ interface CursoVirtualRepositoryInterface extends RepositoryInterface
      */
     public function delEstudiante(Estudiante $estudiante): Collection;
 
-    public function paraHorario(int $horarioId): ?CursoVirtual;
+    /**
+     * El curso virtual ya activado para este curso+grado+ciclo+docente, si
+     * existe -- es la clave de deduplicación: varios Horario que comparten
+     * estos 4 datos (ej. distintas franjas del mismo curso) reutilizan el
+     * mismo curso virtual en vez de crear uno nuevo cada uno.
+     */
+    public function paraGrupo(int $cursoId, int $gradoId, int $cicloId, int $docenteId): ?CursoVirtual;
 }
