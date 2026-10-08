@@ -217,13 +217,14 @@ class HorarioTraslapeTest extends TestCase
     {
         $aula = Aula::factory()->create();
         $ciclo = Ciclo::factory()->create();
+        $grado = Grado::factory()->create();
 
         $ocupante = $this->service()->crear([
             'curso_id' => Curso::factory()->create()->id,
             'docente_id' => User::factory()->create()->id,
             'aula_id' => $aula->id,
             'ciclo_id' => $ciclo->id,
-            'grado_id' => Grado::factory()->create()->id,
+            'grado_id' => $grado->id,
             'dias' => [
                 ['dia_semana' => DiaSemanaEnum::VIERNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
             ],
@@ -234,7 +235,7 @@ class HorarioTraslapeTest extends TestCase
             'docente_id' => User::factory()->create()->id,
             'aula_id' => $aula->id,
             'ciclo_id' => $ciclo->id,
-            'grado_id' => Grado::factory()->create()->id,
+            'grado_id' => $grado->id,
             'dias' => [
                 ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
             ],

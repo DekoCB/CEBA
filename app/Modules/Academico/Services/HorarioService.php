@@ -30,17 +30,18 @@ class HorarioService
 
     /**
      * $exceptoHorarioIds excluye esos horarios de la validación de choques
-     * de aula/docente -- se usa al crear varios horarios juntos para
-     * distintos grados en una misma tanda (misma aula/horario a propósito):
-     * los hermanos ya creados en la MISMA tanda no cuentan como choque
-     * entre sí, solo lo que ya existía de antes.
+     * de aula/docente -- ya no hace falta para que varios grados compartan
+     * aula/horario a propósito (eso ahora lo permite el choque mismo, que
+     * está acotado al mismo grado), pero sigue sirviendo de red de
+     * seguridad barata por si algún grado se repitiera por error dentro de
+     * una misma tanda.
      *
      * @param  array{curso_id: int, docente_id: int, aula_id: int, ciclo_id: int, grado_id: int, dias: list<array{dia_semana: DiaSemanaEnum, hora_inicio: string|null, hora_fin: string|null}>}  $datos
      * @param  list<int>  $exceptoHorarioIds
      */
     public function crear(array $datos, array $exceptoHorarioIds = []): Horario
     {
-        $this->validarDias($datos['dias'], $datos['aula_id'], $datos['docente_id'], $datos['ciclo_id'], $exceptoHorarioIds);
+        $this->validarDias($datos['dias'], $datos['aula_id'], $datos['docente_id'], $datos['ciclo_id'], $datos['grado_id'], $exceptoHorarioIds);
 
         $horario = DB::transaction(function () use ($datos) {
             $horario = $this->horarios->create([
@@ -68,7 +69,7 @@ class HorarioService
      */
     public function actualizar(Horario $horario, array $datos): Horario
     {
-        $this->validarDias($datos['dias'], $datos['aula_id'], $datos['docente_id'], $datos['ciclo_id'], [$horario->id]);
+        $this->validarDias($datos['dias'], $datos['aula_id'], $datos['docente_id'], $datos['ciclo_id'], $datos['grado_id'], [$horario->id]);
 
         return DB::transaction(function () use ($horario, $datos) {
             $this->horarios->update($horario, [
@@ -90,7 +91,7 @@ class HorarioService
      * @param  list<array{dia_semana: DiaSemanaEnum, hora_inicio: string|null, hora_fin: string|null}>  $dias
      * @param  list<int>  $exceptoHorarioIds
      */
-    private function validarDias(array $dias, int $aulaId, int $docenteId, int $cicloId, array $exceptoHorarioIds = []): void
+    private function validarDias(array $dias, int $aulaId, int $docenteId, int $cicloId, int $gradoId, array $exceptoHorarioIds = []): void
     {
         if ($dias === []) {
             throw ValidationException::withMessages([
@@ -114,6 +115,7 @@ class HorarioService
             $enAula = $this->horarios->enAulaQueSolapan(
                 $aulaId,
                 $cicloId,
+                $gradoId,
                 $dia['dia_semana'],
                 $dia['hora_inicio'],
                 $dia['hora_fin'],
@@ -130,6 +132,7 @@ class HorarioService
             $delDocente = $this->horarios->delDocenteQueSolapan(
                 $docenteId,
                 $cicloId,
+                $gradoId,
                 $dia['dia_semana'],
                 $dia['hora_inicio'],
                 $dia['hora_fin'],

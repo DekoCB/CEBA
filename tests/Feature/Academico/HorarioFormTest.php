@@ -460,10 +460,12 @@ class HorarioFormTest extends TestCase
 
     /**
      * Un horario que YA EXISTÍA de antes (no de esta misma tanda) sí sigue
-     * bloqueando -- como todos los grados elegidos apuntan a la misma
-     * aula/día/hora, un choque previo los afecta a todos por igual.
+     * bloqueando -- pero ya no cruza grados (pedido del cliente: un
+     * docente puede combinar varios grados en la misma aula/hora a
+     * propósito), así que un choque previo solo afecta al grado que de
+     * verdad lo comparte.
      */
-    public function test_un_horario_ya_existente_de_antes_bloquea_a_todos_los_grados_de_la_tanda(): void
+    public function test_un_horario_ya_existente_del_mismo_grado_bloquea_solo_ese_grado_de_la_tanda(): void
     {
         $this->actingAs($this->actorCoordinador());
 
@@ -472,7 +474,59 @@ class HorarioFormTest extends TestCase
         $gradoA = Grado::factory()->create();
         $gradoB = Grado::factory()->create();
 
-        // Ya existe un horario en esa misma aula/día/hora, de antes.
+        // Ya existe un horario en esa misma aula/día/hora, de antes, para $gradoA.
+        $this->app->make(HorarioService::class)->crear([
+            'curso_id' => Curso::factory()->create()->id,
+            'docente_id' => User::factory()->create()->id,
+            'aula_id' => $aula->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => $gradoA->id,
+            'dias' => [
+                ['dia_semana' => DiaSemanaEnum::LUNES, 'hora_inicio' => '18:00:00', 'hora_fin' => '20:00:00'],
+            ],
+        ]);
+
+        Volt::test('academico.horarios.index')
+            ->call('abrirModal')
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradosSeleccionados', [$gradoA->id, $gradoB->id])
+            ->set('cursoId', (string) Curso::factory()->create()->id)
+            ->set('docenteId', (string) User::factory()->create()->id)
+            ->set('aulaId', (string) $aula->id)
+            ->set('franjasSeleccionadas', ['lun_mie'])
+            ->set('horaInicioHoraPorDia.lunes', '18')
+            ->set('horaInicioMinutoPorDia.lunes', '00')
+            ->set('horaFinHoraPorDia.lunes', '20')
+            ->set('horaFinMinutoPorDia.lunes', '00')
+            ->set('horaInicioHoraPorDia.miercoles', '18')
+            ->set('horaInicioMinutoPorDia.miercoles', '00')
+            ->set('horaFinHoraPorDia.miercoles', '20')
+            ->set('horaFinMinutoPorDia.miercoles', '00')
+            ->call('guardar')
+            ->assertSee('ya está ocupada');
+
+        // $gradoA ya tenía 1 horario de antes (el que choca) -- sigue en 1,
+        // no se le suma uno nuevo. $gradoB no tenía ninguno y sí se crea.
+        $this->assertSame(1, Horario::query()->where('grado_id', $gradoA->id)->count());
+        $this->assertSame(1, Horario::query()->where('grado_id', $gradoB->id)->count());
+    }
+
+    /**
+     * Pedido del cliente: "no debe restringirse de grado, ya que un mismo
+     * curso se puede dictar de manera simultánea para diferentes grados" --
+     * un horario ya existente de un grado totalmente distinto no debe
+     * bloquear nada.
+     */
+    public function test_un_horario_ya_existente_de_otro_grado_no_bloquea_la_tanda(): void
+    {
+        $this->actingAs($this->actorCoordinador());
+
+        $aula = Aula::factory()->create();
+        $ciclo = Ciclo::factory()->create();
+        $gradoA = Grado::factory()->create();
+        $gradoB = Grado::factory()->create();
+
+        // Ya existe un horario en esa misma aula/día/hora, de antes, pero para un grado distinto.
         $this->app->make(HorarioService::class)->crear([
             'curso_id' => Curso::factory()->create()->id,
             'docente_id' => User::factory()->create()->id,
@@ -501,10 +555,10 @@ class HorarioFormTest extends TestCase
             ->set('horaFinHoraPorDia.miercoles', '20')
             ->set('horaFinMinutoPorDia.miercoles', '00')
             ->call('guardar')
-            ->assertSee('ya está ocupada');
+            ->assertHasNoErrors();
 
-        $this->assertSame(0, Horario::query()->where('grado_id', $gradoA->id)->count());
-        $this->assertSame(0, Horario::query()->where('grado_id', $gradoB->id)->count());
+        $this->assertSame(1, Horario::query()->where('grado_id', $gradoA->id)->count());
+        $this->assertSame(1, Horario::query()->where('grado_id', $gradoB->id)->count());
     }
 
     public function test_editar_sigue_usando_un_solo_grado(): void

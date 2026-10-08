@@ -16,28 +16,30 @@ use Illuminate\Database\Eloquent\Collection;
 interface HorarioRepositoryInterface extends RepositoryInterface
 {
     /**
-     * Días (de otros horarios) que ya ocupan la misma aula, mismo día y
-     * mismo ciclo, con un rango horario que se cruza con
-     * [$horaInicio, $horaFin). $exceptoHorarioIds excluye esos horarios de
-     * la búsqueda -- se usa tanto al editar (no chocar contra una misma
-     * versión anterior de sí mismo) como al crear varios horarios juntos
-     * para distintos grados (no chocar entre sí, solo contra lo que ya
-     * existía de antes).
+     * Días (de otros horarios) que ya ocupan la misma aula, mismo día,
+     * mismo ciclo y mismo grado, con un rango horario que se cruza con
+     * [$horaInicio, $horaFin). El choque solo cuenta dentro del mismo
+     * grado -- un docente puede combinar varios grados en la misma
+     * aula/hora a propósito (pedido del cliente: "no debe restringirse de
+     * grado"). $exceptoHorarioIds excluye esos horarios de la búsqueda --
+     * se usa al editar, para no chocar contra una misma versión anterior
+     * de sí mismo.
      *
      * @param  list<int>  $exceptoHorarioIds
      * @return Collection<int, HorarioDia>
      */
-    public function enAulaQueSolapan(int $aulaId, int $cicloId, DiaSemanaEnum $dia, string $horaInicio, string $horaFin, array $exceptoHorarioIds = []): Collection;
+    public function enAulaQueSolapan(int $aulaId, int $cicloId, int $gradoId, DiaSemanaEnum $dia, string $horaInicio, string $horaFin, array $exceptoHorarioIds = []): Collection;
 
     /**
-     * Igual que {@see enAulaQueSolapan} pero para el mismo docente: un
-     * profesor no puede dictar dos cursos a la misma hora aunque sea en
-     * aulas distintas.
+     * Igual que {@see enAulaQueSolapan} pero para el mismo docente: dentro
+     * de un mismo grado, un profesor no puede dictar dos cursos a la misma
+     * hora aunque sea en aulas distintas. Entre grados distintos no
+     * choca -- es el mismo docente combinando grados a propósito.
      *
      * @param  list<int>  $exceptoHorarioIds
      * @return Collection<int, HorarioDia>
      */
-    public function delDocenteQueSolapan(int $docenteId, int $cicloId, DiaSemanaEnum $dia, string $horaInicio, string $horaFin, array $exceptoHorarioIds = []): Collection;
+    public function delDocenteQueSolapan(int $docenteId, int $cicloId, int $gradoId, DiaSemanaEnum $dia, string $horaInicio, string $horaFin, array $exceptoHorarioIds = []): Collection;
 
     /**
      * @return Collection<int, Horario>

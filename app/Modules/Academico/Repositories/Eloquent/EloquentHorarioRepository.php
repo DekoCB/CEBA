@@ -25,17 +25,17 @@ class EloquentHorarioRepository extends BaseRepository implements HorarioReposit
         return Horario::query()->with(['curso', 'docente', 'aula', 'ciclo', 'grado', 'dias']);
     }
 
-    public function enAulaQueSolapan(int $aulaId, int $cicloId, DiaSemanaEnum $dia, string $horaInicio, string $horaFin, array $exceptoHorarioIds = []): Collection
+    public function enAulaQueSolapan(int $aulaId, int $cicloId, int $gradoId, DiaSemanaEnum $dia, string $horaInicio, string $horaFin, array $exceptoHorarioIds = []): Collection
     {
         return $this->consultaDiasSolapados($dia, $horaInicio, $horaFin, $exceptoHorarioIds)
-            ->whereHas('horario', fn ($query) => $query->where('aula_id', $aulaId)->where('ciclo_id', $cicloId))
+            ->whereHas('horario', fn ($query) => $query->where('aula_id', $aulaId)->where('ciclo_id', $cicloId)->where('grado_id', $gradoId))
             ->get();
     }
 
-    public function delDocenteQueSolapan(int $docenteId, int $cicloId, DiaSemanaEnum $dia, string $horaInicio, string $horaFin, array $exceptoHorarioIds = []): Collection
+    public function delDocenteQueSolapan(int $docenteId, int $cicloId, int $gradoId, DiaSemanaEnum $dia, string $horaInicio, string $horaFin, array $exceptoHorarioIds = []): Collection
     {
         return $this->consultaDiasSolapados($dia, $horaInicio, $horaFin, $exceptoHorarioIds)
-            ->whereHas('horario', fn ($query) => $query->where('docente_id', $docenteId)->where('ciclo_id', $cicloId))
+            ->whereHas('horario', fn ($query) => $query->where('docente_id', $docenteId)->where('ciclo_id', $cicloId)->where('grado_id', $gradoId))
             ->get();
     }
 
