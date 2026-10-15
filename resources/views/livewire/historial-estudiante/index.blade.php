@@ -2,6 +2,7 @@
 
 use App\Modules\Evaluaciones\Services\LibretaService;
 use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Pagos\Services\CobranzaService;
 use App\Modules\Reportes\Services\HistorialEstudianteService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Auth;
@@ -80,7 +81,7 @@ new #[Layout('layouts.app')] class extends Component
         );
     }
 
-    public function with(HistorialEstudianteService $servicio, LibretaService $libretas): array
+    public function with(HistorialEstudianteService $servicio, LibretaService $libretas, CobranzaService $cobranza): array
     {
         $resultadosBusqueda = collect();
 
@@ -102,6 +103,20 @@ new #[Layout('layouts.app')] class extends Component
         $cicloLibreta = $historial ? $historial['matriculas']->first(fn ($matricula) => $matricula->ciclo_id === $this->cicloLibretaId)?->ciclo : null;
         $cursosLibreta = ($historial && $cicloLibreta) ? $libretas->resumenPorCursos($historial['estudiante'], $cicloLibreta) : collect();
 
+        $historialCompromisosCuotas = [];
+        $historialCompromisosCargos = [];
+        if ($historial) {
+            foreach ($historial['resumenPagos']['cuotasVencidas'] as $cuota) {
+                $historialCompromisosCuotas[$cuota->id] = $cobranza->historialDeCompromisos($cuota);
+            }
+            foreach ($historial['resumenPagos']['cuotasPendientes'] as $cuota) {
+                $historialCompromisosCuotas[$cuota->id] = $cobranza->historialDeCompromisos($cuota);
+            }
+            foreach ($historial['resumenPagos']['cargosAdicionalesPendientes'] as $cargo) {
+                $historialCompromisosCargos[$cargo->id] = $cobranza->historialDeCompromisos($cargo);
+            }
+        }
+
         return [
             'resultadosBusqueda' => $resultadosBusqueda,
             'historial' => $historial,
@@ -109,6 +124,8 @@ new #[Layout('layouts.app')] class extends Component
             'cicloLibreta' => $cicloLibreta,
             'cursosLibreta' => $cursosLibreta,
             'situacionFinalLibreta' => $cursosLibreta->isNotEmpty() ? $libretas->calcularSituacionFinal($cursosLibreta) : null,
+            'historialCompromisosCuotas' => $historialCompromisosCuotas,
+            'historialCompromisosCargos' => $historialCompromisosCargos,
         ];
     }
 }; ?>
@@ -247,7 +264,28 @@ new #[Layout('layouts.app')] class extends Component
                                     <span class="text-danger">S/ {{ number_format((float) $cuota->monto, 2) }} · venció {{ $cuota->fecha_vencimiento->format('d/m/Y') }}</span>
                                 </div>
                                 @if ($cuota->fecha_compromiso)
-                                    <p class="text-xs text-info">Compromiso de pago: {{ $cuota->fecha_compromiso->format('d/m/Y') }}</p>
+                                    <p class="text-xs text-info">
+                                        Compromiso de pago: {{ $cuota->fecha_compromiso->format('d/m/Y') }}
+                                        @if ($cuota->monto_compromiso)
+                                            · S/ {{ number_format($cuota->monto_compromiso, 2) }}
+                                        @endif
+                                    </p>
+                                @endif
+                                @if (count($historialCompromisosCuotas[$cuota->id] ?? []) > 1)
+                                    <details class="mt-1">
+                                        <summary class="cursor-pointer text-xs text-ink-faint hover:underline">Historial de compromisos ({{ count($historialCompromisosCuotas[$cuota->id]) }})</summary>
+                                        <ul class="mt-1 space-y-0.5 text-xs text-ink-faint">
+                                            @foreach ($historialCompromisosCuotas[$cuota->id] as $entrada)
+                                                <li>
+                                                    {{ $entrada['fecha_compromiso'] ? \Illuminate\Support\Carbon::parse($entrada['fecha_compromiso'])->format('d/m/Y') : '—' }}
+                                                    @if ($entrada['monto_compromiso'])
+                                                        · S/ {{ number_format((float) $entrada['monto_compromiso'], 2) }}
+                                                    @endif
+                                                    — {{ $entrada['registrado_por'] ?? 'Sistema' }} el {{ $entrada['registrado_en']->format('d/m/Y H:i') }}
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    </details>
                                 @endif
                             </div>
                         @endforeach
@@ -264,7 +302,28 @@ new #[Layout('layouts.app')] class extends Component
                                     <span class="text-warn">S/ {{ number_format($cuota->saldoPendiente(), 2) }} · vence {{ $cuota->fecha_vencimiento->format('d/m/Y') }}</span>
                                 </div>
                                 @if ($cuota->fecha_compromiso)
-                                    <p class="text-xs text-info">Compromiso de pago: {{ $cuota->fecha_compromiso->format('d/m/Y') }}</p>
+                                    <p class="text-xs text-info">
+                                        Compromiso de pago: {{ $cuota->fecha_compromiso->format('d/m/Y') }}
+                                        @if ($cuota->monto_compromiso)
+                                            · S/ {{ number_format($cuota->monto_compromiso, 2) }}
+                                        @endif
+                                    </p>
+                                @endif
+                                @if (count($historialCompromisosCuotas[$cuota->id] ?? []) > 1)
+                                    <details class="mt-1">
+                                        <summary class="cursor-pointer text-xs text-ink-faint hover:underline">Historial de compromisos ({{ count($historialCompromisosCuotas[$cuota->id]) }})</summary>
+                                        <ul class="mt-1 space-y-0.5 text-xs text-ink-faint">
+                                            @foreach ($historialCompromisosCuotas[$cuota->id] as $entrada)
+                                                <li>
+                                                    {{ $entrada['fecha_compromiso'] ? \Illuminate\Support\Carbon::parse($entrada['fecha_compromiso'])->format('d/m/Y') : '—' }}
+                                                    @if ($entrada['monto_compromiso'])
+                                                        · S/ {{ number_format((float) $entrada['monto_compromiso'], 2) }}
+                                                    @endif
+                                                    — {{ $entrada['registrado_por'] ?? 'Sistema' }} el {{ $entrada['registrado_en']->format('d/m/Y H:i') }}
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    </details>
                                 @endif
                             </div>
                         @endforeach
@@ -275,9 +334,35 @@ new #[Layout('layouts.app')] class extends Component
                     <h3 class="mt-4 text-xs font-semibold uppercase tracking-wide text-warn">Cargos adicionales pendientes</h3>
                     <div class="mt-2 divide-y divide-border">
                         @foreach ($historial['resumenPagos']['cargosAdicionalesPendientes'] as $cargo)
-                            <div class="flex items-center justify-between py-2 text-sm">
-                                <span class="text-ink-dim">{{ $cargo->concepto }}</span>
-                                <span class="text-warn">S/ {{ number_format($cargo->saldoPendiente(), 2) }} pendiente</span>
+                            <div class="py-2 text-sm">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-ink-dim">{{ $cargo->concepto }}</span>
+                                    <span class="text-warn">S/ {{ number_format($cargo->saldoPendiente(), 2) }} pendiente</span>
+                                </div>
+                                @if ($cargo->fecha_compromiso)
+                                    <p class="text-xs text-info">
+                                        Compromiso de pago: {{ $cargo->fecha_compromiso->format('d/m/Y') }}
+                                        @if ($cargo->monto_compromiso)
+                                            · S/ {{ number_format($cargo->monto_compromiso, 2) }}
+                                        @endif
+                                    </p>
+                                @endif
+                                @if (count($historialCompromisosCargos[$cargo->id] ?? []) > 1)
+                                    <details class="mt-1">
+                                        <summary class="cursor-pointer text-xs text-ink-faint hover:underline">Historial de compromisos ({{ count($historialCompromisosCargos[$cargo->id]) }})</summary>
+                                        <ul class="mt-1 space-y-0.5 text-xs text-ink-faint">
+                                            @foreach ($historialCompromisosCargos[$cargo->id] as $entrada)
+                                                <li>
+                                                    {{ $entrada['fecha_compromiso'] ? \Illuminate\Support\Carbon::parse($entrada['fecha_compromiso'])->format('d/m/Y') : '—' }}
+                                                    @if ($entrada['monto_compromiso'])
+                                                        · S/ {{ number_format((float) $entrada['monto_compromiso'], 2) }}
+                                                    @endif
+                                                    — {{ $entrada['registrado_por'] ?? 'Sistema' }} el {{ $entrada['registrado_en']->format('d/m/Y H:i') }}
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    </details>
+                                @endif
                             </div>
                         @endforeach
                     </div>

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Pagos;
 
+use App\Models\User;
 use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Matricula\Models\Estudiante;
@@ -14,6 +15,7 @@ use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Models\Pago;
 use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Pagos\Services\CobranzaService;
+use App\Modules\Pagos\Services\PlanPagoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -168,5 +170,42 @@ class CobranzaServiceTest extends TestCase
         $reporte = app(CobranzaService::class)->deudoresPorConceptos([$concepto->id], null, null, null, null);
 
         $this->assertSame([], $reporte['filas']);
+    }
+
+    /**
+     * Pedido del cliente: ver quién registró cada compromiso de pago y
+     * cuándo, no solo el último -- se reconstruye del log de auditoría
+     * genérico que ya graba cada cambio de fecha_compromiso/monto_compromiso.
+     */
+    public function test_historial_de_compromisos_lista_cada_registro_con_quien_y_cuando(): void
+    {
+        $usuario = User::factory()->create(['name' => 'Rosa Coordinadora']);
+        $this->actingAs($usuario);
+
+        $matricula = Matricula::factory()->create();
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
+        $cuota = $plan->cuotas()->create(['numero' => 1, 'monto' => 300, 'fecha_vencimiento' => now()->subDays(5), 'estado' => 'pendiente']);
+
+        $service = app(PlanPagoService::class);
+        $service->registrarCompromiso($cuota, now()->addDays(3)->format('Y-m-d'), 100.0);
+        $service->registrarCompromiso($cuota, now()->addDays(10)->format('Y-m-d'), 150.0);
+
+        $historial = app(CobranzaService::class)->historialDeCompromisos($cuota->fresh());
+
+        $this->assertCount(2, $historial);
+        $this->assertSame('Rosa Coordinadora', $historial[0]['registrado_por']);
+        $this->assertSame(now()->addDays(10)->format('Y-m-d').' 00:00:00', $historial[0]['fecha_compromiso']);
+        $this->assertEquals(150, $historial[0]['monto_compromiso']);
+    }
+
+    public function test_historial_de_compromisos_vacio_cuando_nunca_se_registro_ninguno(): void
+    {
+        $matricula = Matricula::factory()->create();
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
+        $cuota = $plan->cuotas()->create(['numero' => 1, 'monto' => 300, 'fecha_vencimiento' => now()->subDays(5), 'estado' => 'pendiente']);
+
+        $historial = app(CobranzaService::class)->historialDeCompromisos($cuota);
+
+        $this->assertSame([], $historial);
     }
 }

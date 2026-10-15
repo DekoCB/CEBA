@@ -43,18 +43,18 @@ class PagosSerieObservacionCuotaTest extends TestCase
         return $usuario;
     }
 
-    public function test_registrar_pago_de_mensualidad_vincula_la_cuota_pendiente_mas_proxima(): void
+    public function test_registrar_pago_de_mensualidad_marcando_la_cuota_pendiente_la_vincula(): void
     {
         $matricula = Matricula::factory()->create();
         $planPago = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
         $cuota = Cuota::factory()->create(['plan_pago_id' => $planPago->id, 'monto' => 80]);
-        $concepto = ConceptoPago::factory()->create(['tipo' => 'mensualidad']);
+        ConceptoPago::factory()->create(['tipo' => 'mensualidad']);
 
         $this->actingAs($this->administrativo());
 
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $matricula->estudiante_id, $matricula->estudiante->nombreCompleto())
-            ->set('conceptoId', (string) $concepto->id)
+            ->set('cuotasSeleccionadas', [(string) $cuota->id])
             ->set('partes.0.monto', '80')
             ->set('partes.0.metodo', 'yape')
             ->call('registrarPago')
@@ -77,7 +77,8 @@ class PagosSerieObservacionCuotaTest extends TestCase
 
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $matricula->estudiante_id, $matricula->estudiante->nombreCompleto())
-            ->set('conceptoId', (string) $concepto->id)
+            ->set('conceptoSueltoId', (string) $concepto->id)
+            ->set('montoConceptoSuelto', '30')
             ->set('partes.0.monto', '30')
             ->set('partes.0.metodo', 'efectivo')
             ->call('registrarPago')
@@ -89,18 +90,45 @@ class PagosSerieObservacionCuotaTest extends TestCase
         ]);
     }
 
-    public function test_el_recibo_muestra_grupo_y_cuota_completa_cuando_el_monto_alcanza(): void
+    /**
+     * Pedido del cliente: una mensualidad elegida en "Otro concepto" quedaba
+     * sin vincular a ninguna cuota (no descontaba ningún saldo) -- esa
+     * sección es solo para conceptos sueltos, las mensualidades deben
+     * marcarse en el checklist de cuotas.
+     */
+    public function test_elegir_una_mensualidad_en_otro_concepto_rechaza_el_registro(): void
     {
         $matricula = Matricula::factory()->create();
-        $planPago = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
-        Cuota::factory()->create(['plan_pago_id' => $planPago->id, 'monto' => 80]);
+        PlanPago::factory()->create(['matricula_id' => $matricula->id])
+            ->cuotas()->save(Cuota::factory()->make());
         $concepto = ConceptoPago::factory()->create(['tipo' => 'mensualidad']);
 
         $this->actingAs($this->administrativo());
 
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $matricula->estudiante_id, $matricula->estudiante->nombreCompleto())
-            ->set('conceptoId', (string) $concepto->id)
+            ->set('conceptoSueltoId', (string) $concepto->id)
+            ->set('montoConceptoSuelto', '30')
+            ->set('partes.0.monto', '30')
+            ->set('partes.0.metodo', 'efectivo')
+            ->call('registrarPago')
+            ->assertHasErrors('conceptoSueltoId');
+
+        $this->assertDatabaseMissing('pagos', ['estudiante_id' => $matricula->estudiante_id]);
+    }
+
+    public function test_el_recibo_muestra_grupo_y_cuota_completa_cuando_el_monto_alcanza(): void
+    {
+        $matricula = Matricula::factory()->create();
+        $planPago = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
+        $cuota = Cuota::factory()->create(['plan_pago_id' => $planPago->id, 'monto' => 80]);
+        ConceptoPago::factory()->create(['tipo' => 'mensualidad']);
+
+        $this->actingAs($this->administrativo());
+
+        Volt::test('pagos.index')
+            ->call('seleccionarEstudiante', $matricula->estudiante_id, $matricula->estudiante->nombreCompleto())
+            ->set('cuotasSeleccionadas', [(string) $cuota->id])
             ->set('partes.0.monto', '80')
             ->set('partes.0.metodo', 'yape')
             ->call('registrarPago');
@@ -111,7 +139,7 @@ class PagosSerieObservacionCuotaTest extends TestCase
         Volt::test('pagos.index')->call('aprobar', $pago->id);
 
         $html = view('pdf.recibo', [
-            'pago' => $pago->fresh(['cuota.planPago.matricula.ciclo']),
+            'pago' => $pago->fresh(['estudiante.matriculas.ciclo', 'destinos.concepto', 'destinos.cuota.planPago']),
             'recibo' => $pago->recibo,
             'serie' => $pago->recibo->serie,
         ])->render();
@@ -125,14 +153,15 @@ class PagosSerieObservacionCuotaTest extends TestCase
     {
         $matricula = Matricula::factory()->create();
         $planPago = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
-        Cuota::factory()->create(['plan_pago_id' => $planPago->id, 'monto' => 80]);
-        $concepto = ConceptoPago::factory()->create(['tipo' => 'mensualidad']);
+        $cuota = Cuota::factory()->create(['plan_pago_id' => $planPago->id, 'monto' => 80]);
+        ConceptoPago::factory()->create(['tipo' => 'mensualidad']);
 
         $this->actingAs($this->administrativo());
 
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $matricula->estudiante_id, $matricula->estudiante->nombreCompleto())
-            ->set('conceptoId', (string) $concepto->id)
+            ->set('cuotasSeleccionadas', [(string) $cuota->id])
+            ->set("montoPorCuotaSeleccionada.{$cuota->id}", '30')
             ->set('partes.0.monto', '30')
             ->set('partes.0.metodo', 'yape')
             ->call('registrarPago');
@@ -143,7 +172,7 @@ class PagosSerieObservacionCuotaTest extends TestCase
         Volt::test('pagos.index')->call('aprobar', $pago->id);
 
         $html = view('pdf.recibo', [
-            'pago' => $pago->fresh(['cuota.planPago.matricula.ciclo']),
+            'pago' => $pago->fresh(['estudiante.matriculas.ciclo', 'destinos.concepto', 'destinos.cuota.planPago']),
             'recibo' => $pago->recibo,
             'serie' => $pago->recibo->serie,
         ])->render();
@@ -154,12 +183,13 @@ class PagosSerieObservacionCuotaTest extends TestCase
     public function test_aprobar_desde_la_cola_usa_la_serie_elegida_en_el_selector(): void
     {
         $estudiante = Estudiante::factory()->create();
-        $concepto = ConceptoPago::factory()->create();
+        $concepto = ConceptoPago::factory()->create(['tipo' => 'certificado']);
 
         $this->actingAs($this->administrativo());
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
-            ->set('conceptoId', (string) $concepto->id)
+            ->set('conceptoSueltoId', (string) $concepto->id)
+            ->set('montoConceptoSuelto', '50')
             ->set('partes.0.monto', '50')
             ->set('partes.0.metodo', 'efectivo')
             ->call('registrarPago');
@@ -178,12 +208,13 @@ class PagosSerieObservacionCuotaTest extends TestCase
     public function test_la_observacion_escrita_al_registrar_queda_en_el_recibo(): void
     {
         $estudiante = Estudiante::factory()->create();
-        $concepto = ConceptoPago::factory()->create();
+        $concepto = ConceptoPago::factory()->create(['tipo' => 'certificado']);
 
         $this->actingAs($this->administrativo());
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
-            ->set('conceptoId', (string) $concepto->id)
+            ->set('conceptoSueltoId', (string) $concepto->id)
+            ->set('montoConceptoSuelto', '50')
             ->set('observacion', 'Pago adelantado de dos meses')
             ->set('partes.0.monto', '50')
             ->set('partes.0.metodo', 'efectivo')

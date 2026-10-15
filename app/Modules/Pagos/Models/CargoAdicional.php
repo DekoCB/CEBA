@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * Un cobro futuro puntual para un estudiante en particular (Convalidación,
@@ -26,6 +27,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $concepto
  * @property float $monto
  * @property EstadoCuotaEnum $estado
+ * @property Carbon|null $fecha_compromiso
+ * @property float|null $monto_compromiso
  * @property int|null $registrado_por
  * @property-read Estudiante $estudiante
  */
@@ -41,6 +44,8 @@ class CargoAdicional extends Model
         'concepto',
         'monto',
         'estado',
+        'fecha_compromiso',
+        'monto_compromiso',
         'registrado_por',
     ];
 
@@ -49,6 +54,8 @@ class CargoAdicional extends Model
         return [
             'monto' => 'decimal:2',
             'estado' => EstadoCuotaEnum::class,
+            'fecha_compromiso' => 'date',
+            'monto_compromiso' => 'decimal:2',
         ];
     }
 
@@ -63,6 +70,9 @@ class CargoAdicional extends Model
     }
 
     /**
+     * Relación vieja, ya no es la fuente de verdad para montoPagado() -- ver
+     * el mismo comentario en Cuota::pagos().
+     *
      * @return HasMany<Pago, $this>
      */
     public function pagos(): HasMany
@@ -71,12 +81,23 @@ class CargoAdicional extends Model
     }
 
     /**
+     * @return HasMany<PagoDestino, $this>
+     */
+    public function detallesPago(): HasMany
+    {
+        return $this->hasMany(PagoDestino::class);
+    }
+
+    /**
      * Suma de los pagos ya aprobados vinculados a este cargo -- puede
-     * cubrirse en varios pagos parciales, igual que Cuota::montoPagado().
+     * cubrirse en varios pagos parciales, igual que Cuota::montoPagado(), y
+     * un mismo pago puede cubrir este cargo junto con otras cosas a la vez.
      */
     public function montoPagado(): float
     {
-        return (float) $this->pagos()->where('estado', EstadoPagoEnum::APROBADO)->sum('monto');
+        return (float) $this->detallesPago()
+            ->whereHas('pago', fn ($query) => $query->where('estado', EstadoPagoEnum::APROBADO))
+            ->sum('monto');
     }
 
     /**

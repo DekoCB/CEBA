@@ -39,13 +39,14 @@ class PagosFlujoTest extends TestCase
         $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
 
         $estudiante = Estudiante::factory()->create();
-        $concepto = ConceptoPago::factory()->create();
+        $concepto = ConceptoPago::factory()->create(['tipo' => 'certificado']);
 
         $this->actingAs($administrativo);
 
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
-            ->set('conceptoId', (string) $concepto->id)
+            ->set('conceptoSueltoId', (string) $concepto->id)
+            ->set('montoConceptoSuelto', '150')
             ->set('partes.0.monto', '150')
             ->set('partes.0.metodo', 'yape')
             ->call('registrarPago')
@@ -83,18 +84,20 @@ class PagosFlujoTest extends TestCase
 
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
-            ->set('conceptoId', (string) $concepto->id)
+            ->set('conceptoSueltoId', (string) $concepto->id)
+            ->set('montoConceptoSuelto', '25')
             ->set('partes.0.monto', '25')
             ->set('partes.0.metodo', 'efectivo')
             ->call('registrarPago')
-            ->assertHasErrors('detalle');
+            ->assertHasErrors('detalleConceptoSuelto');
 
         $this->assertDatabaseMissing('pagos', ['estudiante_id' => $estudiante->id]);
 
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
-            ->set('conceptoId', (string) $concepto->id)
-            ->set('detalle', 'Duplicado de constancia de matrícula')
+            ->set('conceptoSueltoId', (string) $concepto->id)
+            ->set('montoConceptoSuelto', '25')
+            ->set('detalleConceptoSuelto', 'Duplicado de constancia de matrícula')
             ->set('partes.0.monto', '25')
             ->set('partes.0.metodo', 'efectivo')
             ->call('registrarPago')
@@ -112,13 +115,14 @@ class PagosFlujoTest extends TestCase
         $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
 
         $estudiante = Estudiante::factory()->create();
-        $concepto = ConceptoPago::factory()->create();
+        $concepto = ConceptoPago::factory()->create(['tipo' => 'certificado']);
 
         $this->actingAs($administrativo);
 
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
-            ->set('conceptoId', (string) $concepto->id)
+            ->set('conceptoSueltoId', (string) $concepto->id)
+            ->set('montoConceptoSuelto', '100')
             ->set('partes.0.monto', '60')
             ->set('partes.0.metodo', 'efectivo')
             ->call('agregarParte')
@@ -142,13 +146,14 @@ class PagosFlujoTest extends TestCase
         $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
 
         $estudiante = Estudiante::factory()->create();
-        $concepto = ConceptoPago::factory()->create();
+        $concepto = ConceptoPago::factory()->create(['tipo' => 'certificado']);
 
         $this->actingAs($administrativo);
 
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
-            ->set('conceptoId', (string) $concepto->id)
+            ->set('conceptoSueltoId', (string) $concepto->id)
+            ->set('montoConceptoSuelto', '60')
             ->set('partes.0.monto', '60')
             ->set('partes.0.metodo', 'efectivo')
             ->call('agregarParte')
@@ -171,8 +176,13 @@ class PagosFlujoTest extends TestCase
 
         $estudiante = Estudiante::factory()->create();
         $concepto = ConceptoPago::factory()->create();
-        $pago = $this->app->make(PagoService::class)
-            ->registrar($estudiante, $concepto, [['monto' => 100.0, 'metodo' => 'efectivo']], null, null, null);
+        $pago = $this->app->make(PagoService::class)->registrar(
+            $estudiante,
+            [['concepto_id' => $concepto->id, 'cuota_id' => null, 'cargo_adicional_id' => null, 'monto' => 100.0]],
+            [['monto' => 100.0, 'metodo' => 'efectivo']],
+            null,
+            null,
+        );
 
         $this->actingAs($tesoreria);
 
@@ -195,8 +205,13 @@ class PagosFlujoTest extends TestCase
 
         $estudiante = Estudiante::factory()->create();
         $concepto = ConceptoPago::factory()->create();
-        $pago = $this->app->make(PagoService::class)
-            ->registrar($estudiante, $concepto, [['monto' => 100.0, 'metodo' => 'efectivo']], null, null, null);
+        $pago = $this->app->make(PagoService::class)->registrar(
+            $estudiante,
+            [['concepto_id' => $concepto->id, 'cuota_id' => null, 'cargo_adicional_id' => null, 'monto' => 100.0]],
+            [['monto' => 100.0, 'metodo' => 'efectivo']],
+            null,
+            null,
+        );
 
         $this->actingAs($administrativo);
 
@@ -345,12 +360,12 @@ class PagosFlujoTest extends TestCase
 
     /**
      * Pedido del cliente: que el sistema "vaya descontando" el saldo de
-     * una cuota -- al volver a elegir un estudiante con un pago parcial ya
-     * aprobado, el monto debe salir precargado con lo que falta (S/40),
-     * no con el total de la cuota (S/80), para que Tesorería no tenga que
-     * calcularlo a mano.
+     * una cuota -- al marcarla en la lista de "Cuotas y cargos pendientes"
+     * de Registrar pago, el monto sugerido debe salir precargado con lo
+     * que falta (S/40), no con el total de la cuota (S/80), para que
+     * Tesorería no tenga que calcularlo a mano.
      */
-    public function test_seleccionar_estudiante_precarga_el_monto_con_el_saldo_pendiente_de_la_cuota(): void
+    public function test_marcar_una_cuota_precarga_su_monto_con_el_saldo_pendiente(): void
     {
         $administrativo = User::factory()->create();
         $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
@@ -363,21 +378,26 @@ class PagosFlujoTest extends TestCase
         $cuota = $plan->cuotas()->firstOrFail();
 
         $pagoService = $this->app->make(PagoService::class);
-        $primerPago = $pagoService->registrar($estudiante, $concepto, [['monto' => 40.0, 'metodo' => 'yape']], $cuota, null, null);
+        $primerPago = $pagoService->registrar(
+            $estudiante,
+            [['concepto_id' => $concepto->id, 'cuota_id' => $cuota->id, 'cargo_adicional_id' => null, 'monto' => 40.0]],
+            [['monto' => 40.0, 'metodo' => 'yape']],
+            null,
+            null,
+        );
         $pagoService->aprobar($primerPago, User::factory()->create()->id, SerieReciboEnum::ORIGINAL);
 
         $this->actingAs($administrativo);
 
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
-            ->set('conceptoId', (string) $concepto->id)
-            ->assertSet('partes.0.monto', '40');
+            ->set('cuotasSeleccionadas', [(string) $cuota->id])
+            ->assertSet("montoPorCuotaSeleccionada.{$cuota->id}", '40');
     }
 
     /**
      * No debe pisar un monto que la persona ya haya empezado a escribir
-     * antes de elegir el concepto (ej. si cambia de estudiante a mitad de
-     * llenar el formulario).
+     * para una cuota antes de marcarla por error y desmarcarla.
      */
     public function test_el_autocompletado_del_saldo_no_pisa_un_monto_ya_escrito(): void
     {
@@ -386,17 +406,18 @@ class PagosFlujoTest extends TestCase
 
         $estudiante = Estudiante::factory()->create();
         $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'fecha_matricula' => now()]);
-        $concepto = ConceptoPago::factory()->create(['tipo' => 'mensualidad']);
+        ConceptoPago::factory()->create(['tipo' => 'mensualidad']);
 
-        $this->app->make(PlanPagoService::class)->crear($matricula, NumeroCuotasEnum::UNA, 80.0);
+        $plan = $this->app->make(PlanPagoService::class)->crear($matricula, NumeroCuotasEnum::UNA, 80.0);
+        $cuota = $plan->cuotas()->firstOrFail();
 
         $this->actingAs($administrativo);
 
         Volt::test('pagos.index')
-            ->set('partes.0.monto', '15')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
-            ->set('conceptoId', (string) $concepto->id)
-            ->assertSet('partes.0.monto', '15');
+            ->set("montoPorCuotaSeleccionada.{$cuota->id}", '15')
+            ->set('cuotasSeleccionadas', [(string) $cuota->id])
+            ->assertSet("montoPorCuotaSeleccionada.{$cuota->id}", '15');
     }
 
     /**
@@ -411,13 +432,14 @@ class PagosFlujoTest extends TestCase
         $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
 
         $estudiante = Estudiante::factory()->create();
-        $concepto = ConceptoPago::factory()->create();
+        $concepto = ConceptoPago::factory()->create(['tipo' => 'certificado']);
 
         $this->actingAs($administrativo);
 
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
-            ->set('conceptoId', (string) $concepto->id)
+            ->set('conceptoSueltoId', (string) $concepto->id)
+            ->set('montoConceptoSuelto', '40')
             ->set('partes.0.monto', '40')
             ->set('partes.0.metodo', 'yape')
             ->set('partes.0.nota', 'Walter')
@@ -442,14 +464,15 @@ class PagosFlujoTest extends TestCase
         $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
 
         $estudiante = Estudiante::factory()->create();
-        $concepto = ConceptoPago::factory()->create();
+        $concepto = ConceptoPago::factory()->create(['tipo' => 'certificado']);
 
         $this->actingAs($administrativo);
 
         Volt::test('pagos.index')
             ->assertSet('fechaPago', now()->format('Y-m-d'))
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
-            ->set('conceptoId', (string) $concepto->id)
+            ->set('conceptoSueltoId', (string) $concepto->id)
+            ->set('montoConceptoSuelto', '40')
             ->set('partes.0.monto', '40')
             ->set('partes.0.metodo', 'efectivo')
             ->set('fechaPago', '2026-09-01')
@@ -482,8 +505,9 @@ class PagosFlujoTest extends TestCase
 
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
-            ->call('seleccionarCargoAdicional', $cargo->id)
-            ->assertSet('partes.0.monto', '80')
+            ->set('cargosSeleccionados', [(string) $cargo->id])
+            ->assertSet("montoPorCargoSeleccionado.{$cargo->id}", '80')
+            ->set("montoPorCargoSeleccionado.{$cargo->id}", '40')
             ->set('partes.0.monto', '40')
             ->set('partes.0.metodo', 'yape')
             ->call('registrarPago')
@@ -503,8 +527,9 @@ class PagosFlujoTest extends TestCase
         $this->actingAs($administrativo);
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
-            ->call('seleccionarCargoAdicional', $cargo->id)
-            ->assertSet('partes.0.monto', '40')
+            ->set('cargosSeleccionados', [(string) $cargo->id])
+            ->assertSet("montoPorCargoSeleccionado.{$cargo->id}", '40')
+            ->set('partes.0.monto', '40')
             ->set('partes.0.metodo', 'efectivo')
             ->call('registrarPago')
             ->assertHasNoErrors();
@@ -520,38 +545,34 @@ class PagosFlujoTest extends TestCase
     }
 
     /**
-     * Elegir un cargo adicional es excluyente con elegir un concepto del
-     * catálogo -- limpiarCargoAdicional() debe poder volver al flujo
-     * normal sin arrastrar el cargo elegido antes.
+     * Pedido del cliente: un pago puede cubrir un cargo adicional y un
+     * concepto suelto del catálogo a la vez -- ya no son excluyentes como
+     * antes de este cambio.
      */
-    public function test_limpiar_el_cargo_adicional_elegido_permite_volver_al_concepto_del_catalogo(): void
+    public function test_puede_marcar_un_cargo_adicional_y_un_concepto_suelto_a_la_vez(): void
     {
         $administrativo = User::factory()->create();
         $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
 
         $estudiante = Estudiante::factory()->create();
-        $concepto = ConceptoPago::factory()->create();
-        $cargo = CargoAdicional::factory()->create(['estudiante_id' => $estudiante->id]);
+        $concepto = ConceptoPago::factory()->create(['tipo' => 'matricula']);
+        $cargo = CargoAdicional::factory()->create(['estudiante_id' => $estudiante->id, 'monto' => 30]);
 
         $this->actingAs($administrativo);
 
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
-            ->call('seleccionarCargoAdicional', $cargo->id)
-            ->assertSet('cargoAdicionalId', $cargo->id)
-            ->call('limpiarCargoAdicional')
-            ->assertSet('cargoAdicionalId', null)
-            ->set('conceptoId', (string) $concepto->id)
-            ->set('partes.0.monto', '30')
+            ->set('cargosSeleccionados', [(string) $cargo->id])
+            ->set('conceptoSueltoId', (string) $concepto->id)
+            ->set('montoConceptoSuelto', '50')
+            ->set('partes.0.monto', '80')
             ->set('partes.0.metodo', 'efectivo')
             ->call('registrarPago')
             ->assertHasNoErrors();
 
-        $this->assertDatabaseHas('pagos', [
-            'estudiante_id' => $estudiante->id,
-            'concepto_id' => $concepto->id,
-            'cargo_adicional_id' => null,
-        ]);
+        $pago = Pago::query()->where('estudiante_id', $estudiante->id)->firstOrFail();
+        $this->assertSame('80.00', $pago->monto);
+        $this->assertCount(2, $pago->destinos);
     }
 
     public function test_no_permite_una_fecha_de_pago_futura(): void
@@ -566,7 +587,8 @@ class PagosFlujoTest extends TestCase
 
         Volt::test('pagos.index')
             ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
-            ->set('conceptoId', (string) $concepto->id)
+            ->set('conceptoSueltoId', (string) $concepto->id)
+            ->set('montoConceptoSuelto', '40')
             ->set('partes.0.monto', '40')
             ->set('partes.0.metodo', 'efectivo')
             ->set('fechaPago', now()->addDay()->format('Y-m-d'))

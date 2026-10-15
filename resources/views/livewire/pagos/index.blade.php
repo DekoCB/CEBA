@@ -6,7 +6,6 @@ use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
-use App\Modules\Pagos\Enums\EstadoCuotaEnum;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use App\Modules\Pagos\Enums\NumeroCuotasEnum;
 use App\Modules\Pagos\Enums\SerieReciboEnum;
@@ -40,14 +39,32 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $estudianteSeleccionadoNombre = '';
 
-    public string $conceptoId = '';
+    // Destinos del pago: puede cubrir varias cuotas y/o cargos adicionales
+    // a la vez (ej. una cuota completa + otra parcial, o una cuota + un
+    // cargo), marcados como checkboxes -- cada uno con su propio monto,
+    // precargado con el saldo pendiente al marcarlo (ver
+    // updatedCuotasSeleccionadas()/updatedCargosSeleccionados()) pero
+    // editable, para poder repartir un monto distinto (ej. pago parcial).
+    /** @var array<int, string> */
+    public array $cuotasSeleccionadas = [];
 
-    // Cuando se elige cobrar un cargo adicional puntual (Convalidación,
-    // Exoneración...) en vez de un concepto del catálogo -- excluyentes
-    // entre sí, ver seleccionarCargoAdicional()/limpiarCargoAdicional().
-    public ?int $cargoAdicionalId = null;
+    /** @var array<int, string> */
+    public array $cargosSeleccionados = [];
 
-    public string $detalle = '';
+    /** @var array<int, string> */
+    public array $montoPorCuotaSeleccionada = [];
+
+    /** @var array<int, string> */
+    public array $montoPorCargoSeleccionado = [];
+
+    // Concepto suelto opcional (Matrícula, Certificado...) sin cuota/cargo
+    // detrás -- se suma como un destino más junto a las cuotas/cargos
+    // marcados arriba.
+    public string $conceptoSueltoId = '';
+
+    public string $montoConceptoSuelto = '';
+
+    public string $detalleConceptoSuelto = '';
 
     public string $observacion = '';
 
@@ -108,10 +125,21 @@ new #[Layout('layouts.app')] class extends Component
     /** @var array<int, string> */
     public array $cobrosConceptoIds = [];
 
-    // Fecha de compromiso de pago — indexada por cuota_id, porque la vista
-    // de Cobros individual lista varias cuotas pendientes a la vez.
+    // Fecha/monto de compromiso de pago — indexadas por cuota_id, porque la
+    // vista de Cobros individual lista varias cuotas pendientes a la vez.
     /** @var array<int, string> */
     public array $fechaCompromisoPorCuota = [];
+
+    /** @var array<int, string> */
+    public array $montoCompromisoPorCuota = [];
+
+    // Mismo mecanismo que arriba, pero para cargos adicionales pendientes
+    // (indexadas por cargo_adicional_id).
+    /** @var array<int, string> */
+    public array $fechaCompromisoPorCargo = [];
+
+    /** @var array<int, string> */
+    public array $montoCompromisoPorCargo = [];
 
     public function mount(): void
     {
@@ -131,69 +159,42 @@ new #[Layout('layouts.app')] class extends Component
         $this->fechaPago = now()->format('Y-m-d');
     }
 
-    public function seleccionarEstudiante(int $estudianteId, string $nombre, CobranzaService $cobranza): void
+    public function seleccionarEstudiante(int $estudianteId, string $nombre): void
     {
         $this->estudianteSeleccionadoId = $estudianteId;
         $this->estudianteSeleccionadoNombre = $nombre;
         $this->terminoBusqueda = '';
-        $this->cargoAdicionalId = null;
 
-        $this->autocompletarMontoConSaldo($cobranza);
-    }
-
-    public function updatedConceptoId(CobranzaService $cobranza): void
-    {
-        $this->autocompletarMontoConSaldo($cobranza);
+        $this->reset(['cuotasSeleccionadas', 'cargosSeleccionados', 'montoPorCuotaSeleccionada', 'montoPorCargoSeleccionado', 'conceptoSueltoId', 'montoConceptoSuelto', 'detalleConceptoSuelto']);
     }
 
     /**
-     * Elegir un cargo adicional pendiente es excluyente con elegir un
-     * concepto del catálogo -- ver registrarPago(), que salta la
-     * validación/uso de conceptoId cuando cargoAdicionalId está fijado.
-     * Autocompleta el monto de la primera parte con el saldo real que
-     * falta, mismo criterio que autocompletarMontoConSaldo() para cuotas.
+     * Al marcar una cuota, precarga su monto con el saldo real que falta
+     * cobrar (ej. si ya pagó S/40 de una cuota de S/80, deja S/40 en vez de
+     * S/80) en vez de que Tesorería tenga que calcularlo a mano -- editable
+     * después, para repartir un monto distinto (ej. pago parcial).
      */
-    public function seleccionarCargoAdicional(int $cargoAdicionalId): void
+    public function updatedCuotasSeleccionadas(): void
     {
-        $this->cargoAdicionalId = $cargoAdicionalId;
-        $this->conceptoId = '';
-
-        $cargo = CargoAdicional::query()->find($cargoAdicionalId);
-
-        if ($cargo && $this->partes[0]['monto'] === '') {
-            $this->partes[0]['monto'] = (string) $cargo->saldoPendiente();
+        foreach ($this->cuotasSeleccionadas as $cuotaId) {
+            if (($this->montoPorCuotaSeleccionada[$cuotaId] ?? '') === '') {
+                $cuota = Cuota::query()->find($cuotaId);
+                $this->montoPorCuotaSeleccionada[$cuotaId] = $cuota ? (string) $cuota->saldoPendiente() : '';
+            }
         }
-    }
-
-    public function limpiarCargoAdicional(): void
-    {
-        $this->cargoAdicionalId = null;
     }
 
     /**
-     * Si el concepto elegido es Mensualidad y el estudiante ya tiene una
-     * cuota con un pago parcial, precarga el monto de la primera parte con
-     * el saldo real que falta cobrar (ej. si ya pagó S/40 de una cuota de
-     * S/80, deja S/40 en vez de S/80) en vez de que Tesorería tenga que
-     * calcularlo a mano. Solo toca el campo si sigue vacío, para no pisar
-     * un monto que la persona ya haya escrito.
+     * Mismo criterio que updatedCuotasSeleccionadas() pero para cargos
+     * adicionales.
      */
-    private function autocompletarMontoConSaldo(CobranzaService $cobranza): void
+    public function updatedCargosSeleccionados(): void
     {
-        if (! $this->estudianteSeleccionadoId || $this->partes[0]['monto'] !== '') {
-            return;
-        }
-
-        $concepto = ConceptoPago::query()->find($this->conceptoId);
-        if ($concepto?->tipo !== TipoConceptoEnum::MENSUALIDAD) {
-            return;
-        }
-
-        $estudiante = Estudiante::query()->find($this->estudianteSeleccionadoId);
-        $cuota = $estudiante ? $cobranza->cuotaPendienteMasProxima($estudiante) : null;
-
-        if ($cuota && $cuota->saldoPendiente() > 0.0) {
-            $this->partes[0]['monto'] = (string) $cuota->saldoPendiente();
+        foreach ($this->cargosSeleccionados as $cargoId) {
+            if (($this->montoPorCargoSeleccionado[$cargoId] ?? '') === '') {
+                $cargo = CargoAdicional::query()->find($cargoId);
+                $this->montoPorCargoSeleccionado[$cargoId] = $cargo ? (string) $cargo->saldoPendiente() : '';
+            }
         }
     }
 
@@ -208,9 +209,30 @@ new #[Layout('layouts.app')] class extends Component
     {
         Gate::authorize('pagos.gestionar');
 
-        $this->validate(["fechaCompromisoPorCuota.{$cuotaId}" => ['required', 'date']]);
+        $this->validate([
+            "fechaCompromisoPorCuota.{$cuotaId}" => ['required', 'date'],
+            "montoCompromisoPorCuota.{$cuotaId}" => ['nullable', 'numeric', 'min:0.01'],
+        ]);
 
-        $service->registrarCompromiso(Cuota::query()->findOrFail($cuotaId), $this->fechaCompromisoPorCuota[$cuotaId]);
+        $monto = ($this->montoCompromisoPorCuota[$cuotaId] ?? '') !== '' ? (float) $this->montoCompromisoPorCuota[$cuotaId] : null;
+
+        $service->registrarCompromiso(Cuota::query()->findOrFail($cuotaId), $this->fechaCompromisoPorCuota[$cuotaId], $monto);
+
+        session()->flash('status', 'Fecha de compromiso registrada.');
+    }
+
+    public function registrarCompromisoCargo(int $cargoAdicionalId, PagoService $service): void
+    {
+        Gate::authorize('pagos.gestionar');
+
+        $this->validate([
+            "fechaCompromisoPorCargo.{$cargoAdicionalId}" => ['required', 'date'],
+            "montoCompromisoPorCargo.{$cargoAdicionalId}" => ['nullable', 'numeric', 'min:0.01'],
+        ]);
+
+        $monto = ($this->montoCompromisoPorCargo[$cargoAdicionalId] ?? '') !== '' ? (float) $this->montoCompromisoPorCargo[$cargoAdicionalId] : null;
+
+        $service->registrarCompromisoCargoAdicional(CargoAdicional::query()->findOrFail($cargoAdicionalId), $this->fechaCompromisoPorCargo[$cargoAdicionalId], $monto);
 
         session()->flash('status', 'Fecha de compromiso registrada.');
     }
@@ -245,13 +267,12 @@ new #[Layout('layouts.app')] class extends Component
         $this->partes = array_values($this->partes);
     }
 
-    public function registrarPago(PagoService $service, CobranzaService $cobranza): void
+    public function registrarPago(PagoService $service): void
     {
         abort_unless(Auth::user()->hasAnyPermission(['pagos.registrar', 'pagos.gestionar']), 403);
 
         $reglas = [
             'estudianteSeleccionadoId' => 'required|integer',
-            'conceptoId' => 'required|integer|exists:conceptos_pago,id',
             'partes' => 'required|array|min:1',
             'partes.*.monto' => 'required|numeric|min:0.01',
             'partes.*.metodo' => 'required|string|in:'.implode(',', array_column(MetodoPagoEnum::seleccionables(), 'value')),
@@ -260,43 +281,80 @@ new #[Layout('layouts.app')] class extends Component
             'fechaPago' => 'required|date|before_or_equal:today',
         ];
 
-        // Cobrar un cargo adicional es excluyente con elegir un concepto
-        // del catálogo -- ver seleccionarCargoAdicional().
-        if ($this->cargoAdicionalId) {
-            unset($reglas['conceptoId']);
+        if ($this->cuotasSeleccionadas !== []) {
+            $reglas['montoPorCuotaSeleccionada.*'] = 'required|numeric|min:0.01';
+        }
+
+        if ($this->cargosSeleccionados !== []) {
+            $reglas['montoPorCargoSeleccionado.*'] = 'required|numeric|min:0.01';
+        }
+
+        if ($this->conceptoSueltoId !== '') {
+            $reglas['conceptoSueltoId'] = 'integer|exists:conceptos_pago,id';
+            $reglas['montoConceptoSuelto'] = 'required|numeric|min:0.01';
         }
 
         $this->validate($reglas);
 
         $estudiante = Estudiante::query()->findOrFail($this->estudianteSeleccionadoId);
 
-        if ($this->cargoAdicionalId) {
-            $cargoAdicional = CargoAdicional::query()->findOrFail($this->cargoAdicionalId);
-            // Concepto_id sigue siendo obligatorio en todo Pago -- para uno
-            // que cobra un cargo adicional se ancla al concepto catálogo
-            // "Otro" (mismo patrón de ancla ya usado en mi-cuenta.blade.php
-            // para Mensualidad); el nombre que de verdad se muestra sale de
-            // Pago::nombreConcepto(), no de este ancla.
-            $concepto = ConceptoPago::query()->where('tipo', TipoConceptoEnum::OTRO)->first()
-                ?? ConceptoPago::query()->firstOrFail();
-            $cuota = null;
-        } else {
-            $cargoAdicional = null;
-            $concepto = ConceptoPago::query()->findOrFail($this->conceptoId);
+        $destinos = [];
 
-            if ($concepto->tipo === TipoConceptoEnum::OTRO && trim($this->detalle) === '') {
-                $this->addError('detalle', 'Escribe el concepto específico de este cobro.');
+        // Concepto catálogo "ancla" para cuotas/cargos adicionales --
+        // concepto_id sigue siendo obligatorio en cada destino aunque el
+        // nombre que de verdad se muestre venga de Pago::nombreConcepto()/
+        // PagoDestino::descripcion(), no de este ancla (mismo patrón ya
+        // usado antes de este cambio).
+        $conceptoMensualidad = ConceptoPago::query()->where('tipo', TipoConceptoEnum::MENSUALIDAD)->first();
+        $conceptoOtro = ConceptoPago::query()->where('tipo', TipoConceptoEnum::OTRO)->first()
+            ?? ConceptoPago::query()->first();
+
+        foreach ($this->cuotasSeleccionadas as $cuotaId) {
+            $destinos[] = [
+                'concepto_id' => $conceptoMensualidad?->id ?? $conceptoOtro?->id,
+                'cuota_id' => (int) $cuotaId,
+                'cargo_adicional_id' => null,
+                'monto' => (float) ($this->montoPorCuotaSeleccionada[$cuotaId] ?? 0),
+            ];
+        }
+
+        foreach ($this->cargosSeleccionados as $cargoId) {
+            $destinos[] = [
+                'concepto_id' => $conceptoOtro?->id,
+                'cuota_id' => null,
+                'cargo_adicional_id' => (int) $cargoId,
+                'monto' => (float) ($this->montoPorCargoSeleccionado[$cargoId] ?? 0),
+            ];
+        }
+
+        if ($this->conceptoSueltoId !== '') {
+            $conceptoSuelto = ConceptoPago::query()->findOrFail($this->conceptoSueltoId);
+
+            if ($conceptoSuelto->tipo === TipoConceptoEnum::MENSUALIDAD) {
+                $this->addError('conceptoSueltoId', 'Para cobrar una mensualidad, marca la cuota correspondiente en la lista de arriba.');
 
                 return;
             }
 
-            // Solo Mensualidad tiene una Cuota real que vincular (ver
-            // CobranzaService::cuotaPendienteMasProxima()) -- el resto de
-            // conceptos (Matrícula, Certificado, Otro...) no forman parte de
-            // un plan de cuotas, así que el pago queda sin Cuota como antes.
-            $cuota = $concepto->tipo === TipoConceptoEnum::MENSUALIDAD
-                ? $cobranza->cuotaPendienteMasProxima($estudiante)
-                : null;
+            if ($conceptoSuelto->tipo === TipoConceptoEnum::OTRO && trim($this->detalleConceptoSuelto) === '') {
+                $this->addError('detalleConceptoSuelto', 'Escribe el concepto específico de este cobro.');
+
+                return;
+            }
+
+            $destinos[] = [
+                'concepto_id' => $conceptoSuelto->id,
+                'cuota_id' => null,
+                'cargo_adicional_id' => null,
+                'monto' => (float) $this->montoConceptoSuelto,
+                'detalle' => $this->detalleConceptoSuelto ?: null,
+            ];
+        }
+
+        if ($destinos === []) {
+            $this->addError('destinos', 'Elige al menos una cuota, un cargo adicional o un concepto a cobrar.');
+
+            return;
         }
 
         $partes = collect($this->partes)->map(fn (array $parte) => [
@@ -305,9 +363,9 @@ new #[Layout('layouts.app')] class extends Component
             'nota' => $parte['nota'] !== '' ? $parte['nota'] : null,
         ])->all();
 
-        $service->registrar($estudiante, $concepto, $partes, $cuota, $this->comprobante, Auth::id(), $this->detalle ?: null, $this->observacion ?: null, $this->fechaPago, $cargoAdicional);
+        $service->registrar($estudiante, $destinos, $partes, $this->comprobante, Auth::id(), $this->observacion ?: null, $this->fechaPago);
 
-        $this->reset(['estudianteSeleccionadoId', 'estudianteSeleccionadoNombre', 'conceptoId', 'cargoAdicionalId', 'detalle', 'observacion', 'partes', 'comprobante']);
+        $this->reset(['estudianteSeleccionadoId', 'estudianteSeleccionadoNombre', 'cuotasSeleccionadas', 'cargosSeleccionados', 'montoPorCuotaSeleccionada', 'montoPorCargoSeleccionado', 'conceptoSueltoId', 'montoConceptoSuelto', 'detalleConceptoSuelto', 'observacion', 'partes', 'comprobante']);
         $this->fechaPago = now()->format('Y-m-d');
         session()->flash('status', 'Pago registrado. Queda pendiente de aprobación de Tesorería.');
     }
@@ -403,27 +461,19 @@ new #[Layout('layouts.app')] class extends Component
 
         $conceptosActivos = $conceptos->activos();
 
-        // Vista previa de a qué Cuota quedaría vinculado el pago si se
-        // registrara ahora mismo (ver registrarPago(), que hace la misma
-        // detección al guardar) -- solo tiene sentido una vez elegidos
-        // estudiante y un concepto de tipo Mensualidad.
-        $cuotaDetectada = null;
-        if ($puedeRegistrar && $this->estudianteSeleccionadoId
-            && $conceptosActivos->firstWhere('id', (int) $this->conceptoId)?->tipo === TipoConceptoEnum::MENSUALIDAD) {
-            $estudianteParaCuota = Estudiante::query()->find($this->estudianteSeleccionadoId);
-            $cuotaDetectada = $estudianteParaCuota ? $cobranza->cuotaPendienteMasProxima($estudianteParaCuota) : null;
+        // Cuotas y cargos adicionales pendientes del estudiante elegido,
+        // para marcar como destinos del pago (ver registrarPago()) -- misma
+        // consulta que ya usa la pestaña Cobros individual.
+        $cuotasPendientesParaRegistrar = collect();
+        $cargosAdicionalesPendientes = collect();
+        if ($puedeRegistrar && $this->estudianteSeleccionadoId) {
+            $estudianteParaRegistrar = Estudiante::query()->find($this->estudianteSeleccionadoId);
+            if ($estudianteParaRegistrar) {
+                $deudaParaRegistrar = $cobranza->deudaDeEstudiante($estudianteParaRegistrar);
+                $cuotasPendientesParaRegistrar = $deudaParaRegistrar['cuotasPendientes'] ?? collect();
+                $cargosAdicionalesPendientes = $deudaParaRegistrar['cargosAdicionalesPendientes'] ?? collect();
+            }
         }
-
-        // Cargos adicionales puntuales pendientes del estudiante elegido --
-        // a diferencia de $cuotaDetectada, no depende del concepto elegido:
-        // se listan como una opción de cobro aparte del catálogo (ver
-        // seleccionarCargoAdicional()).
-        $cargosAdicionalesPendientes = ($puedeRegistrar && $this->estudianteSeleccionadoId)
-            ? CargoAdicional::query()
-                ->where('estudiante_id', $this->estudianteSeleccionadoId)
-                ->where('estado', EstadoCuotaEnum::PENDIENTE)
-                ->get()
-            : collect();
 
         $cobrosResultadosBusqueda = collect();
         if ($puedeVerCobros && $this->cobrosTerminoBusqueda !== '') {
@@ -439,12 +489,22 @@ new #[Layout('layouts.app')] class extends Component
         }
 
         $cobrosDeudaIndividual = null;
+        $historialCompromisosCuotas = [];
+        $historialCompromisosCargos = [];
         if ($puedeVerCobros && $this->cobrosEstudianteId) {
             $cobrosEstudiante = Estudiante::query()->find($this->cobrosEstudianteId);
             $cobrosDeudaIndividual = $cobrosEstudiante ? $cobranza->deudaDeEstudiante($cobrosEstudiante) : null;
 
             foreach ($cobrosDeudaIndividual['cuotasPendientes'] ?? [] as $cuota) {
                 $this->fechaCompromisoPorCuota[$cuota->id] ??= $cuota->fecha_compromiso?->format('Y-m-d') ?? '';
+                $this->montoCompromisoPorCuota[$cuota->id] ??= $cuota->monto_compromiso !== null ? (string) $cuota->monto_compromiso : '';
+                $historialCompromisosCuotas[$cuota->id] = $cobranza->historialDeCompromisos($cuota);
+            }
+
+            foreach ($cobrosDeudaIndividual['cargosAdicionalesPendientes'] ?? [] as $cargo) {
+                $this->fechaCompromisoPorCargo[$cargo->id] ??= $cargo->fecha_compromiso?->format('Y-m-d') ?? '';
+                $this->montoCompromisoPorCargo[$cargo->id] ??= $cargo->monto_compromiso !== null ? (string) $cargo->monto_compromiso : '';
+                $historialCompromisosCargos[$cargo->id] = $cobranza->historialDeCompromisos($cargo);
             }
         }
 
@@ -473,15 +533,20 @@ new #[Layout('layouts.app')] class extends Component
             'resultadosBusqueda' => $resultadosBusqueda,
             'matriculasSinPlan' => $matriculasSinPlan,
             'conceptosActivos' => $conceptosActivos,
-            'mostrarDetalleLibre' => $conceptosActivos->firstWhere('id', (int) $this->conceptoId)?->tipo === TipoConceptoEnum::OTRO,
-            'cuotaDetectada' => $cuotaDetectada,
+            'mostrarDetalleLibre' => $conceptosActivos->firstWhere('id', (int) $this->conceptoSueltoId)?->tipo === TipoConceptoEnum::OTRO,
+            'cuotasPendientesParaRegistrar' => $cuotasPendientesParaRegistrar,
             'cargosAdicionalesPendientes' => $cargosAdicionalesPendientes,
             'series' => SerieReciboEnum::cases(),
             'numerosCuotas' => NumeroCuotasEnum::cases(),
             'metodosPago' => MetodoPagoEnum::seleccionables(),
             'totalPartes' => collect($this->partes)->sum(fn (array $parte) => (float) ($parte['monto'] ?: 0)),
+            'totalDestinos' => collect($this->montoPorCuotaSeleccionada)->sum(fn ($monto) => (float) ($monto ?: 0))
+                + collect($this->montoPorCargoSeleccionado)->sum(fn ($monto) => (float) ($monto ?: 0))
+                + (float) ($this->montoConceptoSuelto ?: 0),
             'cobrosResultadosBusqueda' => $cobrosResultadosBusqueda,
             'cobrosDeudaIndividual' => $cobrosDeudaIndividual,
+            'historialCompromisosCuotas' => $historialCompromisosCuotas,
+            'historialCompromisosCargos' => $historialCompromisosCargos,
             'cobrosReporteGrupal' => $cobrosReporteGrupal,
             'cobrosCiclos' => $puedeVerCobros ? Ciclo::query()->orderByDesc('fecha_inicio')->get() : collect(),
             'cobrosGrados' => $puedeVerCobros ? Grado::query()->where('activo', true)->orderBy('orden')->get() : collect(),
@@ -569,6 +634,7 @@ new #[Layout('layouts.app')] class extends Component
                                 <option value="{{ $serieOpcion->value }}">Serie {{ $serieOpcion->value }} — {{ $serieOpcion->titulo() }} ({{ $serieOpcion->centroCostoIniciales() }})</option>
                             @endforeach
                         </select>
+                        <a href="{{ route('pagos.vista-previa', ['pago' => $pago->id, 'serie' => $serieElegida[$pago->id] ?? SerieReciboEnum::ORIGINAL->value]) }}" target="_blank" class="text-xs font-medium text-accent hover:underline">Vista previa</a>
                         <x-secondary-button type="button" x-on:click="$store.confirm.preguntar('¿Aprobar este pago? Se generará el recibo automáticamente.', () => $wire.aprobar({{ $pago->id }}), { etiquetaConfirmar: 'Aprobar' })">
                             Aprobar
                         </x-secondary-button>
@@ -617,74 +683,92 @@ new #[Layout('layouts.app')] class extends Component
                 <x-input-error :messages="$errors->get('estudianteSeleccionadoId')" class="mt-1" />
             </div>
 
-            @if ($estudianteSeleccionadoId && $cargosAdicionalesPendientes->isNotEmpty())
+            @if ($estudianteSeleccionadoId && ($cuotasPendientesParaRegistrar->isNotEmpty() || $cargosAdicionalesPendientes->isNotEmpty()))
                 <div>
-                    <x-input-label value="Cargo adicional pendiente" />
-                    @if ($cargoAdicionalId)
-                        @php $cargoElegido = $cargosAdicionalesPendientes->firstWhere('id', $cargoAdicionalId); @endphp
-                        <div class="mt-1 flex items-center justify-between rounded-md bg-accent-soft px-3 py-2 text-sm text-accent">
-                            Cobrar: {{ $cargoElegido?->concepto }} — saldo S/ {{ number_format($cargoElegido?->saldoPendiente() ?? 0, 2) }}
-                            <button type="button" wire:click="limpiarCargoAdicional" class="text-xs underline">Cambiar</button>
-                        </div>
-                    @else
-                        <div class="mt-1 divide-y divide-border rounded-md border border-border bg-surface">
-                            @foreach ($cargosAdicionalesPendientes as $cargo)
-                                <button
-                                    type="button"
-                                    wire:click="seleccionarCargoAdicional({{ $cargo->id }})"
-                                    class="block w-full px-3 py-2 text-left text-sm hover:bg-surface-2"
-                                >
-                                    Cobrar: {{ $cargo->concepto }} <span class="text-ink-faint">· saldo S/ {{ number_format($cargo->saldoPendiente(), 2) }}</span>
-                                </button>
-                            @endforeach
-                        </div>
-                        <p class="mt-1 text-xs text-ink-faint">O elige un concepto del catálogo abajo si no es ninguno de estos.</p>
-                    @endif
+                    <x-input-label value="Cuotas y cargos pendientes" />
+                    <p class="mt-1 text-xs text-ink-faint">Marca uno o varios — este pago puede cubrir más de una cuota (ej. una completa y otra parcial) y/o un cargo adicional a la vez. El monto de cada uno se precarga con su saldo pendiente, editable.</p>
+
+                    <div class="mt-2 divide-y divide-border rounded-md border border-border bg-surface">
+                        @foreach ($cuotasPendientesParaRegistrar as $cuota)
+                            <div class="flex flex-wrap items-center gap-2 px-3 py-2">
+                                <label class="flex flex-1 items-center gap-2 text-sm text-ink">
+                                    <input type="checkbox" wire:model.live="cuotasSeleccionadas" value="{{ $cuota->id }}" class="rounded border-border text-accent focus:ring-accent">
+                                    Cuota {{ $cuota->numero }} — {{ $cuota->planPago->matricula->grado->nombre ?? '—' }}
+                                    <span class="text-ink-faint">· saldo S/ {{ number_format($cuota->saldoPendiente(), 2) }}</span>
+                                </label>
+                                @if (in_array($cuota->id, $cuotasSeleccionadas))
+                                    <x-text-input wire:model.live.debounce.400ms="montoPorCuotaSeleccionada.{{ $cuota->id }}" type="number" step="0.01" min="0" class="w-28 text-xs" />
+                                    @php($montoIngresado = (float) ($montoPorCuotaSeleccionada[$cuota->id] ?? 0))
+                                    @if ($montoIngresado > 0)
+                                        <span @class(['text-xs font-semibold', 'text-ok' => $montoIngresado >= $cuota->saldoPendiente(), 'text-warn' => $montoIngresado < $cuota->saldoPendiente()])>
+                                            {{ $montoIngresado >= $cuota->saldoPendiente() ? 'Completo' : 'Parcial' }}
+                                        </span>
+                                    @endif
+                                @endif
+                            </div>
+                        @endforeach
+                        @foreach ($cargosAdicionalesPendientes as $cargo)
+                            <div class="flex flex-wrap items-center gap-2 px-3 py-2">
+                                <label class="flex flex-1 items-center gap-2 text-sm text-ink">
+                                    <input type="checkbox" wire:model.live="cargosSeleccionados" value="{{ $cargo->id }}" class="rounded border-border text-accent focus:ring-accent">
+                                    Cobrar: {{ $cargo->concepto }}
+                                    <span class="text-ink-faint">· saldo S/ {{ number_format($cargo->saldoPendiente(), 2) }}</span>
+                                </label>
+                                @if (in_array($cargo->id, $cargosSeleccionados))
+                                    <x-text-input wire:model.live.debounce.400ms="montoPorCargoSeleccionado.{{ $cargo->id }}" type="number" step="0.01" min="0" class="w-28 text-xs" />
+                                    @php($montoCargoIngresado = (float) ($montoPorCargoSeleccionado[$cargo->id] ?? 0))
+                                    @if ($montoCargoIngresado > 0)
+                                        <span @class(['text-xs font-semibold', 'text-ok' => $montoCargoIngresado >= $cargo->saldoPendiente(), 'text-warn' => $montoCargoIngresado < $cargo->saldoPendiente()])>
+                                            {{ $montoCargoIngresado >= $cargo->saldoPendiente() ? 'Completo' : 'Parcial' }}
+                                        </span>
+                                    @endif
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                    <x-input-error :messages="$errors->get('montoPorCuotaSeleccionada.*')" class="mt-1" />
+                    <x-input-error :messages="$errors->get('montoPorCargoSeleccionado.*')" class="mt-1" />
                 </div>
             @endif
 
-            @if (! $cargoAdicionalId)
+            @if ($estudianteSeleccionadoId)
                 <div>
-                    <x-input-label for="conceptoId" value="Concepto" />
+                    <x-input-label for="conceptoSueltoId" value="Otro concepto (opcional)" />
+                    <p class="mt-1 text-xs text-ink-faint">Para cobrar algo que no es ninguna cuota ni cargo de la lista de arriba (ej. Matrícula, Certificado). Para mensualidades, marca la cuota en la lista de arriba.</p>
                     <x-select-input
-                        wire:model.live="conceptoId"
-                        id="conceptoId"
+                        wire:model.live="conceptoSueltoId"
+                        id="conceptoSueltoId"
                         class="mt-1 block w-full"
-                        :options="collect($conceptosActivos)->mapWithKeys(fn ($concepto) => [$concepto->id => $concepto->nombre.' (S/ '.number_format((float) $concepto->monto_base, 2).')'])"
+                        :options="collect($conceptosActivos)->reject(fn ($concepto) => $concepto->tipo === TipoConceptoEnum::MENSUALIDAD)->mapWithKeys(fn ($concepto) => [$concepto->id => $concepto->nombre.' (S/ '.number_format((float) $concepto->monto_base, 2).')'])"
                     />
-                    <x-input-error :messages="$errors->get('conceptoId')" class="mt-1" />
+                    <x-input-error :messages="$errors->get('conceptoSueltoId')" class="mt-1" />
                 </div>
+
+                @if ($conceptoSueltoId !== '')
+                    <div>
+                        <x-input-label for="montoConceptoSuelto" value="Monto" />
+                        <x-text-input wire:model.live.debounce.400ms="montoConceptoSuelto" id="montoConceptoSuelto" type="number" step="0.01" min="0" class="mt-1 block w-full" />
+                        <x-input-error :messages="$errors->get('montoConceptoSuelto')" class="mt-1" />
+                    </div>
+                @endif
+
+                @if ($mostrarDetalleLibre)
+                    <div>
+                        <x-input-label for="detalleConceptoSuelto" value="Detalle del concepto" />
+                        <x-text-input wire:model="detalleConceptoSuelto" id="detalleConceptoSuelto" class="mt-1 block w-full" placeholder="Ej. duplicado de constancia, exoneración…" />
+                        <x-input-error :messages="$errors->get('detalleConceptoSuelto')" class="mt-1" />
+                    </div>
+                @endif
             @endif
 
-            @if ($mostrarDetalleLibre)
-                <div>
-                    <x-input-label for="detalle" value="Detalle del concepto" />
-                    <x-text-input wire:model="detalle" id="detalle" class="mt-1 block w-full" placeholder="Ej. duplicado de constancia, exoneración…" />
-                    <x-input-error :messages="$errors->get('detalle')" class="mt-1" />
-                </div>
-            @endif
+            <x-input-error :messages="$errors->get('destinos')" class="mt-1" />
 
-            @if ($cuotaDetectada)
+            @if ($estudianteSeleccionadoId && $totalDestinos > 0)
                 <div class="rounded-md border border-accent/30 bg-accent-soft px-3 py-2 text-xs text-ink">
-                    <p>
-                        <span class="font-semibold text-accent">Cuota N.° {{ $cuotaDetectada->numero }}</span>
-                        de {{ $cuotaDetectada->planPago->numero_cuotas }}
-                        · Grupo {{ $cuotaDetectada->planPago->matricula->ciclo->nombre }}
-                        · vence {{ $cuotaDetectada->fecha_vencimiento->format('d/m/Y') }}
-                    </p>
-                    <p class="mt-1 text-ink-dim">
-                        @if ($cuotaDetectada->montoPagado() > 0)
-                            Saldo pendiente: S/ {{ number_format($cuotaDetectada->saldoPendiente(), 2) }}
-                            de S/ {{ number_format((float) $cuotaDetectada->monto, 2) }} —
-                        @else
-                            Monto de la cuota: S/ {{ number_format((float) $cuotaDetectada->monto, 2) }} —
-                        @endif
-                        @if ($totalPartes <= 0)
-                            se vinculará automáticamente a este pago.
-                        @elseif ($totalPartes >= $cuotaDetectada->saldoPendiente())
-                            pago <span class="font-semibold text-ok">completo</span>.
-                        @else
-                            pago <span class="font-semibold text-warn">parcial</span>.
+                    <p class="text-ink-dim">
+                        Total a cubrir: S/ {{ number_format($totalDestinos, 2) }}
+                        @if ($totalPartes > 0 && round(abs($totalPartes - $totalDestinos), 2) > 0)
+                            — <span class="font-semibold text-warn">no coincide con el total de "Monto y método" (S/ {{ number_format($totalPartes, 2) }})</span>
                         @endif
                     </p>
                 </div>
@@ -916,7 +1000,28 @@ new #[Layout('layouts.app')] class extends Component
                                                     {{ $cuota->estaVencida() ? 'Vencida desde' : 'Vence el' }} {{ $cuota->fecha_vencimiento->format('d/m/Y') }}
                                                 </p>
                                                 @if ($cuota->fecha_compromiso)
-                                                    <p class="text-xs text-info">Compromiso de pago: {{ $cuota->fecha_compromiso->format('d/m/Y') }}</p>
+                                                    <p class="text-xs text-info">
+                                                        Compromiso de pago: {{ $cuota->fecha_compromiso->format('d/m/Y') }}
+                                                        @if ($cuota->monto_compromiso)
+                                                            · S/ {{ number_format($cuota->monto_compromiso, 2) }}
+                                                        @endif
+                                                    </p>
+                                                @endif
+                                                @if (count($historialCompromisosCuotas[$cuota->id] ?? []) > 1)
+                                                    <details class="mt-1">
+                                                        <summary class="cursor-pointer text-xs text-ink-faint hover:underline">Historial de compromisos ({{ count($historialCompromisosCuotas[$cuota->id]) }})</summary>
+                                                        <ul class="mt-1 space-y-0.5 text-xs text-ink-faint">
+                                                            @foreach ($historialCompromisosCuotas[$cuota->id] as $entrada)
+                                                                <li>
+                                                                    {{ $entrada['fecha_compromiso'] ? \Illuminate\Support\Carbon::parse($entrada['fecha_compromiso'])->format('d/m/Y') : '—' }}
+                                                                    @if ($entrada['monto_compromiso'])
+                                                                        · S/ {{ number_format((float) $entrada['monto_compromiso'], 2) }}
+                                                                    @endif
+                                                                    — {{ $entrada['registrado_por'] ?? 'Sistema' }} el {{ $entrada['registrado_en']->format('d/m/Y H:i') }}
+                                                                </li>
+                                                            @endforeach
+                                                        </ul>
+                                                    </details>
                                                 @endif
                                             </div>
                                             <p class="font-display text-ink">S/ {{ number_format($cuota->saldoPendiente(), 2) }}</p>
@@ -924,9 +1029,11 @@ new #[Layout('layouts.app')] class extends Component
                                         @can('pagos.gestionar')
                                             <div class="mt-2 flex flex-wrap items-center gap-2">
                                                 <x-date-input wire:model="fechaCompromisoPorCuota.{{ $cuota->id }}" class="w-40 text-xs" />
+                                                <x-text-input wire:model="montoCompromisoPorCuota.{{ $cuota->id }}" type="number" step="0.01" min="0" placeholder="Monto (opcional)" class="w-32 text-xs" />
                                                 <x-secondary-button type="button" wire:click="registrarCompromiso({{ $cuota->id }})">Registrar compromiso</x-secondary-button>
                                             </div>
                                             <x-input-error :messages="$errors->get('fechaCompromisoPorCuota.'.$cuota->id)" class="mt-1" />
+                                            <x-input-error :messages="$errors->get('montoCompromisoPorCuota.'.$cuota->id)" class="mt-1" />
                                         @endcan
                                     </div>
                                 @empty
@@ -941,9 +1048,46 @@ new #[Layout('layouts.app')] class extends Component
                             </div>
                             <div class="divide-y divide-border">
                                 @forelse ($cobrosDeudaIndividual['cargosAdicionalesPendientes'] as $cargo)
-                                    <div class="flex items-center justify-between px-4 py-3 text-sm">
-                                        <p class="text-ink">{{ $cargo->concepto }}</p>
-                                        <p class="font-display text-ink">S/ {{ number_format($cargo->saldoPendiente(), 2) }}</p>
+                                    <div class="px-4 py-3 text-sm">
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <p class="text-ink">{{ $cargo->concepto }}</p>
+                                                @if ($cargo->fecha_compromiso)
+                                                    <p class="text-xs text-info">
+                                                        Compromiso de pago: {{ $cargo->fecha_compromiso->format('d/m/Y') }}
+                                                        @if ($cargo->monto_compromiso)
+                                                            · S/ {{ number_format($cargo->monto_compromiso, 2) }}
+                                                        @endif
+                                                    </p>
+                                                @endif
+                                                @if (count($historialCompromisosCargos[$cargo->id] ?? []) > 1)
+                                                    <details class="mt-1">
+                                                        <summary class="cursor-pointer text-xs text-ink-faint hover:underline">Historial de compromisos ({{ count($historialCompromisosCargos[$cargo->id]) }})</summary>
+                                                        <ul class="mt-1 space-y-0.5 text-xs text-ink-faint">
+                                                            @foreach ($historialCompromisosCargos[$cargo->id] as $entrada)
+                                                                <li>
+                                                                    {{ $entrada['fecha_compromiso'] ? \Illuminate\Support\Carbon::parse($entrada['fecha_compromiso'])->format('d/m/Y') : '—' }}
+                                                                    @if ($entrada['monto_compromiso'])
+                                                                        · S/ {{ number_format((float) $entrada['monto_compromiso'], 2) }}
+                                                                    @endif
+                                                                    — {{ $entrada['registrado_por'] ?? 'Sistema' }} el {{ $entrada['registrado_en']->format('d/m/Y H:i') }}
+                                                                </li>
+                                                            @endforeach
+                                                        </ul>
+                                                    </details>
+                                                @endif
+                                            </div>
+                                            <p class="font-display text-ink">S/ {{ number_format($cargo->saldoPendiente(), 2) }}</p>
+                                        </div>
+                                        @can('pagos.gestionar')
+                                            <div class="mt-2 flex flex-wrap items-center gap-2">
+                                                <x-date-input wire:model="fechaCompromisoPorCargo.{{ $cargo->id }}" class="w-40 text-xs" />
+                                                <x-text-input wire:model="montoCompromisoPorCargo.{{ $cargo->id }}" type="number" step="0.01" min="0" placeholder="Monto (opcional)" class="w-32 text-xs" />
+                                                <x-secondary-button type="button" wire:click="registrarCompromisoCargo({{ $cargo->id }})">Registrar compromiso</x-secondary-button>
+                                            </div>
+                                            <x-input-error :messages="$errors->get('fechaCompromisoPorCargo.'.$cargo->id)" class="mt-1" />
+                                            <x-input-error :messages="$errors->get('montoCompromisoPorCargo.'.$cargo->id)" class="mt-1" />
+                                        @endcan
                                     </div>
                                 @empty
                                     <p class="px-4 py-6 text-center text-sm text-ink-faint">Sin cargos adicionales pendientes.</p>

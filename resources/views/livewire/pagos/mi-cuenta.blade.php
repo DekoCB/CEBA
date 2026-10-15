@@ -56,9 +56,8 @@ new #[Layout('layouts.app')] class extends Component
 
         $service->registrar(
             $estudiante,
-            $concepto,
+            [['concepto_id' => $concepto->id, 'cuota_id' => $cuota->id, 'cargo_adicional_id' => null, 'monto' => (float) $this->montoPorCuota[$cuotaId]]],
             [['monto' => (float) $this->montoPorCuota[$cuotaId], 'metodo' => $this->metodoPorCuota[$cuotaId]]],
-            $cuota,
             $this->comprobantePorCuota[$cuotaId],
             null,
         );

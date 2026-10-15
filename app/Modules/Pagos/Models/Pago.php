@@ -39,6 +39,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property-read Cuota|null $cuota
  * @property-read CargoAdicional|null $cargoAdicional
  * @property-read Collection<int, PagoParte> $partes
+ * @property-read Collection<int, PagoDestino> $destinos
  */
 class Pago extends Model implements HasMedia
 {
@@ -137,6 +138,21 @@ class Pago extends Model implements HasMedia
     }
 
     /**
+     * Las cosas que cubre este pago -- una cuota, un cargo adicional, o un
+     * concepto suelto del catálogo, cada uno con su propio monto. Un pago
+     * "simple" tiene un solo destino (el caso de siempre, reflejado también
+     * en concepto_id/cuota_id/cargo_adicional_id/detalle de este mismo
+     * Pago); uno que cubre varias cuotas/conceptos a la vez tiene varios, y
+     * su suma siempre es igual a $monto. Ver PagoService::registrar().
+     *
+     * @return HasMany<PagoDestino, $this>
+     */
+    public function destinos(): HasMany
+    {
+        return $this->hasMany(PagoDestino::class);
+    }
+
+    /**
      * El texto de "medio de pago" para mostrar en resumen (recibo, cola de
      * aprobación, historial): si el pago tiene una sola parte, usa su
      * método con nota (ej. "Yape Walter"); si tiene varias con métodos
@@ -151,15 +167,23 @@ class Pago extends Model implements HasMedia
     }
 
     /**
-     * El nombre de concepto para mostrar: si el pago es por un cargo
+     * El nombre de concepto para mostrar. Con un solo destino (el caso de
+     * siempre) se queda igual que antes: si el pago es por un cargo
      * adicional (Convalidación, Exoneración...), usa su propio texto libre
      * en vez del concepto ancla genérico (tipo "Otro") con el que se
      * guarda -- ver PagoService::registrar()/CargoAdicional. concepto_id
      * sigue siendo obligatorio siempre, así que $this->concepto nunca es
-     * null; esto solo decide cuál nombre mostrar.
+     * null. Con varios destinos (un pago que cubre más de una cosa a la
+     * vez), devuelve un resumen de todos, unidos por coma.
      */
     public function nombreConcepto(): string
     {
+        if ($this->destinos->count() > 1) {
+            return $this->destinos
+                ->map(fn (PagoDestino $destino) => $destino->cargoAdicional !== null ? $destino->cargoAdicional->concepto : $destino->concepto->nombre)
+                ->implode(', ');
+        }
+
         if ($this->cargoAdicional !== null) {
             return $this->cargoAdicional->concepto;
         }

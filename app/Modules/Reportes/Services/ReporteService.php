@@ -216,6 +216,7 @@ class ReporteService
             ->map(function ($cuotas) {
                 $matricula = $cuotas->first()->planPago->matricula;
                 $estudiante = $matricula->estudiante;
+                $ultimoCompromiso = $cuotas->pluck('fecha_compromiso')->filter()->max();
 
                 return [
                     $estudiante->nombreCompleto(),
@@ -224,6 +225,7 @@ class ReporteService
                     $cuotas->count(),
                     number_format((float) $cuotas->sum('monto'), 2),
                     $cuotas->min('fecha_vencimiento')->format('d/m/Y'),
+                    $ultimoCompromiso?->format('d/m/Y') ?? '—',
                 ];
             })
             ->sortByDesc(fn (array $fila) => $fila[3])
@@ -231,7 +233,7 @@ class ReporteService
             ->all();
 
         return [
-            'columnas' => ['Estudiante', 'DNI', 'Grado', 'Cuotas vencidas', 'Monto adeudado', 'Vencida desde'],
+            'columnas' => ['Estudiante', 'DNI', 'Grado', 'Cuotas vencidas', 'Monto adeudado', 'Vencida desde', 'Último compromiso'],
             'filas' => $filas,
         ];
     }

@@ -38,4 +38,28 @@ class PagoFactory extends Factory
             'fecha_aprobacion' => now(),
         ]);
     }
+
+    /**
+     * Todo Pago tiene al menos un PagoDestino (ver
+     * 2027_02_01_090000_create_pago_destinos_table.php) -- Cuota/
+     * CargoAdicional::montoPagado() ya no suman por Pago directo, sino por
+     * destino, así que un Pago creado por factory sin su destino se vería
+     * como "sin pagar" pase lo que pase en Pago::$monto. Se copian los
+     * mismos cuota_id/cargo_adicional_id/monto que ya trae el Pago, para
+     * que los tests existentes que crean Pago::factory()->create([...])
+     * directo sigan viendo el saldo correcto sin enterarse de la tabla
+     * nueva.
+     */
+    public function configure(): static
+    {
+        return $this->afterCreating(function (Pago $pago) {
+            $pago->destinos()->create([
+                'concepto_id' => $pago->concepto_id,
+                'cuota_id' => $pago->cuota_id,
+                'cargo_adicional_id' => $pago->cargo_adicional_id,
+                'detalle' => $pago->detalle,
+                'monto' => $pago->monto,
+            ]);
+        });
+    }
 }

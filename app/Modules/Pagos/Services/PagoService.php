@@ -10,9 +10,8 @@ use App\Modules\Pagos\Enums\EstadoPagoEnum;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use App\Modules\Pagos\Enums\SerieReciboEnum;
 use App\Modules\Pagos\Models\CargoAdicional;
-use App\Modules\Pagos\Models\ConceptoPago;
-use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Models\Pago;
+use App\Modules\Pagos\Models\PagoDestino;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -28,44 +27,74 @@ class PagoService
     ) {}
 
     /**
-     * Un pago puede cubrirse con más de una parte a la vez (ej. una mitad
-     * en efectivo y la otra por Yape), pero queda como un solo registro:
-     * cada elemento de $partes es un monto+método independiente, y su suma
-     * es lo que se guarda como Pago::$monto. Pago::$metodo queda como el
-     * método único si todas las partes usan el mismo, o "mixto" si no --
-     * es solo un resumen para listados; el detalle real vive en partes().
+     * Un pago puede cubrir varios destinos a la vez (ej. una cuota completa
+     * + parte de la siguiente, o una cuota + un cargo adicional, en un solo
+     * registro): cada elemento de $destinos es un concepto+monto
+     * independiente (con su cuota_id o cargo_adicional_id si corresponde),
+     * y su suma debe coincidir con la suma de $partes. También puede
+     * cubrirse con más de un medio de pago a la vez (ej. una mitad en
+     * efectivo y la otra por Yape): cada elemento de $partes es un
+     * monto+método independiente. Ambas cosas quedan como un solo registro
+     * de Pago -- Pago::$metodo/concepto_id/cuota_id/cargo_adicional_id/
+     * detalle quedan como un resumen (el único destino, si solo hay uno; el
+     * primero, si hay varios) para listados que no necesitan el detalle
+     * completo; el detalle real vive en destinos()/partes().
      *
+     * @param  list<array{concepto_id: int, cuota_id: ?int, cargo_adicional_id: ?int, monto: float, detalle?: ?string}>  $destinos
      * @param  list<array{monto: float, metodo: string, nota?: ?string}>  $partes
      */
     public function registrar(
         Estudiante $estudiante,
-        ConceptoPago $concepto,
+        array $destinos,
         array $partes,
-        ?Cuota $cuota,
         ?UploadedFile $comprobante,
         ?int $registradoPor,
-        ?string $detalle = null,
         ?string $observacion = null,
         ?string $fechaPago = null,
-        ?CargoAdicional $cargoAdicional = null,
     ): Pago {
         if ($partes === []) {
             throw new InvalidArgumentException('Un pago necesita al menos una parte (monto y método).');
         }
 
-        if ($cuota && Pago::query()->where('cuota_id', $cuota->id)->where('estado', EstadoPagoEnum::PENDIENTE)->exists()) {
+        if ($destinos === []) {
+            throw new InvalidArgumentException('Un pago necesita al menos un destino (concepto, cuota o cargo adicional).');
+        }
+
+        $cuotaIds = array_values(array_filter(array_column($destinos, 'cuota_id')));
+        $cargoIds = array_values(array_filter(array_column($destinos, 'cargo_adicional_id')));
+
+        if (count($cuotaIds) !== count(array_unique($cuotaIds)) || count($cargoIds) !== count(array_unique($cargoIds))) {
+            throw new InvalidArgumentException('No puedes repetir la misma cuota o el mismo cargo adicional en un pago.');
+        }
+
+        if ($cuotaIds !== [] && PagoDestino::query()->whereIn('cuota_id', $cuotaIds)
+            ->whereHas('pago', fn ($query) => $query->where('estado', EstadoPagoEnum::PENDIENTE))
+            ->exists()) {
             throw ValidationException::withMessages([
-                'cuota' => 'Ya existe un pago pendiente de aprobación para esta cuota.',
+                'destinos' => 'Ya existe un pago pendiente de aprobación para una de estas cuotas.',
             ]);
         }
 
-        if ($cargoAdicional && Pago::query()->where('cargo_adicional_id', $cargoAdicional->id)->where('estado', EstadoPagoEnum::PENDIENTE)->exists()) {
+        if ($cargoIds !== [] && PagoDestino::query()->whereIn('cargo_adicional_id', $cargoIds)
+            ->whereHas('pago', fn ($query) => $query->where('estado', EstadoPagoEnum::PENDIENTE))
+            ->exists()) {
             throw ValidationException::withMessages([
-                'cargoAdicional' => 'Ya existe un pago pendiente de aprobación para este cargo.',
+                'destinos' => 'Ya existe un pago pendiente de aprobación para uno de estos cargos.',
             ]);
         }
 
-        $montoTotal = array_sum(array_column($partes, 'monto'));
+        $montoPartes = array_sum(array_column($partes, 'monto'));
+        $montoDestinos = array_sum(array_column($destinos, 'monto'));
+
+        // Comparación en céntimos: evita falsos negativos por redondeo
+        // binario de floats (no hay un precedente de tolerancia en el
+        // proyecto, así que no se inventa uno nuevo).
+        if ((int) round($montoDestinos * 100) !== (int) round($montoPartes * 100)) {
+            throw ValidationException::withMessages([
+                'destinos' => 'La suma de los destinos (S/ '.number_format($montoDestinos, 2).') debe ser igual a la suma de las partes del pago (S/ '.number_format($montoPartes, 2).').',
+            ]);
+        }
+
         $metodosUnicos = collect($partes)->pluck('metodo')->unique();
         $metodo = $metodosUnicos->count() === 1 ? $metodosUnicos->first() : MetodoPagoEnum::MIXTO->value;
 
@@ -74,22 +103,33 @@ class PagoService
         // distinta de la fecha de emisión del recibo (Recibo::emitido_en,
         // siempre la del momento en que Tesorería aprueba), que no se toca.
         $fecha = $fechaPago !== null ? Carbon::parse($fechaPago) : now();
+        $unico = count($destinos) === 1 ? $destinos[0] : null;
 
-        return DB::transaction(function () use ($estudiante, $concepto, $detalle, $observacion, $cuota, $cargoAdicional, $montoTotal, $metodo, $registradoPor, $comprobante, $partes, $fecha) {
+        return DB::transaction(function () use ($estudiante, $destinos, $partes, $observacion, $montoPartes, $metodo, $registradoPor, $comprobante, $fecha, $unico) {
             /** @var Pago $pago */
             $pago = Pago::query()->create([
                 'estudiante_id' => $estudiante->id,
-                'concepto_id' => $concepto->id,
-                'detalle' => $detalle,
+                'concepto_id' => $unico['concepto_id'] ?? $destinos[0]['concepto_id'],
+                'detalle' => $unico['detalle'] ?? null,
                 'observacion' => $observacion,
-                'cuota_id' => $cuota?->id,
-                'cargo_adicional_id' => $cargoAdicional?->id,
-                'monto' => $montoTotal,
+                'cuota_id' => $unico['cuota_id'] ?? null,
+                'cargo_adicional_id' => $unico['cargo_adicional_id'] ?? null,
+                'monto' => $montoPartes,
                 'metodo' => $metodo,
                 'estado' => EstadoPagoEnum::PENDIENTE,
                 'registrado_por' => $registradoPor,
                 'fecha_pago' => $fecha,
             ]);
+
+            foreach ($destinos as $destino) {
+                $pago->destinos()->create([
+                    'concepto_id' => $destino['concepto_id'],
+                    'cuota_id' => $destino['cuota_id'] ?? null,
+                    'cargo_adicional_id' => $destino['cargo_adicional_id'] ?? null,
+                    'detalle' => $destino['detalle'] ?? null,
+                    'monto' => $destino['monto'],
+                ]);
+            }
 
             foreach ($partes as $parte) {
                 $pago->partes()->create([
@@ -118,21 +158,23 @@ class PagoService
                 'fecha_aprobacion' => now(),
             ]);
 
-            if ($pago->cuota) {
-                // El pago recién aprobado puede ser parcial (ej. 40 de una
-                // cuota de 80): la cuota solo pasa a "pagado" cuando la suma
-                // de todos sus pagos aprobados cubre el monto completo, no
-                // con el primer pago que se le vincule. Ver Cuota::saldoPendiente().
-                $pago->cuota->update([
-                    'estado' => $pago->cuota->saldoPendiente() <= 0.0 ? EstadoCuotaEnum::PAGADO : EstadoCuotaEnum::PENDIENTE,
-                ]);
-            }
+            // El pago recién aprobado puede ser parcial (ej. 40 de una cuota
+            // de 80), y puede cubrir varios destinos a la vez: cada cuota o
+            // cargo adicional vinculado solo pasa a "pagado" cuando la suma
+            // de todos sus pagos aprobados cubre el monto completo, no con
+            // el primer pago que se le vincule. Ver Cuota::saldoPendiente().
+            foreach ($pago->destinos()->with(['cuota', 'cargoAdicional'])->get() as $destino) {
+                if ($destino->cuota) {
+                    $destino->cuota->update([
+                        'estado' => $destino->cuota->saldoPendiente() <= 0.0 ? EstadoCuotaEnum::PAGADO : EstadoCuotaEnum::PENDIENTE,
+                    ]);
+                }
 
-            if ($pago->cargoAdicional) {
-                // Mismo criterio que las cuotas: puede ser un pago parcial.
-                $pago->cargoAdicional->update([
-                    'estado' => $pago->cargoAdicional->saldoPendiente() <= 0.0 ? EstadoCuotaEnum::PAGADO : EstadoCuotaEnum::PENDIENTE,
-                ]);
+                if ($destino->cargoAdicional) {
+                    $destino->cargoAdicional->update([
+                        'estado' => $destino->cargoAdicional->saldoPendiente() <= 0.0 ? EstadoCuotaEnum::PAGADO : EstadoCuotaEnum::PENDIENTE,
+                    ]);
+                }
             }
 
             $this->recibos->emitir($pago, $serie);
@@ -171,6 +213,28 @@ class PagoService
             'estado' => $cargoAdicional->estado === EstadoCuotaEnum::PAGADO && $nuevoMonto > $montoPagado
                 ? EstadoCuotaEnum::PENDIENTE
                 : $cargoAdicional->estado,
+        ]);
+
+        return $cargoAdicional->fresh();
+    }
+
+    /**
+     * Registra la fecha (y opcionalmente el monto) en que el estudiante se
+     * comprometió a pagar este cargo adicional -- mismo mecanismo que
+     * PlanPagoService::registrarCompromiso() para cuotas, que cargos
+     * adicionales no tenía hasta ahora.
+     */
+    public function registrarCompromisoCargoAdicional(CargoAdicional $cargoAdicional, string $fecha, ?float $monto = null): CargoAdicional
+    {
+        if ($cargoAdicional->estado !== EstadoCuotaEnum::PENDIENTE) {
+            throw ValidationException::withMessages([
+                'fechaCompromiso' => 'Solo se puede registrar un compromiso de pago en cargos pendientes.',
+            ]);
+        }
+
+        $cargoAdicional->update([
+            'fecha_compromiso' => $fecha,
+            'monto_compromiso' => $monto,
         ]);
 
         return $cargoAdicional->fresh();

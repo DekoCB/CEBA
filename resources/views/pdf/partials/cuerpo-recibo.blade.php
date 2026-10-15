@@ -60,13 +60,23 @@
         </tr>
     </thead>
     <tbody>
-        <tr>
-            <td class="col-cant">1</td>
-            <td>{{ $pago->nombreConcepto() }}{{ $pago->detalle ? ' — '.$pago->detalle : '' }}</td>
-            <td class="col-monto">S/ {{ number_format((float) $pago->monto, 2) }}</td>
-            <td class="col-monto">S/ {{ number_format((float) $pago->monto, 2) }}</td>
-        </tr>
+        @foreach ($pago->destinos as $destino)
+            <tr>
+                <td class="col-cant">1</td>
+                <td>{{ $destino->descripcion() }}</td>
+                <td class="col-monto">S/ {{ number_format((float) $destino->monto, 2) }}</td>
+                <td class="col-monto">S/ {{ number_format((float) $destino->monto, 2) }}</td>
+            </tr>
+        @endforeach
     </tbody>
+    @if ($pago->destinos->count() > 1)
+        <tfoot>
+            <tr>
+                <td colspan="3" class="col-monto">Total</td>
+                <td class="col-monto">S/ {{ number_format((float) $pago->monto, 2) }}</td>
+            </tr>
+        </tfoot>
+    @endif
 </table>
 
 @if ($pago->partes->count() > 1)
@@ -90,23 +100,17 @@
     <div class="caja-texto">{{ $pago->observacion ?: '—' }}</div>
 </div>
 
+@php
+    // El "Grupo" ya no depende de una sola Cuota (un pago puede cubrir
+    // varias, o ninguna) -- se toma de la matrícula aprobada más reciente
+    // del estudiante, mismo criterio que ya usa mi-cuenta.blade.php.
+    $grupo = $pago->estudiante?->matriculas()->where('estado', 'aprobada')->latest('fecha_matricula')->first()?->ciclo;
+@endphp
 <table class="pie">
     <tr>
         <td>
-            <p class="etiqueta">Cuota</p>
-            @if ($pago->cuota)
-                N.° {{ $pago->cuota->numero }} de {{ $pago->cuota->planPago->numero_cuotas }}
-                ({{ $pago->cuota->saldoPendiente() <= 0.0 ? 'Completo' : 'Parcial' }})
-                @if ($pago->cuota->saldoPendiente() > 0.0)
-                    <br>Saldo: S/ {{ number_format($pago->cuota->saldoPendiente(), 2) }}
-                @endif
-            @else
-                —
-            @endif
-        </td>
-        <td>
             <p class="etiqueta">Grupo</p>
-            {{ $pago->cuota?->planPago?->matricula?->ciclo?->nombre ?? '—' }}
+            {{ $grupo?->nombre ?? '—' }}
         </td>
         <td>
             <p class="etiqueta">Medio de pago</p>

@@ -6,6 +6,7 @@ namespace App\Modules\Pagos\Services;
 
 use App\Modules\Academico\Enums\FranjaHorarioEnum;
 use App\Modules\Academico\Models\Horario;
+use App\Modules\Identidad\Services\AuditService;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Pagos\Enums\EstadoCuotaEnum;
 use App\Modules\Pagos\Enums\EstadoPagoEnum;
@@ -15,6 +16,7 @@ use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Models\Pago;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -35,6 +37,10 @@ use Illuminate\Support\Collection;
  */
 class CobranzaService
 {
+    public function __construct(
+        private readonly AuditService $auditoria,
+    ) {}
+
     /**
      * @return array{cuotasPendientes: Collection<int, Cuota>, cargosAdicionalesPendientes: Collection<int, CargoAdicional>, pagosPendientes: Collection<int, Pago>, pagosAprobados: Collection<int, Pago>}
      */
@@ -78,20 +84,32 @@ class CobranzaService
     }
 
     /**
-     * La cuota de mensualidad que le toca pagar a continuación a un
-     * estudiante (la de vencimiento más próximo, sin importar si ya venció
-     * o no) -- usada por "Registrar pago" para vincular automáticamente el
-     * pago a su Cuota cuando el concepto elegido es Mensualidad, en vez de
-     * dejar el pago suelto sin Grupo/Cuota (ver PagoService::registrar()).
+     * Historial de compromisos de pago registrados sobre una cuota o cargo
+     * adicional -- se reconstruye a partir del log de auditoría genérico
+     * (trait Auditable, ya activo en Cuota/CargoAdicional), quedándose solo
+     * con las actualizaciones que de verdad tocaron fecha_compromiso (no
+     * cualquier cambio del modelo, como el estado al aprobarse un pago).
+     *
+     * @return list<array{fecha_compromiso: ?string, monto_compromiso: null|int|float|string, registrado_por: ?string, registrado_en: Carbon}>
      */
-    public function cuotaPendienteMasProxima(Estudiante $estudiante): ?Cuota
+    public function historialDeCompromisos(Cuota|CargoAdicional $modelo): array
     {
-        return Cuota::query()
-            ->where('estado', EstadoCuotaEnum::PENDIENTE)
-            ->whereHas('planPago.matricula', fn ($query) => $query->where('estudiante_id', $estudiante->id))
-            ->with('planPago.matricula.ciclo')
-            ->orderBy('fecha_vencimiento')
-            ->first();
+        $resultado = [];
+
+        foreach ($this->auditoria->historialDe($modelo) as $entrada) {
+            if (! array_key_exists('fecha_compromiso', $entrada->new_values ?? [])) {
+                continue;
+            }
+
+            $resultado[] = [
+                'fecha_compromiso' => $entrada->new_values['fecha_compromiso'] ?? null,
+                'monto_compromiso' => $entrada->new_values['monto_compromiso'] ?? null,
+                'registrado_por' => $entrada->user?->name,
+                'registrado_en' => $entrada->created_at,
+            ];
+        }
+
+        return $resultado;
     }
 
     /**
@@ -148,6 +166,14 @@ class CobranzaService
 
     /**
      * @return list<array<int, string|int|float>>
+     */
+    /**
+     * Límite conocido: filtra por Pago::$concepto_id, que en un pago con
+     * varios destinos (ver PagoDestino) es solo el del primero -- un pago
+     * que cubre este concepto como destino 2+ (ej. junto con una cuota de
+     * Mensualidad como destino 1) no aparecería aquí. Caso raro (combinar
+     * dos conceptos sueltos sin cuota/cargo en un mismo pago); no se
+     * reescribe este reporte para usar pago_destinos en esta tanda.
      */
     private function deudoresConceptoLibre(ConceptoPago $concepto, ?int $cicloId, ?int $gradoId, ?int $cursoId, ?string $franja): array
     {

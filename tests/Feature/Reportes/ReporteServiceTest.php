@@ -250,12 +250,42 @@ class ReporteServiceTest extends TestCase
 
         $reporte = app(ReporteService::class)->morosos(null, null, null);
 
-        $this->assertSame(['Estudiante', 'DNI', 'Grado', 'Cuotas vencidas', 'Monto adeudado', 'Vencida desde'], $reporte['columnas']);
+        $this->assertSame(['Estudiante', 'DNI', 'Grado', 'Cuotas vencidas', 'Monto adeudado', 'Vencida desde', 'Último compromiso'], $reporte['columnas']);
         $this->assertCount(1, $reporte['filas']);
         $this->assertStringContainsString('Rosa', $reporte['filas'][0][0]);
         $this->assertSame(2, $reporte['filas'][0][3]);
         $this->assertSame('250.00', $reporte['filas'][0][4]);
         $this->assertSame(now()->subMonths(2)->format('d/m/Y'), $reporte['filas'][0][5]);
+        $this->assertSame('—', $reporte['filas'][0][6]);
+    }
+
+    /**
+     * Pedido del cliente: ver de un vistazo, en el reporte de deudores,
+     * hasta cuándo se comprometió a pagar cada estudiante -- la más
+     * reciente entre sus cuotas vencidas.
+     */
+    public function test_reporte_de_morosos_muestra_el_ultimo_compromiso_de_pago(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
+
+        Cuota::factory()->vencida()->create([
+            'plan_pago_id' => $plan->id,
+            'numero' => 1,
+            'fecha_vencimiento' => now()->subMonths(2)->format('Y-m-d'),
+            'fecha_compromiso' => now()->subDays(10)->format('Y-m-d'),
+        ]);
+        Cuota::factory()->vencida()->create([
+            'plan_pago_id' => $plan->id,
+            'numero' => 2,
+            'fecha_vencimiento' => now()->subMonth()->format('Y-m-d'),
+            'fecha_compromiso' => now()->subDays(3)->format('Y-m-d'),
+        ]);
+
+        $reporte = app(ReporteService::class)->morosos(null, null, null);
+
+        $this->assertSame(now()->subDays(3)->format('d/m/Y'), $reporte['filas'][0][6]);
     }
 
     public function test_reporte_de_morosos_no_incluye_estudiantes_al_dia(): void
