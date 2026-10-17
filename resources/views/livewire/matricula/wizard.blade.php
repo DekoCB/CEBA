@@ -277,12 +277,12 @@ new class extends Component
 
         if ($this->paso === 3) {
             $this->validate([
-                'dniEstudianteCaraArchivo' => 'required|file|mimes:pdf,jpg,jpeg,png|max:4096',
-                'dniEstudianteReversoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
-                'dniApoderadoCaraArchivo' => $this->esMenorDeEdad ? 'required|file|mimes:pdf,jpg,jpeg,png|max:4096' : 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
-                'dniApoderadoReversoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
-                'certificadoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
-                'constanciaArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
+                'dniEstudianteCaraArchivo' => 'required|file|mimes:pdf,jpg,jpeg,png|max:12288',
+                'dniEstudianteReversoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
+                'dniApoderadoCaraArchivo' => $this->esMenorDeEdad ? 'required|file|mimes:pdf,jpg,jpeg,png|max:12288' : 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
+                'dniApoderadoReversoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
+                'certificadoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
+                'constanciaArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
                 'colegioNombre' => 'nullable|string|max:150',
                 'colegioUbicacion' => 'nullable|string|max:150',
                 'colegioAnioEgreso' => 'nullable|integer|min:1950|max:'.now()->year,
@@ -453,6 +453,22 @@ new class extends Component
 
             return;
         }
+
+        // Los archivos ya se validaron al avanzar del paso 3, pero esa
+        // validación no se repite acá -- si el navegador conserva un
+        // archivo elegido de antes (ej. tras un refresco de página) puede
+        // llegar más pesado que el límite sin pasar de nuevo por esa
+        // regla. Se revalida justo antes de subir, para que un archivo de
+        // más de 4 MB quede como error de formulario normal en vez de
+        // reventar como 500 dentro de la transacción.
+        $this->validate([
+            'dniEstudianteCaraArchivo' => 'required|file|mimes:pdf,jpg,jpeg,png|max:12288',
+            'dniEstudianteReversoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
+            'dniApoderadoCaraArchivo' => $this->esMenorDeEdad ? 'required|file|mimes:pdf,jpg,jpeg,png|max:12288' : 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
+            'dniApoderadoReversoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
+            'certificadoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
+            'constanciaArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
+        ]);
 
         // Todo el registro (estudiante, apoderado, documentos, examen y
         // matrícula) va en una sola transacción: si matricular() falla al

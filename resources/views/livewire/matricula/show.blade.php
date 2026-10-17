@@ -89,7 +89,7 @@ new #[Layout('layouts.app')] class extends Component
         $tipo = TipoDocumentoEnum::from($tipoValor);
 
         $this->validate([
-            "documentoNuevo.{$tipoValor}" => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:4096'],
+            "documentoNuevo.{$tipoValor}" => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:12288'],
         ]);
 
         $service->subir($this->estudiante, $tipo, $this->documentoNuevo[$tipoValor], Auth::id());
