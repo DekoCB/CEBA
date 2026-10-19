@@ -38,7 +38,7 @@ class CicloCrearDesdeUiTest extends TestCase
         return $usuario;
     }
 
-    public function test_crear_un_grupo_con_mes_de_inicio_equivocado_muestra_el_error_en_el_formulario(): void
+    public function test_crear_un_grupo_con_mes_de_inicio_muy_alejado_muestra_el_error_en_el_formulario(): void
     {
         $this->actingAs($this->direccion());
 
@@ -47,8 +47,8 @@ class CicloCrearDesdeUiTest extends TestCase
             ->set('nombre', '2026-4')
             ->set('tipo', TipoCicloEnum::GRUPO_4->value)
             ->set('anio', '2026')
-            ->set('fechaInicio', '2026-10-01')
-            ->set('fechaFin', '2027-04-30')
+            ->set('fechaInicio', '2026-09-01')
+            ->set('fechaFin', '2027-03-31')
             ->call('guardar')
             ->assertHasErrors('fechaInicio')
             ->assertSet('mostrarModal', true);
@@ -67,6 +67,28 @@ class CicloCrearDesdeUiTest extends TestCase
             ->set('anio', '2026')
             ->set('fechaInicio', '2026-11-01')
             ->set('fechaFin', '2027-04-30')
+            ->call('guardar')
+            ->assertHasNoErrors()
+            ->assertSet('mostrarModal', false);
+
+        $this->assertDatabaseHas('ciclos', ['nombre' => '2026-4']);
+    }
+
+    /**
+     * Pedido del cliente: permitir hasta 1 mes de diferencia respecto al
+     * mes fijo del tipo, en vez de exigirlo exacto.
+     */
+    public function test_crear_un_grupo_con_un_mes_de_diferencia_respecto_al_mes_fijo_se_permite(): void
+    {
+        $this->actingAs($this->direccion());
+
+        Volt::test('academico.ciclos.index')
+            ->call('abrirModal')
+            ->set('nombre', '2026-4')
+            ->set('tipo', TipoCicloEnum::GRUPO_4->value)
+            ->set('anio', '2026')
+            ->set('fechaInicio', '2026-10-01')
+            ->set('fechaFin', '2027-04-01')
             ->call('guardar')
             ->assertHasNoErrors()
             ->assertSet('mostrarModal', false);

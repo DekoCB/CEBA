@@ -127,10 +127,18 @@ class CicloService
     }
 
     /**
+     * Cuánto se tolera que fecha_inicio se corra respecto al mes fijo de
+     * su tipo (ver TipoCicloEnum::mesInicioFijo()) -- 1 mes para arriba o
+     * para abajo, para acomodar admisiones que arrancan un poco antes o
+     * después sin dejar de pertenecer a esa ventana.
+     */
+    private const TOLERANCIA_MES_INICIO = 1;
+
+    /**
      * Primera validación: las fechas del ciclo deben cuadrar con su tipo.
-     * Los 4 grupos tienen mes de inicio fijo, y una duración objetivo (6
-     * meses) con un margen de una semana para acomodar feriados/ajustes
-     * administrativos.
+     * Los 4 grupos tienen mes de inicio fijo (con un margen de
+     * TOLERANCIA_MES_INICIO), y una duración objetivo (6 meses) con un
+     * margen de una semana para acomodar feriados/ajustes administrativos.
      */
     public function validarFechasDelCiclo(TipoCicloEnum $tipo, string $fechaInicio, string $fechaFin): void
     {
@@ -143,9 +151,9 @@ class CicloService
             ]);
         }
 
-        if ($inicio->month !== $tipo->mesInicioFijo()) {
+        if ($this->diferenciaDeMesesCircular($inicio->month, $tipo->mesInicioFijo()) > self::TOLERANCIA_MES_INICIO) {
             throw ValidationException::withMessages([
-                'fechaInicio' => "Un ciclo {$tipo->label()} debe iniciar en el mes ".Carbon::create(month: $tipo->mesInicioFijo())->translatedFormat('F').'.',
+                'fechaInicio' => "Un ciclo {$tipo->label()} debe iniciar cerca del mes ".Carbon::create(month: $tipo->mesInicioFijo())->translatedFormat('F').' (máximo '.self::TOLERANCIA_MES_INICIO.' mes de diferencia).',
             ]);
         }
 
@@ -158,6 +166,19 @@ class CicloService
                 'fechaFin' => "Un ciclo {$tipo->label()} dura {$mesesEsperados} meses; la fecha de fin no cuadra con la de inicio (margen de una semana).",
             ]);
         }
+    }
+
+    /**
+     * Distancia entre dos meses del calendario tratándolos como un
+     * círculo (diciembre y enero quedan a 1 de distancia, no a 11) -- así
+     * un ciclo Grupo 1 (mes fijo enero) con fecha de inicio en diciembre
+     * entra dentro de la tolerancia igual que uno en febrero.
+     */
+    private function diferenciaDeMesesCircular(int $mesA, int $mesB): int
+    {
+        $diferencia = abs($mesA - $mesB);
+
+        return min($diferencia, 12 - $diferencia);
     }
 
     /**

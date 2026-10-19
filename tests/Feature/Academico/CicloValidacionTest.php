@@ -32,6 +32,37 @@ class CicloValidacionTest extends TestCase
         ]);
     }
 
+    /**
+     * Pedido del cliente: hasta 1 mes de diferencia respecto al mes fijo
+     * del tipo se permite -- diciembre cuenta como 1 mes de distancia de
+     * enero (no 11), ya que la tolerancia se mide de forma circular.
+     */
+    public function test_un_ciclo_grupo_1_puede_iniciar_en_diciembre_del_anio_anterior(): void
+    {
+        $ciclo = $this->service()->crear([
+            'nombre' => 'Grupo 1 - 2026',
+            'tipo' => TipoCicloEnum::GRUPO_1,
+            'anio' => 2026,
+            'fecha_inicio' => '2025-12-01',
+            'fecha_fin' => '2026-06-01',
+        ]);
+
+        $this->assertSame('2025-12-01', $ciclo->fecha_inicio->format('Y-m-d'));
+    }
+
+    public function test_un_ciclo_grupo_1_no_puede_iniciar_en_noviembre_del_anio_anterior(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $this->service()->crear([
+            'nombre' => 'Grupo 1 - 2026',
+            'tipo' => TipoCicloEnum::GRUPO_1,
+            'anio' => 2026,
+            'fecha_inicio' => '2025-11-01',
+            'fecha_fin' => '2026-05-01',
+        ]);
+    }
+
     public function test_un_ciclo_debe_durar_los_6_meses_declarados_por_su_tipo(): void
     {
         $this->expectException(ValidationException::class);
