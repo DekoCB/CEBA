@@ -100,7 +100,7 @@ class CicloService
 
         if ($fin->lessThanOrEqualTo($inicio)) {
             throw ValidationException::withMessages([
-                'fecha_fin' => 'La fecha de fin debe ser posterior a la fecha de inicio.',
+                'fechaFin' => 'La fecha de fin debe ser posterior a la fecha de inicio.',
             ]);
         }
 
@@ -109,7 +109,7 @@ class CicloService
 
         if ($diferenciaEnDias > 15) {
             throw ValidationException::withMessages([
-                'fecha_fin' => 'Un ciclo SIAGIE anual dura 8 meses de clases; la fecha de fin no cuadra con la de inicio (margen de 15 días).',
+                'fechaFin' => 'Un ciclo SIAGIE anual dura 8 meses de clases; la fecha de fin no cuadra con la de inicio (margen de 15 días).',
             ]);
         }
     }
@@ -121,7 +121,7 @@ class CicloService
 
         if ($solapados->isNotEmpty()) {
             throw ValidationException::withMessages([
-                'fecha_inicio' => 'Ya existe un ciclo SIAGIE anual con fechas que se cruzan: '.$solapados->first()->nombre,
+                'fechaInicio' => 'Ya existe un ciclo SIAGIE anual con fechas que se cruzan: '.$solapados->first()->nombre,
             ]);
         }
     }
@@ -139,13 +139,13 @@ class CicloService
 
         if ($fin->lessThanOrEqualTo($inicio)) {
             throw ValidationException::withMessages([
-                'fecha_fin' => 'La fecha de fin debe ser posterior a la fecha de inicio.',
+                'fechaFin' => 'La fecha de fin debe ser posterior a la fecha de inicio.',
             ]);
         }
 
         if ($inicio->month !== $tipo->mesInicioFijo()) {
             throw ValidationException::withMessages([
-                'fecha_inicio' => "Un ciclo {$tipo->label()} debe iniciar en el mes ".Carbon::create(month: $tipo->mesInicioFijo())->translatedFormat('F').'.',
+                'fechaInicio' => "Un ciclo {$tipo->label()} debe iniciar en el mes ".Carbon::create(month: $tipo->mesInicioFijo())->translatedFormat('F').'.',
             ]);
         }
 
@@ -155,7 +155,7 @@ class CicloService
 
         if ($diferenciaEnDias > 7) {
             throw ValidationException::withMessages([
-                'fecha_fin' => "Un ciclo {$tipo->label()} dura {$mesesEsperados} meses; la fecha de fin no cuadra con la de inicio (margen de una semana).",
+                'fechaFin' => "Un ciclo {$tipo->label()} dura {$mesesEsperados} meses; la fecha de fin no cuadra con la de inicio (margen de una semana).",
             ]);
         }
     }
@@ -171,7 +171,7 @@ class CicloService
 
         if ($solapados->isNotEmpty()) {
             throw ValidationException::withMessages([
-                'fecha_inicio' => 'Ya existe un ciclo del mismo tipo con fechas que se cruzan: '.$solapados->first()->nombre,
+                'fechaInicio' => 'Ya existe un ciclo del mismo tipo con fechas que se cruzan: '.$solapados->first()->nombre,
             ]);
         }
     }
@@ -199,7 +199,7 @@ class CicloService
 
         if ($fin->lessThan($inicio)) {
             throw ValidationException::withMessages([
-                'fecha_fin' => 'La fecha de fin de matrícula debe ser posterior o igual a la de inicio.',
+                'fechaFin' => 'La fecha de fin de matrícula debe ser posterior o igual a la de inicio.',
             ]);
         }
 
@@ -207,13 +207,13 @@ class CicloService
 
         if ($inicio->lessThan($ventanaInicio)) {
             throw ValidationException::withMessages([
-                'fecha_inicio' => 'La matrícula no puede abrir con más de '.self::DIAS_MATRICULA_ANTICIPADA." días de anticipación al inicio del ciclo ({$ciclo->fecha_inicio->format('d/m/Y')}).",
+                'fechaInicio' => 'La matrícula no puede abrir con más de '.self::DIAS_MATRICULA_ANTICIPADA." días de anticipación al inicio del ciclo ({$ciclo->fecha_inicio->format('d/m/Y')}).",
             ]);
         }
 
         if ($fin->greaterThan($ciclo->fecha_fin)) {
             throw ValidationException::withMessages([
-                'fecha_fin' => "La matrícula debe cerrar a más tardar el {$ciclo->fecha_fin->format('d/m/Y')}, fecha en que termina el ciclo.",
+                'fechaFin' => "La matrícula debe cerrar a más tardar el {$ciclo->fecha_fin->format('d/m/Y')}, fecha en que termina el ciclo.",
             ]);
         }
     }

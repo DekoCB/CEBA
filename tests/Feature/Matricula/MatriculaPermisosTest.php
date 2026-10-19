@@ -246,6 +246,99 @@ class MatriculaPermisosTest extends TestCase
     }
 
     /**
+     * Pedido del cliente: antes, un menor de edad no podía registrar
+     * celulares adicionales propios (solo el del apoderado) -- ahora sí
+     * puede, además de los del apoderado.
+     */
+    public function test_guardar_celulares_adicionales_para_un_estudiante_menor_de_edad_y_para_su_apoderado(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Mateo')
+            ->set('apellidos', 'Salcedo Nina')
+            ->set('dni', '55667726')
+            ->set('fechaNacimiento', now()->subYears(10)->format('Y-m-d'))
+            ->call('agregarCelular')
+            ->set('celularesAdicionales.0', '912345678')
+            ->call('avanzar')
+            ->assertHasNoErrors()
+            ->assertSet('paso', 2)
+            ->set('apoderadoNombres', 'José Salcedo')
+            ->set('apoderadoDni', '44556678')
+            ->set('apoderadoCelular', '987654321')
+            ->call('agregarCelularApoderado')
+            ->set('apoderadoCelularesAdicionales.0', '923456789')
+            ->call('agregarCelularApoderado')
+            ->set('apoderadoCelularesAdicionales.1', '934567890')
+            ->set('apoderadoParentesco', 'Padre')
+            ->call('avanzar')
+            ->assertHasNoErrors()
+            ->assertSet('paso', 3)
+            ->set('dniEstudianteCaraArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->set('dniApoderadoCaraArchivo', UploadedFile::fake()->create('dni-apoderado.pdf', 100, 'application/pdf'))
+            ->call('avanzar')
+            ->assertSet('paso', 4)
+            ->call('avanzar')
+            ->assertSet('paso', 5)
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $estudiante = Estudiante::query()->where('dni', '55667726')->firstOrFail();
+
+        $this->assertSame(1, $estudiante->telefonos()->count());
+        $this->assertDatabaseHas('estudiante_telefonos', ['estudiante_id' => $estudiante->id, 'numero' => '912345678']);
+
+        $apoderado = $estudiante->apoderado;
+        $this->assertSame(2, $apoderado->telefonos()->count());
+        $this->assertDatabaseHas('apoderado_telefonos', ['apoderado_id' => $apoderado->id, 'numero' => '923456789']);
+        $this->assertDatabaseHas('apoderado_telefonos', ['apoderado_id' => $apoderado->id, 'numero' => '934567890']);
+    }
+
+    public function test_un_celular_de_respaldo_del_apoderado_mal_escrito_no_tumba_la_pagina_y_queda_como_error_de_formulario(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Patricia')
+            ->set('apellidos', 'Salcedo Nina')
+            ->set('dni', '55667727')
+            ->set('fechaNacimiento', now()->subYears(10)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertSet('paso', 2)
+            ->set('apoderadoNombres', 'José Salcedo')
+            ->set('apoderadoDni', '44556679')
+            ->set('apoderadoCelular', '987654321')
+            ->set('apoderadoParentesco', 'Padre')
+            ->call('agregarCelularApoderado')
+            ->set('apoderadoCelularesAdicionales.0', 'Sólo al Papá escribirle de la pensión 966775990 / mamá 977 187 160')
+            ->call('avanzar')
+            ->assertHasErrors(['apoderadoCelularesAdicionales.0'])
+            ->assertSet('paso', 2);
+    }
+
+    /**
      * Regresión en producción: alguien escribió una nota en el campo de
      * celular en vez de un número (ej. "Sólo al Papá escribirle de la
      * pensión 966775990 / mamá 977 187 160") y la página reventaba con un

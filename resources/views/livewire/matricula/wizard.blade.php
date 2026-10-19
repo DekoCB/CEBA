@@ -51,9 +51,8 @@ new class extends Component
     public string $celular = '';
 
     /**
-     * Celulares adicionales, solo para mayores de edad (ver
-     * EstudianteTelefono) -- el menor de edad se comunica a través del
-     * celular del apoderado, no tiene sentido pedirle más de uno propio.
+     * Celulares adicionales del estudiante, aparte del principal (ver
+     * EstudianteTelefono).
      *
      * @var list<string>
      */
@@ -76,6 +75,14 @@ new class extends Component
     public string $apoderadoDni = '';
 
     public string $apoderadoCelular = '';
+
+    /**
+     * Celulares de respaldo del apoderado, aparte del principal (ver
+     * ApoderadoTelefono).
+     *
+     * @var list<string>
+     */
+    public array $apoderadoCelularesAdicionales = [];
 
     public string $apoderadoCorreo = '';
 
@@ -175,6 +182,17 @@ new class extends Component
         $this->celularesAdicionales = array_values($this->celularesAdicionales);
     }
 
+    public function agregarCelularApoderado(): void
+    {
+        $this->apoderadoCelularesAdicionales[] = '';
+    }
+
+    public function quitarCelularApoderado(int $indice): void
+    {
+        unset($this->apoderadoCelularesAdicionales[$indice]);
+        $this->apoderadoCelularesAdicionales = array_values($this->apoderadoCelularesAdicionales);
+    }
+
     /**
      * Se dispara en cada cambio del DNI (wire:model.live) para avisar de
      * inmediato si ya pertenece a un estudiante existente, en vez de
@@ -265,6 +283,7 @@ new class extends Component
                 'apoderadoNombres' => 'required|string|max:150',
                 'apoderadoDni' => 'required|string|min:8|max:12',
                 'apoderadoCelular' => ['required', 'string', new CelularValido],
+                'apoderadoCelularesAdicionales.*' => ['nullable', 'string', new CelularValido],
                 'apoderadoCorreo' => 'nullable|email|max:150',
                 'apoderadoDireccion' => 'nullable|string|max:150',
                 'apoderadoParentesco' => 'required|string|max:50',
@@ -497,7 +516,7 @@ new class extends Component
             }
 
             if ($this->esMenorDeEdad) {
-                $matriculaService->registrarApoderado($estudiante, new RegistrarApoderadoData(
+                $apoderado = $matriculaService->registrarApoderado($estudiante, new RegistrarApoderadoData(
                     nombres: $this->apoderadoNombres,
                     dni: new Dni($this->apoderadoDni),
                     celular: new Telefono($this->apoderadoCelular),
@@ -505,6 +524,12 @@ new class extends Component
                     direccion: $this->apoderadoDireccion ?: null,
                     parentesco: $this->apoderadoParentesco,
                 ));
+
+                foreach ($this->apoderadoCelularesAdicionales as $numero) {
+                    if ($numero !== '') {
+                        $apoderado->telefonos()->create(['numero' => (string) new Telefono($numero)]);
+                    }
+                }
             }
 
             if ($this->colegioNombre !== '') {
@@ -737,21 +762,19 @@ new class extends Component
                     <x-text-input wire:model="celular" id="celular" class="mt-1 block w-full" />
                     <x-input-error :messages="$errors->get('celular')" class="mt-1" />
                 </div>
-                @unless ($this->esMenorDeEdad)
-                    <div class="sm:col-span-2">
-                        <x-input-label value="Celulares adicionales (opcional)" />
-                        <div class="mt-1 space-y-2">
-                            @foreach ($celularesAdicionales as $indice => $numero)
-                                <div class="flex items-center gap-2">
-                                    <x-text-input wire:model="celularesAdicionales.{{ $indice }}" class="block w-full" />
-                                    <button type="button" wire:click="quitarCelular({{ $indice }})" class="text-sm text-danger hover:underline">Quitar</button>
-                                </div>
-                                <x-input-error :messages="$errors->get('celularesAdicionales.'.$indice)" />
-                            @endforeach
-                        </div>
-                        <button type="button" wire:click="agregarCelular" class="mt-2 text-sm font-medium text-accent hover:underline">+ Agregar otro celular</button>
+                <div class="sm:col-span-2">
+                    <x-input-label value="Celulares adicionales (opcional)" />
+                    <div class="mt-1 space-y-2">
+                        @foreach ($celularesAdicionales as $indice => $numero)
+                            <div class="flex items-center gap-2">
+                                <x-text-input wire:model="celularesAdicionales.{{ $indice }}" class="block w-full" />
+                                <button type="button" wire:click="quitarCelular({{ $indice }})" class="text-sm text-danger hover:underline">Quitar</button>
+                            </div>
+                            <x-input-error :messages="$errors->get('celularesAdicionales.'.$indice)" />
+                        @endforeach
                     </div>
-                @endunless
+                    <button type="button" wire:click="agregarCelular" class="mt-2 text-sm font-medium text-accent hover:underline">+ Agregar otro celular</button>
+                </div>
                 <div class="sm:col-span-2">
                     <x-input-label for="direccion" value="Dirección" />
                     <x-text-input wire:model="direccion" id="direccion" class="mt-1 block w-full" />
@@ -807,6 +830,19 @@ new class extends Component
                     <x-input-label for="apoderadoCorreo" value="Correo (opcional)" />
                     <x-text-input wire:model="apoderadoCorreo" id="apoderadoCorreo" type="email" class="mt-1 block w-full" />
                     <x-input-error :messages="$errors->get('apoderadoCorreo')" class="mt-1" />
+                </div>
+                <div class="sm:col-span-2">
+                    <x-input-label value="Celulares de respaldo (opcional)" />
+                    <div class="mt-1 space-y-2">
+                        @foreach ($apoderadoCelularesAdicionales as $indice => $numero)
+                            <div class="flex items-center gap-2">
+                                <x-text-input wire:model="apoderadoCelularesAdicionales.{{ $indice }}" class="block w-full" />
+                                <button type="button" wire:click="quitarCelularApoderado({{ $indice }})" class="text-sm text-danger hover:underline">Quitar</button>
+                            </div>
+                            <x-input-error :messages="$errors->get('apoderadoCelularesAdicionales.'.$indice)" />
+                        @endforeach
+                    </div>
+                    <button type="button" wire:click="agregarCelularApoderado" class="mt-2 text-sm font-medium text-accent hover:underline">+ Agregar otro celular</button>
                 </div>
                 <div class="sm:col-span-2">
                     <x-input-label for="apoderadoDireccion" value="Dirección (opcional)" />

@@ -9,6 +9,7 @@ use App\Modules\Matricula\Database\Factories\ApoderadoFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property string $nombres
@@ -41,5 +42,16 @@ class Apoderado extends Model
     public function estudiante(): BelongsTo
     {
         return $this->belongsTo(Estudiante::class);
+    }
+
+    /**
+     * Celulares de respaldo, aparte del principal (ver $celular) -- ver
+     * ApoderadoTelefono.
+     *
+     * @return HasMany<ApoderadoTelefono, $this>
+     */
+    public function telefonos(): HasMany
+    {
+        return $this->hasMany(ApoderadoTelefono::class);
     }
 }
