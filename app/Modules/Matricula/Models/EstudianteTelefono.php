@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $id
  * @property int $estudiante_id
  * @property string $numero
+ * @property string|null $parentesco
  */
 class EstudianteTelefono extends Model
 {
@@ -23,6 +24,7 @@ class EstudianteTelefono extends Model
     protected $fillable = [
         'estudiante_id',
         'numero',
+        'parentesco',
     ];
 
     public function estudiante(): BelongsTo

@@ -19,5 +19,7 @@ final readonly class RegistrarEstudianteData
         public ?string $direccion,
         public ?Telefono $celular,
         public ?string $observaciones,
+        public ?string $correoPersonal = null,
+        public ?string $fechaMatricula = null,
     ) {}
 }

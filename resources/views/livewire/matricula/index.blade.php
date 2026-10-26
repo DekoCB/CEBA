@@ -38,6 +38,12 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('estudianteRegistradoId', $estudianteId);
     }
 
+    #[On('estudiante-eliminado')]
+    public function estudianteEliminado(): void
+    {
+        session()->flash('status', 'Estudiante eliminado correctamente.');
+    }
+
     public function updatingTermino(): void
     {
         $this->resetPage();

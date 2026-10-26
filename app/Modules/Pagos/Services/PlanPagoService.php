@@ -14,6 +14,10 @@ use Illuminate\Validation\ValidationException;
 
 class PlanPagoService
 {
+    public function __construct(
+        private readonly BloqueoAccesoService $bloqueos,
+    ) {}
+
     /**
      * Si no se pasa $cuotasPersonalizadas, reparte $montoTotal en partes
      * iguales entre $numeroCuotas (la última absorbe el redondeo) con
@@ -150,6 +154,8 @@ class PlanPagoService
         }
 
         $cuota->update(['fecha_compromiso' => $fecha, 'monto_compromiso' => $monto]);
+
+        $this->bloqueos->evaluarYDesbloquear($cuota->planPago->matricula->estudiante);
 
         return $cuota;
     }

@@ -24,6 +24,11 @@ class BloqueoAccesoService
     ) {}
 
     /**
+     * Una cuota vencida con un compromiso de pago todavía vigente (fecha_
+     * compromiso en el futuro) no cuenta como vencida para el bloqueo --
+     * vuelve a contar sola, sin ninguna acción extra, apenas esa fecha pasa
+     * sin que se pague (ver también el comando bloqueos:reevaluar).
+     *
      * @return Collection<int, Cuota>
      */
     public function cuotasVencidasDe(Estudiante $estudiante): Collection
@@ -31,6 +36,7 @@ class BloqueoAccesoService
         return Cuota::query()
             ->where('estado', 'pendiente')
             ->where('fecha_vencimiento', '<', now()->toDateString())
+            ->where(fn ($query) => $query->whereNull('fecha_compromiso')->orWhere('fecha_compromiso', '<', now()->toDateString()))
             ->whereHas('planPago', function ($query) use ($estudiante) {
                 $query->whereHas('matricula', fn ($query) => $query->where('estudiante_id', $estudiante->id));
             })
@@ -65,6 +71,7 @@ class BloqueoAccesoService
         return Cuota::query()
             ->where('estado', EstadoCuotaEnum::PENDIENTE)
             ->where('fecha_vencimiento', '<', now()->toDateString())
+            ->where(fn ($query) => $query->whereNull('fecha_compromiso')->orWhere('fecha_compromiso', '<', now()->toDateString()))
             ->whereHas('planPago.matricula', function ($query) use ($estudiante, $cicloActual) {
                 $query->where('estudiante_id', $estudiante->id)
                     ->where('ciclo_id', $cicloActual->id);

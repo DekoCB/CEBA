@@ -28,6 +28,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property Carbon $fecha_nacimiento
  * @property bool $es_menor_edad
  * @property string|null $celular
+ * @property string|null $correo_personal
  * @property EstadoEstudianteEnum $estado
  * @property-read Apoderado|null $apoderado
  * @property-read InstitucionProcedencia|null $institucionProcedencia
@@ -49,6 +50,7 @@ class Estudiante extends Model implements HasMedia
         'direccion',
         'celular',
         'email',
+        'correo_personal',
         'estado',
         'grado_actual_id',
         'ciclos_completados',

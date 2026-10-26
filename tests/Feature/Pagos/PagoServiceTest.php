@@ -4,6 +4,7 @@ namespace Tests\Feature\Pagos;
 
 use App\Models\User;
 use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Enums\EstadoPagoEnum;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use App\Modules\Pagos\Enums\SerieReciboEnum;
@@ -11,6 +12,8 @@ use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Models\Pago;
+use App\Modules\Pagos\Models\PlanPago;
+use App\Modules\Pagos\Services\BloqueoAccesoService;
 use App\Modules\Pagos\Services\PagoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
@@ -464,6 +467,65 @@ class PagoServiceTest extends TestCase
 
         $this->assertSame(EstadoPagoEnum::RECHAZADO, $rechazado->estado);
         $this->assertSame('Comprobante ilegible', $rechazado->motivo_rechazo);
+    }
+
+    /**
+     * Pedido del cliente: poder anular un pago ya aprobado para corregir un
+     * recibo emitido por error -- el pago y el recibo quedan en la base de
+     * datos marcados como anulados (no se borran), y la cuota que cubría
+     * vuelve a quedar con saldo pendiente.
+     */
+    public function test_anular_un_pago_aprobado_revierte_el_saldo_de_la_cuota(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+        $cuota = Cuota::factory()->create();
+
+        $pago = $this->service()->registrar($estudiante, [$this->destino($concepto, (float) $cuota->monto, cuota: $cuota)], [['monto' => (float) $cuota->monto, 'metodo' => 'yape']], null, null);
+        $aprobado = $this->service()->aprobar($pago, $this->aprobador(), SerieReciboEnum::ORIGINAL);
+
+        $anulador = $this->aprobador();
+        $anulado = $this->service()->anular($aprobado, $anulador, 'Recibo emitido por error');
+
+        $this->assertSame(EstadoPagoEnum::ANULADO, $anulado->estado);
+        $this->assertSame($anulador, $anulado->anulado_por);
+        $this->assertSame('Recibo emitido por error', $anulado->motivo_anulacion);
+        $this->assertNotNull($anulado->fecha_anulacion);
+        $this->assertNotNull($anulado->recibo, 'El recibo no se borra al anular.');
+
+        $this->assertSame('pendiente', $cuota->fresh()->estado->value);
+        $this->assertSame((float) $cuota->monto, $cuota->fresh()->saldoPendiente());
+    }
+
+    public function test_no_permite_anular_un_pago_que_no_esta_aprobado(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+        $pago = $this->service()->registrar($estudiante, [$this->destino($concepto, 100.0)], [['monto' => 100.0, 'metodo' => 'efectivo']], null, null);
+
+        $this->expectException(ValidationException::class);
+
+        $this->service()->anular($pago, $this->aprobador(), 'motivo');
+    }
+
+    public function test_anular_un_pago_vuelve_a_bloquear_si_la_cuota_vuelve_a_quedar_vencida(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
+        $cuotaVencida = Cuota::factory()->vencida()->create(['plan_pago_id' => $plan->id, 'numero' => 1]);
+        Cuota::factory()->vencida()->create(['plan_pago_id' => $plan->id, 'numero' => 2]);
+
+        $pago = $this->service()->registrar($estudiante, [$this->destino($concepto, (float) $cuotaVencida->monto, cuota: $cuotaVencida)], [['monto' => (float) $cuotaVencida->monto, 'metodo' => 'yape']], null, null);
+        $aprobado = $this->service()->aprobar($pago, $this->aprobador(), SerieReciboEnum::ORIGINAL);
+
+        $bloqueos = $this->app->make(BloqueoAccesoService::class);
+        $this->assertFalse($bloqueos->estaBloqueado($estudiante));
+
+        $this->service()->anular($aprobado, $this->aprobador(), 'motivo');
+
+        $this->assertTrue($bloqueos->estaBloqueado($estudiante));
     }
 
     public function test_no_permite_aprobar_un_pago_ya_procesado(): void

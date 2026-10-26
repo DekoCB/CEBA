@@ -158,30 +158,72 @@ class PagoService
                 'fecha_aprobacion' => now(),
             ]);
 
-            // El pago recién aprobado puede ser parcial (ej. 40 de una cuota
-            // de 80), y puede cubrir varios destinos a la vez: cada cuota o
-            // cargo adicional vinculado solo pasa a "pagado" cuando la suma
-            // de todos sus pagos aprobados cubre el monto completo, no con
-            // el primer pago que se le vincule. Ver Cuota::saldoPendiente().
-            foreach ($pago->destinos()->with(['cuota', 'cargoAdicional'])->get() as $destino) {
-                if ($destino->cuota) {
-                    $destino->cuota->update([
-                        'estado' => $destino->cuota->saldoPendiente() <= 0.0 ? EstadoCuotaEnum::PAGADO : EstadoCuotaEnum::PENDIENTE,
-                    ]);
-                }
-
-                if ($destino->cargoAdicional) {
-                    $destino->cargoAdicional->update([
-                        'estado' => $destino->cargoAdicional->saldoPendiente() <= 0.0 ? EstadoCuotaEnum::PAGADO : EstadoCuotaEnum::PENDIENTE,
-                    ]);
-                }
-            }
+            $this->sincronizarEstadoDeDestinos($pago);
 
             $this->recibos->emitir($pago, $serie);
             $this->bloqueos->evaluarYDesbloquear($pago->estudiante);
         });
 
         return $pago->refresh();
+    }
+
+    /**
+     * Anula un pago aprobado para corregir un error (ej. se registró con un
+     * monto o destino equivocado) -- el pago y su recibo ya emitido quedan
+     * en la base de datos, marcados, en vez de borrarse: así la numeración
+     * correlativa del recibo nunca queda con un hueco sin explicación. Como
+     * Cuota::montoPagado()/CargoAdicional::montoPagado() ya filtran solo
+     * pagos con estado APROBADO, con solo cambiar el estado el saldo de sus
+     * destinos vuelve a subir solo -- esto sincroniza el estado persistido
+     * de esas cuotas/cargos (que no se recalcula solo) y el bloqueo de
+     * acceso del estudiante, igual que aprobar().
+     */
+    public function anular(Pago $pago, int $anuladoPor, string $motivo): Pago
+    {
+        if ($pago->estado !== EstadoPagoEnum::APROBADO) {
+            throw ValidationException::withMessages([
+                'estado' => 'Solo se puede anular un pago que ya fue aprobado.',
+            ]);
+        }
+
+        DB::transaction(function () use ($pago, $anuladoPor, $motivo) {
+            $pago->update([
+                'estado' => EstadoPagoEnum::ANULADO,
+                'anulado_por' => $anuladoPor,
+                'fecha_anulacion' => now(),
+                'motivo_anulacion' => $motivo,
+            ]);
+
+            $this->sincronizarEstadoDeDestinos($pago);
+
+            $this->bloqueos->evaluarYDesbloquear($pago->estudiante);
+        });
+
+        return $pago->refresh();
+    }
+
+    /**
+     * El pago puede ser parcial (ej. 40 de una cuota de 80), y puede cubrir
+     * varios destinos a la vez: cada cuota o cargo adicional vinculado solo
+     * queda "pagado" cuando la suma de todos sus pagos aprobados cubre el
+     * monto completo -- se recalcula completo cada vez (al aprobar o al
+     * anular), nunca se asume el estado anterior. Ver Cuota::saldoPendiente().
+     */
+    private function sincronizarEstadoDeDestinos(Pago $pago): void
+    {
+        foreach ($pago->destinos()->with(['cuota', 'cargoAdicional'])->get() as $destino) {
+            if ($destino->cuota) {
+                $destino->cuota->update([
+                    'estado' => $destino->cuota->saldoPendiente() <= 0.0 ? EstadoCuotaEnum::PAGADO : EstadoCuotaEnum::PENDIENTE,
+                ]);
+            }
+
+            if ($destino->cargoAdicional) {
+                $destino->cargoAdicional->update([
+                    'estado' => $destino->cargoAdicional->saldoPendiente() <= 0.0 ? EstadoCuotaEnum::PAGADO : EstadoCuotaEnum::PENDIENTE,
+                ]);
+            }
+        }
     }
 
     /**
@@ -236,6 +278,8 @@ class PagoService
             'fecha_compromiso' => $fecha,
             'monto_compromiso' => $monto,
         ]);
+
+        $this->bloqueos->evaluarYDesbloquear($cargoAdicional->estudiante);
 
         return $cargoAdicional->fresh();
     }

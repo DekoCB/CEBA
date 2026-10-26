@@ -15,6 +15,11 @@ use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
 use App\Modules\Matricula\DTOs\RegistrarMatriculaData;
 use App\Modules\Matricula\Events\EstudianteMatriculado;
 use App\Modules\Matricula\Services\MatriculaService;
+use App\Modules\Pagos\Models\CargoAdicional;
+use App\Modules\Pagos\Models\Cuota;
+use App\Modules\Pagos\Models\Pago;
+use App\Modules\Pagos\Models\PlanPago;
+use App\Modules\Pagos\Models\Recibo;
 use App\Shared\Enums\RolEnum;
 use App\Shared\ValueObjects\Dni;
 use App\Shared\ValueObjects\Telefono;
@@ -87,6 +92,22 @@ class MatriculaServiceTest extends TestCase
     {
         $this->assertTrue(MatriculaService::esMenorDeEdad(now()->subYears(15)->format('Y-m-d')));
         $this->assertFalse(MatriculaService::esMenorDeEdad(now()->subYears(25)->format('Y-m-d')));
+    }
+
+    /**
+     * Pedido del cliente: la mayoría/minoría de edad se decide según la
+     * fecha de matrícula, no según hoy -- relevante si el registro se hace
+     * días después de la matrícula real, o con fecha pasada a propósito.
+     */
+    public function test_es_menor_de_edad_usa_la_fecha_de_referencia_indicada_en_vez_de_hoy(): void
+    {
+        $fechaNacimiento = now()->subYears(18)->subDays(10)->format('Y-m-d');
+
+        // Hoy ya es mayor de edad (los 18 años se cumplieron hace 10 días)...
+        $this->assertFalse(MatriculaService::esMenorDeEdad($fechaNacimiento));
+
+        // ...pero contra una fecha de matrícula de hace 20 días, todavía era menor.
+        $this->assertTrue(MatriculaService::esMenorDeEdad($fechaNacimiento, now()->subDays(20)->format('Y-m-d')));
     }
 
     public function test_registra_un_estudiante_correctamente(): void
@@ -345,5 +366,67 @@ class MatriculaServiceTest extends TestCase
         $this->expectException(ValidationException::class);
 
         $this->service()->asignarHorarioDeCurso($matricula, $horarioAjeno->curso_id, $horarioAjeno->id);
+    }
+
+    /**
+     * Pedido del cliente: poder borrar toda la ficha de un estudiante
+     * (matrícula, apoderado, documentos, celulares, cargos) si todavía no
+     * se le emitió ningún recibo de pago -- un pago pendiente o rechazado
+     * sin recibo no es obstáculo.
+     */
+    public function test_eliminar_estudiante_completo_borra_todos_los_datos_relacionados(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMenor());
+        $this->service()->registrarApoderado($estudiante, new RegistrarApoderadoData(
+            nombres: 'José Torres',
+            dni: new Dni('44556677'),
+            celular: new Telefono('987654321'),
+            correo: null,
+            direccion: null,
+            parentesco: 'Padre',
+        ));
+        $estudiante->telefonos()->create(['numero' => '912345678']);
+
+        $ciclo = $this->cicloConPeriodoAbierto();
+        $grado = Grado::factory()->create();
+        $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
+
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
+        Cuota::factory()->create(['plan_pago_id' => $plan->id, 'numero' => 1]);
+        CargoAdicional::factory()->create(['estudiante_id' => $estudiante->id]);
+        Pago::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => 'rechazado']);
+
+        $estudianteId = $estudiante->id;
+        $apoderadoId = $estudiante->apoderado->id;
+
+        $this->service()->eliminarEstudianteCompleto($estudiante);
+
+        $this->assertSoftDeleted('estudiantes', ['id' => $estudianteId]);
+        $this->assertSoftDeleted('matriculas', ['id' => $matricula->id]);
+        $this->assertDatabaseMissing('apoderados', ['id' => $apoderadoId]);
+        $this->assertDatabaseMissing('planes_pago', ['id' => $plan->id]);
+        $this->assertDatabaseMissing('pagos', ['estudiante_id' => $estudianteId]);
+        $this->assertDatabaseMissing('cargos_adicionales', ['estudiante_id' => $estudianteId]);
+        $this->assertDatabaseMissing('estudiante_telefonos', ['estudiante_id' => $estudianteId]);
+    }
+
+    public function test_no_permite_eliminar_estudiante_completo_si_ya_se_emitio_un_recibo(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $pago = Pago::factory()->aprobado()->create(['estudiante_id' => $estudiante->id]);
+        Recibo::factory()->create(['pago_id' => $pago->id]);
+
+        $this->expectException(ValidationException::class);
+
+        $this->service()->eliminarEstudianteCompleto($estudiante);
+    }
+
+    public function test_esta_eliminable_completo_es_falso_si_ya_se_emitio_un_recibo(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $pago = Pago::factory()->aprobado()->create(['estudiante_id' => $estudiante->id]);
+        Recibo::factory()->create(['pago_id' => $pago->id]);
+
+        $this->assertFalse($this->service()->esEliminableCompleto($estudiante));
     }
 }

@@ -34,6 +34,9 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property Carbon $fecha_pago
  * @property Carbon|null $fecha_aprobacion
  * @property string|null $motivo_rechazo
+ * @property int|null $anulado_por
+ * @property Carbon|null $fecha_anulacion
+ * @property string|null $motivo_anulacion
  * @property-read Estudiante|null $estudiante
  * @property-read ConceptoPago $concepto
  * @property-read Cuota|null $cuota
@@ -63,6 +66,9 @@ class Pago extends Model implements HasMedia
         'fecha_pago',
         'fecha_aprobacion',
         'motivo_rechazo',
+        'anulado_por',
+        'fecha_anulacion',
+        'motivo_anulacion',
     ];
 
     protected function casts(): array
@@ -73,6 +79,7 @@ class Pago extends Model implements HasMedia
             'estado' => EstadoPagoEnum::class,
             'fecha_pago' => 'date',
             'fecha_aprobacion' => 'datetime',
+            'fecha_anulacion' => 'datetime',
         ];
     }
 
@@ -114,6 +121,11 @@ class Pago extends Model implements HasMedia
     public function aprobadoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'aprobado_por');
+    }
+
+    public function anuladoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'anulado_por');
     }
 
     /**

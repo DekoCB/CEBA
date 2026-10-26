@@ -59,7 +59,7 @@ class RolesAndPermissionsSeeder extends Seeder
         ],
 
         RolEnum::TESORERIA->value => [
-            'pagos.ver', 'pagos.aprobar', 'pagos.rechazar',
+            'pagos.ver', 'pagos.aprobar', 'pagos.rechazar', 'pagos.anular',
             'tesoreria.gestionar',
             'reportes.financieros', 'reportes.morosos', 'reportes.exportar',
             'flujo_caja.ver', 'flujo_caja.gestionar',
@@ -89,7 +89,7 @@ class RolesAndPermissionsSeeder extends Seeder
      */
     private const TODOS_LOS_PERMISOS = [
         'academico.ver', 'academico.gestionar',
-        'matricula.crear', 'matricula.ver', 'matricula.editar', 'matricula.anular', 'matricula.eliminar',
+        'matricula.crear', 'matricula.ver', 'matricula.editar', 'matricula.anular', 'matricula.eliminar', 'matricula.eliminar_estudiante',
         'docentes.ver', 'docentes.gestionar',
         'contratos.ver', 'contratos.gestionar',
         'personal.ver', 'personal.gestionar',
@@ -99,7 +99,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'evaluaciones.ver', 'evaluaciones.registrar', 'evaluaciones.publicar', 'evaluaciones.ver_propio',
         'asistencia.ver', 'asistencia.registrar', 'asistencia.ver_propio',
         'incidencias.ver', 'incidencias.crear', 'incidencias.gestionar_propio', 'incidencias.ver_propio',
-        'pagos.ver', 'pagos.registrar', 'pagos.gestionar', 'pagos.aprobar', 'pagos.rechazar', 'pagos.aprobar_montos',
+        'pagos.ver', 'pagos.registrar', 'pagos.gestionar', 'pagos.aprobar', 'pagos.rechazar', 'pagos.anular', 'pagos.aprobar_montos',
         'pagos.ver_propio', 'pagos.subir_comprobante',
         'tesoreria.gestionar',
         'certificados.emitir', 'certificados.duplicar', 'certificados.ver', 'certificados.solicitar', 'certificados.gestionar_plantilla',

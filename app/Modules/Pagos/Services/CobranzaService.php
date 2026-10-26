@@ -61,7 +61,7 @@ class CobranzaService
 
         $pagosPendientes = Pago::query()
             ->where('estudiante_id', $estudiante->id)
-            ->whereIn('estado', [EstadoPagoEnum::PENDIENTE, EstadoPagoEnum::RECHAZADO])
+            ->whereIn('estado', [EstadoPagoEnum::PENDIENTE, EstadoPagoEnum::RECHAZADO, EstadoPagoEnum::ANULADO])
             ->with(['concepto', 'cargoAdicional'])
             ->latest('fecha_pago')
             ->get();
@@ -181,7 +181,7 @@ class CobranzaService
 
         $pagos = Pago::query()
             ->where('concepto_id', $concepto->id)
-            ->whereIn('estado', [EstadoPagoEnum::PENDIENTE, EstadoPagoEnum::RECHAZADO])
+            ->whereIn('estado', [EstadoPagoEnum::PENDIENTE, EstadoPagoEnum::RECHAZADO, EstadoPagoEnum::ANULADO])
             ->when(! $sinFiltros, fn ($query) => $query->whereHas(
                 'estudiante.matriculas',
                 fn ($sub) => $this->filtrarMatriculas($sub, $cicloId, $gradoId, $cursoId, $franja),
@@ -198,9 +198,11 @@ class CobranzaService
                 $estudiante !== null ? $estudiante->dni : '—',
                 $grado !== null ? $grado->nombre : '—',
                 $concepto->nombre,
-                $pago->estado === EstadoPagoEnum::RECHAZADO
-                    ? 'Rechazado'.($pago->motivo_rechazo ? ' — '.$pago->motivo_rechazo : '')
-                    : 'Pendiente de aprobación',
+                match ($pago->estado) {
+                    EstadoPagoEnum::RECHAZADO => 'Rechazado'.($pago->motivo_rechazo ? ' — '.$pago->motivo_rechazo : ''),
+                    EstadoPagoEnum::ANULADO => 'Anulado'.($pago->motivo_anulacion ? ' — '.$pago->motivo_anulacion : ''),
+                    default => 'Pendiente de aprobación',
+                },
                 number_format((float) $pago->monto, 2),
             ];
         })->values()->all();

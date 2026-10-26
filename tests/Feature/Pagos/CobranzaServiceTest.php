@@ -35,13 +35,15 @@ class CobranzaServiceTest extends TestCase
 
         Pago::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => EstadoPagoEnum::PENDIENTE]);
         Pago::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => EstadoPagoEnum::RECHAZADO]);
+        // Anulado: un pago aprobado que se corrigió -- vuelve a contar como deuda.
+        Pago::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => EstadoPagoEnum::ANULADO]);
         // Ya fue aprobado: no cuenta como deuda, pero sí debe aparecer en pagosAprobados.
         Pago::factory()->aprobado()->create(['estudiante_id' => $estudiante->id]);
 
         $deuda = app(CobranzaService::class)->deudaDeEstudiante($estudiante);
 
         $this->assertCount(1, $deuda['cuotasPendientes']);
-        $this->assertCount(2, $deuda['pagosPendientes']);
+        $this->assertCount(3, $deuda['pagosPendientes']);
         $this->assertCount(1, $deuda['pagosAprobados']);
     }
 
@@ -142,6 +144,25 @@ class CobranzaServiceTest extends TestCase
         $this->assertStringContainsString('Ana', $nombres);
         $this->assertStringContainsString('Beto', $nombres);
         $this->assertStringNotContainsString('Carla', $nombres);
+    }
+
+    /**
+     * Pedido del cliente: anular un pago aprobado de un concepto libre debe
+     * volver a mostrarlo como deuda, igual que uno rechazado -- no hay
+     * cuota/cargo adicional detrás que se autocorrija, el estado del Pago
+     * es la única señal de deuda para estos conceptos.
+     */
+    public function test_deudores_por_concepto_libre_incluye_pagos_anulados(): void
+    {
+        $concepto = ConceptoPago::factory()->create(['tipo' => TipoConceptoEnum::CERTIFICADO, 'nombre' => 'Certificado de estudios']);
+
+        $estudianteAnulado = Estudiante::factory()->create(['nombres' => 'Dana', 'apellidos' => 'Luna']);
+        Pago::factory()->create(['estudiante_id' => $estudianteAnulado->id, 'concepto_id' => $concepto->id, 'estado' => EstadoPagoEnum::ANULADO]);
+
+        $reporte = app(CobranzaService::class)->deudoresPorConceptos([$concepto->id], null, null, null, null);
+
+        $this->assertCount(1, $reporte['filas']);
+        $this->assertStringContainsString('Dana', collect($reporte['filas'])->pluck(0)->implode(','));
     }
 
     public function test_deudores_por_conceptos_admite_mas_de_un_concepto(): void

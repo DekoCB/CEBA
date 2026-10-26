@@ -257,6 +257,21 @@ new #[Layout('layouts.app')] class extends Component
         }
     }
 
+    public function eliminarEstudiante(MatriculaService $service)
+    {
+        Gate::authorize('matricula.eliminar_estudiante');
+
+        try {
+            $service->eliminarEstudianteCompleto($this->estudiante);
+        } catch (ValidationException $e) {
+            session()->flash('error', $e->validator->errors()->first());
+
+            return;
+        }
+
+        return redirect()->route('matricula.index');
+    }
+
     public function editarMontoPlan(int $planId): void
     {
         Gate::authorize('pagos.gestionar');
@@ -416,6 +431,7 @@ new #[Layout('layouts.app')] class extends Component
                 ? CargoAdicional::query()->where('estudiante_id', $this->estudiante->id)->get()
                 : collect(),
             'matriculasEliminables' => $matriculas->mapWithKeys(fn (Matricula $matricula) => [$matricula->id => $matriculaService->esEliminable($matricula)]),
+            'estudianteEliminable' => $matriculaService->esEliminableCompleto($this->estudiante),
             'historialCelularEstudiante' => $audit->historialDe($this->estudiante)
                 ->filter(fn ($entrada) => array_key_exists('celular', $entrada->new_values ?? [])),
             'historialCelularApoderado' => $this->estudiante->apoderado
@@ -470,6 +486,7 @@ new #[Layout('layouts.app')] class extends Component
         :cargo-concepto-nuevo="$cargoConceptoNuevo"
         :cargo-monto-nuevo="$cargoMontoNuevo"
         :matriculas-eliminables="$matriculasEliminables"
+        :estudiante-eliminable="$estudianteEliminable"
         :editando-celular="$editandoCelular"
         :celular-nuevo="$celularNuevo"
         :historial-celular-estudiante="$historialCelularEstudiante"

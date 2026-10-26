@@ -220,6 +220,69 @@ class PagosFlujoTest extends TestCase
         $this->assertDatabaseHas('pagos', ['id' => $pago->id, 'estado' => 'pendiente']);
     }
 
+    /**
+     * Pedido del cliente: poder anular un pago aprobado para corregir un
+     * recibo emitido por error -- mismo permiso que aprobar/rechazar
+     * (Tesorería y Dirección), Coordinador no lo tiene.
+     */
+    public function test_tesoreria_anula_un_pago_aprobado_desde_el_historial(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+        $pagoService = $this->app->make(PagoService::class);
+        $pago = $pagoService->registrar(
+            $estudiante,
+            [['concepto_id' => $concepto->id, 'cuota_id' => null, 'cargo_adicional_id' => null, 'monto' => 100.0]],
+            [['monto' => 100.0, 'metodo' => 'efectivo']],
+            null,
+            null,
+        );
+
+        $tesoreria = User::factory()->create();
+        $tesoreria->assignRole(RolEnum::TESORERIA->value);
+        $this->actingAs($tesoreria);
+
+        $pagoService->aprobar($pago, $tesoreria->id, SerieReciboEnum::ORIGINAL);
+
+        Volt::test('pagos.index')
+            ->set('motivoAnulacion.'.$pago->id, 'Recibo emitido por error')
+            ->call('anular', $pago->id)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('pagos', [
+            'id' => $pago->id,
+            'estado' => 'anulado',
+            'motivo_anulacion' => 'Recibo emitido por error',
+        ]);
+        $this->assertDatabaseHas('recibos', ['pago_id' => $pago->id]);
+    }
+
+    public function test_un_coordinador_no_puede_anular_pagos(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+        $pagoService = $this->app->make(PagoService::class);
+        $pago = $pagoService->registrar(
+            $estudiante,
+            [['concepto_id' => $concepto->id, 'cuota_id' => null, 'cargo_adicional_id' => null, 'monto' => 100.0]],
+            [['monto' => 100.0, 'metodo' => 'efectivo']],
+            null,
+            null,
+        );
+        $pagoService->aprobar($pago, $coordinador->id, SerieReciboEnum::ORIGINAL);
+
+        $this->actingAs($coordinador);
+
+        rescue(fn () => Volt::test('pagos.index')
+            ->set('motivoAnulacion.'.$pago->id, 'motivo')
+            ->call('anular', $pago->id), report: false);
+
+        $this->assertDatabaseHas('pagos', ['id' => $pago->id, 'estado' => 'aprobado']);
+    }
+
     public function test_editar_el_monto_de_un_concepto_queda_pendiente_de_aprobacion(): void
     {
         $coordinador = User::factory()->create();

@@ -203,6 +203,7 @@ new #[Layout('layouts.app')] class extends Component
                             'bg-ok/10 text-ok' => $pago->estado->value === 'aprobado',
                             'bg-warn/10 text-warn' => $pago->estado->value === 'pendiente',
                             'bg-danger/10 text-danger' => $pago->estado->value === 'rechazado',
+                            'bg-info/10 text-info' => $pago->estado->value === 'anulado',
                         ])>{{ $pago->estado->label() }}</span>
                         @if ($pago->recibo && $pago->recibo->getFirstMedia('pdf'))
                             <a href="{{ $pago->recibo->getFirstMediaUrl('pdf') }}" target="_blank" class="block text-xs font-medium text-accent hover:underline">Recibo</a>

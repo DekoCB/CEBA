@@ -8,6 +8,7 @@ use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Models\Cuota;
 use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Pagos\Services\BloqueoAccesoService;
+use App\Modules\Pagos\Services\PlanPagoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -135,5 +136,90 @@ class BloqueoAccesoServiceTest extends TestCase
         Cuota::factory()->vencida()->create(['plan_pago_id' => $plan->id, 'numero' => 1]);
 
         $this->assertFalse($this->service()->tieneCuotasVencidasEnCicloActual($estudiante));
+    }
+
+    /**
+     * Pedido del cliente: una cuota vencida con un compromiso de pago
+     * todavía vigente (fecha_compromiso en el futuro) no debe contar como
+     * deuda activa -- ni para el bloqueo general ni para la regla estricta.
+     */
+    public function test_una_cuota_vencida_con_compromiso_vigente_no_cuenta_como_vencida(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $plan = $this->planDe($estudiante);
+        Cuota::factory()->vencida()->create([
+            'plan_pago_id' => $plan->id,
+            'numero' => 1,
+            'fecha_compromiso' => now()->addDays(3)->format('Y-m-d'),
+        ]);
+        Cuota::factory()->vencida()->create(['plan_pago_id' => $plan->id, 'numero' => 2]);
+
+        $this->assertCount(1, $this->service()->cuotasVencidasDe($estudiante));
+    }
+
+    public function test_una_cuota_vencida_con_compromiso_ya_vencido_vuelve_a_contar_como_vencida(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $plan = $this->planDe($estudiante);
+        Cuota::factory()->vencida()->create([
+            'plan_pago_id' => $plan->id,
+            'numero' => 1,
+            'fecha_compromiso' => now()->subDay()->format('Y-m-d'),
+        ]);
+
+        $this->assertCount(1, $this->service()->cuotasVencidasDe($estudiante));
+    }
+
+    public function test_compromiso_vigente_del_ciclo_actual_desactiva_la_regla_estricta(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $cicloActivo = Ciclo::factory()->activo()->create();
+        $plan = $this->planEnCiclo($estudiante, $cicloActivo);
+        Cuota::factory()->vencida()->create([
+            'plan_pago_id' => $plan->id,
+            'numero' => 1,
+            'fecha_compromiso' => now()->addDays(3)->format('Y-m-d'),
+        ]);
+
+        $this->assertFalse($this->service()->tieneCuotasVencidasEnCicloActual($estudiante));
+    }
+
+    /**
+     * Pedido del cliente: al registrar un compromiso de pago, si eso deja al
+     * estudiante sin cuotas vencidas, el bloqueo general debe levantarse de
+     * inmediato (no esperar al comando programado).
+     */
+    public function test_registrar_un_compromiso_levanta_el_bloqueo_general_de_inmediato(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $plan = $this->planDe($estudiante);
+        $cuotaUno = Cuota::factory()->vencida()->create(['plan_pago_id' => $plan->id, 'numero' => 1]);
+        Cuota::factory()->vencida()->create(['plan_pago_id' => $plan->id, 'numero' => 2]);
+
+        $this->service()->evaluarYDesbloquear($estudiante);
+        $this->assertTrue($this->service()->estaBloqueado($estudiante));
+
+        $this->app->make(PlanPagoService::class)
+            ->registrarCompromiso($cuotaUno, now()->addDays(3)->format('Y-m-d'));
+
+        $this->assertFalse($this->service()->estaBloqueado($estudiante));
+    }
+
+    public function test_el_comando_reevaluar_bloqueos_vuelve_a_bloquear_cuando_el_compromiso_vence_sin_pago(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $plan = $this->planDe($estudiante);
+        $cuotaUno = Cuota::factory()->vencida()->create(['plan_pago_id' => $plan->id, 'numero' => 1]);
+        Cuota::factory()->vencida()->create(['plan_pago_id' => $plan->id, 'numero' => 2]);
+
+        $this->app->make(PlanPagoService::class)
+            ->registrarCompromiso($cuotaUno, now()->addDays(3)->format('Y-m-d'));
+        $this->assertFalse($this->service()->estaBloqueado($estudiante));
+
+        $cuotaUno->update(['fecha_compromiso' => now()->subDay()->format('Y-m-d')]);
+
+        $this->artisan('bloqueos:reevaluar')->assertExitCode(0);
+
+        $this->assertTrue($this->service()->estaBloqueado($estudiante));
     }
 }

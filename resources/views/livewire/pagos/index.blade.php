@@ -88,6 +88,11 @@ new #[Layout('layouts.app')] class extends Component
     /** @var array<int, string> */
     public array $motivoRechazo = [];
 
+    // Anulación de pago (Historial) -- indexado por pago_id, igual que
+    // motivoRechazo.
+    /** @var array<int, string> */
+    public array $motivoAnulacion = [];
+
     // Serie elegida a mano para el recibo de cada pago en la cola de
     // aprobación (001 "Recibo de pago" o 002 "Recibo"), indexado por
     // pago_id igual que motivoRechazo.
@@ -415,10 +420,23 @@ new #[Layout('layouts.app')] class extends Component
         session()->flash('status', 'Pago rechazado.');
     }
 
+    public function anular(int $pagoId, PagoService $service): void
+    {
+        Gate::authorize('pagos.anular');
+
+        $this->validate(['motivoAnulacion.'.$pagoId => 'required|string|max:255']);
+
+        $service->anular(Pago::query()->findOrFail($pagoId), Auth::id(), $this->motivoAnulacion[$pagoId]);
+
+        unset($this->motivoAnulacion[$pagoId]);
+        session()->flash('status', 'Pago anulado.');
+    }
+
     public function with(PagoService $pagos, ConceptoPagoService $conceptos, CobranzaService $cobranza): array
     {
         $user = Auth::user();
         $puedeAprobar = $user->hasPermissionTo('pagos.aprobar');
+        $puedeAnular = $user->hasPermissionTo('pagos.anular');
         $puedeRegistrar = $user->hasAnyPermission(['pagos.registrar', 'pagos.gestionar']);
         $puedeVerHistorial = $user->hasAnyPermission(['pagos.ver', 'pagos.gestionar']);
         $puedeVerCobros = $puedeVerHistorial;
@@ -527,6 +545,7 @@ new #[Layout('layouts.app')] class extends Component
             'puedeAprobar' => $puedeAprobar,
             'puedeRegistrar' => $puedeRegistrar,
             'puedeVerHistorial' => $puedeVerHistorial,
+            'puedeAnular' => $puedeAnular,
             'puedeVerCobros' => $puedeVerCobros,
             'colaAprobacion' => $colaAprobacion,
             'historial' => $historial,
@@ -910,30 +929,48 @@ new #[Layout('layouts.app')] class extends Component
                     'pendiente' => 'Pendiente',
                     'aprobado' => 'Aprobado',
                     'rechazado' => 'Rechazado',
+                    'anulado' => 'Anulado',
                 ]"
             />
 
             <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
                 @forelse ($historial as $pago)
-                    <div class="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-4 px-4 py-3 text-sm">
                         <div>
                             <p class="text-ink">{{ $pago->estudiante?->nombreCompleto() ?? '—' }}</p>
                             <p class="text-xs text-ink-faint">{{ $pago->nombreConcepto() }}{{ $pago->detalle ? " — {$pago->detalle}" : '' }} · {{ $pago->fecha_pago->format('d/m/Y') }}</p>
                             @if ($pago->estado->value === 'rechazado' && $pago->motivo_rechazo)
                                 <p class="text-xs text-danger">{{ $pago->motivo_rechazo }}</p>
+                            @elseif ($pago->estado->value === 'anulado' && $pago->motivo_anulacion)
+                                <p class="text-xs text-info">{{ $pago->motivo_anulacion }}</p>
                             @endif
                         </div>
-                        <div class="text-right">
-                            <p class="font-display text-ink">S/ {{ number_format((float) $pago->monto, 2) }}</p>
-                            <span @class([
-                                'rounded-full px-2 py-0.5 text-xs',
-                                'bg-ok/10 text-ok' => $pago->estado->value === 'aprobado',
-                                'bg-warn/10 text-warn' => $pago->estado->value === 'pendiente',
-                                'bg-danger/10 text-danger' => $pago->estado->value === 'rechazado',
-                            ])>{{ $pago->estado->label() }}</span>
-                            @if ($pago->recibo && $pago->recibo->getFirstMedia('pdf'))
-                                <a href="{{ $pago->recibo->getFirstMediaUrl('pdf') }}" target="_blank" class="block text-xs font-medium text-accent hover:underline">Recibo</a>
+                        <div class="flex items-center gap-3">
+                            @if ($pago->estado->value === 'aprobado' && $puedeAnular)
+                                <div class="flex items-center gap-2">
+                                    <x-text-input wire:model="motivoAnulacion.{{ $pago->id }}" placeholder="Motivo de la anulación" class="w-44 text-xs" />
+                                    <x-secondary-button
+                                        type="button"
+                                        x-on:click="$store.confirm.preguntar('¿Anular este pago? La cuota o cargo que cubría vuelve a quedar pendiente. El recibo ya emitido no se borra, solo queda marcado.', () => $wire.anular({{ $pago->id }}), { etiquetaConfirmar: 'Anular' })"
+                                    >
+                                        Anular
+                                    </x-secondary-button>
+                                </div>
+                                <x-input-error :messages="$errors->get('motivoAnulacion.'.$pago->id)" />
                             @endif
+                            <div class="text-right">
+                                <p class="font-display text-ink">S/ {{ number_format((float) $pago->monto, 2) }}</p>
+                                <span @class([
+                                    'rounded-full px-2 py-0.5 text-xs',
+                                    'bg-ok/10 text-ok' => $pago->estado->value === 'aprobado',
+                                    'bg-warn/10 text-warn' => $pago->estado->value === 'pendiente',
+                                    'bg-danger/10 text-danger' => $pago->estado->value === 'rechazado',
+                                    'bg-info/10 text-info' => $pago->estado->value === 'anulado',
+                                ])>{{ $pago->estado->label() }}</span>
+                                @if ($pago->recibo && $pago->recibo->getFirstMedia('pdf'))
+                                    <a href="{{ $pago->recibo->getFirstMediaUrl('pdf') }}" target="_blank" class="block text-xs font-medium text-accent hover:underline">Recibo</a>
+                                @endif
+                            </div>
                         </div>
                     </div>
                 @empty
@@ -1097,21 +1134,26 @@ new #[Layout('layouts.app')] class extends Component
 
                         <div class="rounded-2xl border border-border bg-surface shadow-sm">
                             <div class="border-b border-border px-4 py-3">
-                                <h3 class="font-display text-sm text-ink">Pagos pendientes o rechazados</h3>
+                                <h3 class="font-display text-sm text-ink">Pagos pendientes, rechazados o anulados</h3>
                             </div>
                             <div class="divide-y divide-border">
                                 @forelse ($cobrosDeudaIndividual['pagosPendientes'] as $pago)
                                     <div class="flex items-center justify-between px-4 py-3 text-sm">
                                         <div>
                                             <p class="text-ink">{{ $pago->nombreConcepto() }}{{ $pago->detalle ? " — {$pago->detalle}" : '' }}</p>
-                                            <p @class(['text-xs', 'text-danger' => $pago->estado->value === 'rechazado', 'text-warn' => $pago->estado->value !== 'rechazado'])>
-                                                {{ $pago->estado->label() }}{{ $pago->estado->value === 'rechazado' && $pago->motivo_rechazo ? ' — '.$pago->motivo_rechazo : '' }}
+                                            <p @class(['text-xs', 'text-danger' => $pago->estado->value === 'rechazado', 'text-info' => $pago->estado->value === 'anulado', 'text-warn' => $pago->estado->value === 'pendiente'])>
+                                                {{ $pago->estado->label() }}
+                                                @if ($pago->estado->value === 'rechazado' && $pago->motivo_rechazo)
+                                                    — {{ $pago->motivo_rechazo }}
+                                                @elseif ($pago->estado->value === 'anulado' && $pago->motivo_anulacion)
+                                                    — {{ $pago->motivo_anulacion }}
+                                                @endif
                                             </p>
                                         </div>
                                         <p class="font-display text-ink">S/ {{ number_format((float) $pago->monto, 2) }}</p>
                                     </div>
                                 @empty
-                                    <p class="px-4 py-6 text-center text-sm text-ink-faint">Sin pagos pendientes ni rechazados.</p>
+                                    <p class="px-4 py-6 text-center text-sm text-ink-faint">Sin pagos pendientes, rechazados ni anulados.</p>
                                 @endforelse
                             </div>
                         </div>

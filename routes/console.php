@@ -10,6 +10,8 @@ Artisan::command('inspire', function () {
 
 Schedule::command('whatsapp:recordatorios')->dailyAt('08:00');
 
+Schedule::command('bloqueos:reevaluar')->dailyAt('00:30');
+
 Schedule::command('backup:clean')->dailyAt('01:00');
 Schedule::command('backup:run')->dailyAt('01:30')->onOneServer();
 Schedule::command('backup:monitor')->dailyAt('02:00');

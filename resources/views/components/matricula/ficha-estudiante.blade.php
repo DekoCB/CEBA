@@ -19,6 +19,7 @@
     'cargoConceptoNuevo' => '',
     'cargoMontoNuevo' => '',
     'matriculasEliminables' => [],
+    'estudianteEliminable' => false,
     'editandoCelular' => null,
     'celularNuevo' => '',
     'historialCelularEstudiante' => [],
@@ -65,12 +66,13 @@
                         @endcan
                     @endif
                     @foreach ($estudiante->telefonos as $telefono)
-                        <span class="block text-ink-dim">{{ $telefono->numero }}</span>
+                        <span class="block text-ink-dim">{{ $telefono->numero }}{{ $telefono->parentesco ? ' — '.$telefono->parentesco : '' }}</span>
                     @endforeach
                     <x-historial-celular :historial="$historialCelularEstudiante" />
                 </dd>
             </div>
             <div><dt class="text-ink-faint">Correo</dt><dd class="text-ink">{{ $estudiante->email ?? '—' }}</dd></div>
+            <div><dt class="text-ink-faint">Correo personal</dt><dd class="text-ink">{{ $estudiante->correo_personal ?? '—' }}</dd></div>
             <div class="sm:col-span-2"><dt class="text-ink-faint">Dirección</dt><dd class="text-ink">{{ $estudiante->direccion ?? '—' }}</dd></div>
             <div><dt class="text-ink-faint">Grado actual</dt><dd class="text-ink">{{ $estudiante->gradoActual?->nombre ?? '—' }}</dd></div>
             <div>
@@ -118,6 +120,9 @@
                                 <button type="button" wire:click="editarCelular('apoderado')" class="ml-2 text-xs font-medium text-accent hover:underline">Editar</button>
                             @endcan
                         @endif
+                        @foreach ($estudiante->apoderado->telefonos as $telefono)
+                            <span class="block text-ink-dim">{{ $telefono->numero }}{{ $telefono->parentesco ? ' — '.$telefono->parentesco : '' }}</span>
+                        @endforeach
                         <x-historial-celular :historial="$historialCelularApoderado" />
                     </dd>
                 </div>
@@ -146,7 +151,7 @@
         @endphp
         <div class="mt-4 divide-y divide-border">
             @forelse ($documentos as $documento)
-                <div class="flex items-center justify-between py-3 text-sm">
+                <div class="flex flex-wrap items-center justify-between gap-y-1 py-3 text-sm">
                     <div>
                         <p class="text-ink">{{ $documento->tipo->label() }}</p>
                         @if ($documento->getFirstMedia('archivo'))
@@ -156,7 +161,7 @@
                             <button wire:click="descargarDniPdf({{ $documento->id }})" class="ml-2 text-xs text-accent hover:underline">Descargar PDF (cara y sello)</button>
                         @endif
                     </div>
-                    <div class="flex items-center gap-3">
+                    <div class="flex flex-wrap items-center gap-3">
                         <span @class(['rounded-full px-2 py-0.5 text-xs font-medium', 'bg-ok/10 text-ok' => $documento->verificado, 'bg-warn/10 text-warn' => ! $documento->verificado])>
                             {{ $documento->verificado ? 'Verificado' : 'Pendiente' }}
                         </span>
@@ -164,8 +169,13 @@
                             @unless ($documento->verificado)
                                 <button wire:click="verificarDocumento({{ $documento->id }})" class="text-xs font-medium text-accent hover:underline">Verificar</button>
                             @endunless
+                            <input type="file" wire:model="documentoNuevo.{{ $documento->tipo->value }}" class="text-xs text-ink-faint">
+                            <x-secondary-button type="button" wire:click="subirDocumento('{{ $documento->tipo->value }}')">Reemplazar</x-secondary-button>
                         @endcan
                     </div>
+                    @can('matricula.editar')
+                        <x-input-error :messages="$errors->get('documentoNuevo.'.$documento->tipo->value)" class="mt-1 basis-full" />
+                    @endcan
                 </div>
             @empty
                 @if ($tiposFaltantes->isEmpty())
@@ -446,6 +456,22 @@
                     @endif
                 </div>
             @endcan
+        </div>
+    @endcan
+
+    @can('matricula.eliminar_estudiante')
+        <div class="rounded-2xl border border-danger/30 bg-surface shadow-sm p-6">
+            <h2 class="text-sm font-semibold text-danger">Eliminar estudiante</h2>
+            @if ($estudianteEliminable)
+                <p class="mt-1 text-xs text-ink-faint">Borra todos los datos del estudiante (matrículas, apoderado, documentos, celulares, cargos y pagos sin recibo). Esta acción no se puede deshacer.</p>
+                <button type="button"
+                    x-on:click="$store.confirm.preguntar('¿Eliminar todos los datos de este estudiante? Esta acción no se puede deshacer.', () => $wire.eliminarEstudiante(), { peligro: true, etiquetaConfirmar: 'Eliminar' })"
+                    class="mt-3 text-xs font-medium text-danger hover:underline">
+                    Eliminar todos los datos del estudiante
+                </button>
+            @else
+                <p class="mt-1 text-xs text-ink-faint">No se puede eliminar: ya se emitió un recibo de pago para este estudiante.</p>
+            @endif
         </div>
     @endcan
 </div>

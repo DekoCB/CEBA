@@ -50,17 +50,26 @@ new class extends Component
 
     public string $celular = '';
 
+    public string $correoPersonal = '';
+
     /**
-     * Celulares adicionales del estudiante, aparte del principal (ver
-     * EstudianteTelefono).
+     * Celulares adicionales del estudiante, aparte del principal -- cada
+     * uno con su propio parentesco (ej. "hermano"), porque puede ser de
+     * una persona distinta (ver EstudianteTelefono).
      *
-     * @var list<string>
+     * @var list<array{numero: string, parentesco: string}>
      */
     public array $celularesAdicionales = [];
 
     public string $observacionesEstudiante = '';
 
     public $foto = null;
+
+    // Fecha de matrícula -- se pide acá, no en el paso de matrícula
+    // propiamente (paso 5), porque decide si se muestra el paso de
+    // apoderado (menor/mayor de edad se calcula contra esta fecha, no
+    // contra hoy -- ver MatriculaService::esMenorDeEdad()).
+    public string $fechaMatricula = '';
 
     // Rematrícula — cuando el DNI tecleado en el paso 1 ya pertenece a un
     // estudiante existente, en vez de rechazarlo se ofrece continuar con su
@@ -77,10 +86,11 @@ new class extends Component
     public string $apoderadoCelular = '';
 
     /**
-     * Celulares de respaldo del apoderado, aparte del principal (ver
-     * ApoderadoTelefono).
+     * Celulares de respaldo del apoderado, aparte del principal -- cada uno
+     * con su propio parentesco, porque puede ser de una persona distinta
+     * (ej. la mamá, un tío). Ver ApoderadoTelefono.
      *
-     * @var list<string>
+     * @var list<array{numero: string, parentesco: string}>
      */
     public array $apoderadoCelularesAdicionales = [];
 
@@ -131,8 +141,6 @@ new class extends Component
 
     public string $siagieId = '';
 
-    public string $fechaMatricula = '';
-
     public string $observacionesMatricula = '';
 
     // Paso 6 — cronograma de pagos (opcional)
@@ -168,12 +176,12 @@ new class extends Component
             return false;
         }
 
-        return MatriculaService::esMenorDeEdad($this->fechaNacimiento);
+        return MatriculaService::esMenorDeEdad($this->fechaNacimiento, $this->fechaMatricula ?: null);
     }
 
     public function agregarCelular(): void
     {
-        $this->celularesAdicionales[] = '';
+        $this->celularesAdicionales[] = ['numero' => '', 'parentesco' => ''];
     }
 
     public function quitarCelular(int $indice): void
@@ -184,7 +192,7 @@ new class extends Component
 
     public function agregarCelularApoderado(): void
     {
-        $this->apoderadoCelularesAdicionales[] = '';
+        $this->apoderadoCelularesAdicionales[] = ['numero' => '', 'parentesco' => ''];
     }
 
     public function quitarCelularApoderado(int $indice): void
@@ -261,10 +269,13 @@ new class extends Component
                 'apellidos' => 'required|string|max:100',
                 'dni' => 'required|string|min:8|max:12',
                 'fechaNacimiento' => 'required|date|before:today',
+                'fechaMatricula' => 'required|date',
                 'estadoCivil' => 'nullable|string|in:'.implode(',', array_column(EstadoCivilEnum::cases(), 'value')),
                 'direccion' => 'nullable|string|max:150',
                 'celular' => ['nullable', 'string', new CelularValido],
-                'celularesAdicionales.*' => ['nullable', 'string', new CelularValido],
+                'correoPersonal' => 'nullable|email|max:150',
+                'celularesAdicionales.*.numero' => ['nullable', 'string', new CelularValido],
+                'celularesAdicionales.*.parentesco' => 'nullable|string|max:50',
             ]);
 
             if (! $service->dniDisponible($this->dni)) {
@@ -283,7 +294,8 @@ new class extends Component
                 'apoderadoNombres' => 'required|string|max:150',
                 'apoderadoDni' => 'required|string|min:8|max:12',
                 'apoderadoCelular' => ['required', 'string', new CelularValido],
-                'apoderadoCelularesAdicionales.*' => ['nullable', 'string', new CelularValido],
+                'apoderadoCelularesAdicionales.*.numero' => ['nullable', 'string', new CelularValido],
+                'apoderadoCelularesAdicionales.*.parentesco' => 'nullable|string|max:50',
                 'apoderadoCorreo' => 'nullable|email|max:150',
                 'apoderadoDireccion' => 'nullable|string|max:150',
                 'apoderadoParentesco' => 'required|string|max:50',
@@ -296,9 +308,9 @@ new class extends Component
 
         if ($this->paso === 3) {
             $this->validate([
-                'dniEstudianteCaraArchivo' => 'required|file|mimes:pdf,jpg,jpeg,png|max:12288',
+                'dniEstudianteCaraArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
                 'dniEstudianteReversoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
-                'dniApoderadoCaraArchivo' => $this->esMenorDeEdad ? 'required|file|mimes:pdf,jpg,jpeg,png|max:12288' : 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
+                'dniApoderadoCaraArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
                 'dniApoderadoReversoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
                 'certificadoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
                 'constanciaArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
@@ -334,7 +346,6 @@ new class extends Component
                 'cicloId' => 'required|integer|exists:ciclos,id',
                 'gradoId' => 'required|integer|exists:grados,id',
                 'siagieId' => 'nullable|integer|exists:siagies,id',
-                'fechaMatricula' => 'required|date',
             ]);
 
             $this->paso = 6;
@@ -481,9 +492,9 @@ new class extends Component
         // más de 4 MB quede como error de formulario normal en vez de
         // reventar como 500 dentro de la transacción.
         $this->validate([
-            'dniEstudianteCaraArchivo' => 'required|file|mimes:pdf,jpg,jpeg,png|max:12288',
+            'dniEstudianteCaraArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
             'dniEstudianteReversoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
-            'dniApoderadoCaraArchivo' => $this->esMenorDeEdad ? 'required|file|mimes:pdf,jpg,jpeg,png|max:12288' : 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
+            'dniApoderadoCaraArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
             'dniApoderadoReversoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
             'certificadoArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
             'constanciaArchivo' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:12288',
@@ -506,6 +517,8 @@ new class extends Component
                 direccion: $this->direccion ?: null,
                 celular: $this->celular !== '' ? new Telefono($this->celular) : null,
                 observaciones: $this->observacionesEstudiante ?: null,
+                correoPersonal: $this->correoPersonal ?: null,
+                fechaMatricula: $this->fechaMatricula !== '' ? $this->fechaMatricula : null,
             ));
 
             if ($this->foto) {
@@ -525,9 +538,12 @@ new class extends Component
                     parentesco: $this->apoderadoParentesco,
                 ));
 
-                foreach ($this->apoderadoCelularesAdicionales as $numero) {
-                    if ($numero !== '') {
-                        $apoderado->telefonos()->create(['numero' => (string) new Telefono($numero)]);
+                foreach ($this->apoderadoCelularesAdicionales as $celularAdicional) {
+                    if ($celularAdicional['numero'] !== '') {
+                        $apoderado->telefonos()->create([
+                            'numero' => (string) new Telefono($celularAdicional['numero']),
+                            'parentesco' => $celularAdicional['parentesco'] !== '' ? $celularAdicional['parentesco'] : null,
+                        ]);
                     }
                 }
             }
@@ -553,9 +569,12 @@ new class extends Component
                 $documentoService->subir($estudiante, TipoDocumentoEnum::CONSTANCIA, $this->constanciaArchivo, auth()->id());
             }
 
-            foreach ($this->celularesAdicionales as $numero) {
-                if ($numero !== '') {
-                    $estudiante->telefonos()->create(['numero' => (string) new Telefono($numero)]);
+            foreach ($this->celularesAdicionales as $celularAdicional) {
+                if ($celularAdicional['numero'] !== '') {
+                    $estudiante->telefonos()->create([
+                        'numero' => (string) new Telefono($celularAdicional['numero']),
+                        'parentesco' => $celularAdicional['parentesco'] !== '' ? $celularAdicional['parentesco'] : null,
+                    ]);
                 }
             }
 
@@ -762,15 +781,22 @@ new class extends Component
                     <x-text-input wire:model="celular" id="celular" class="mt-1 block w-full" />
                     <x-input-error :messages="$errors->get('celular')" class="mt-1" />
                 </div>
+                <div>
+                    <x-input-label for="correoPersonal" value="Correo personal (opcional)" />
+                    <x-text-input wire:model="correoPersonal" id="correoPersonal" type="email" class="mt-1 block w-full" />
+                    <x-input-error :messages="$errors->get('correoPersonal')" class="mt-1" />
+                </div>
                 <div class="sm:col-span-2">
                     <x-input-label value="Celulares adicionales (opcional)" />
                     <div class="mt-1 space-y-2">
-                        @foreach ($celularesAdicionales as $indice => $numero)
+                        @foreach ($celularesAdicionales as $indice => $celularAdicional)
                             <div class="flex items-center gap-2">
-                                <x-text-input wire:model="celularesAdicionales.{{ $indice }}" class="block w-full" />
+                                <x-text-input wire:model="celularesAdicionales.{{ $indice }}.numero" placeholder="Número" class="block w-full" />
+                                <x-text-input wire:model="celularesAdicionales.{{ $indice }}.parentesco" placeholder="Parentesco" class="block w-full" />
                                 <button type="button" wire:click="quitarCelular({{ $indice }})" class="text-sm text-danger hover:underline">Quitar</button>
                             </div>
-                            <x-input-error :messages="$errors->get('celularesAdicionales.'.$indice)" />
+                            <x-input-error :messages="$errors->get('celularesAdicionales.'.$indice.'.numero')" />
+                            <x-input-error :messages="$errors->get('celularesAdicionales.'.$indice.'.parentesco')" />
                         @endforeach
                     </div>
                     <button type="button" wire:click="agregarCelular" class="mt-2 text-sm font-medium text-accent hover:underline">+ Agregar otro celular</button>
@@ -791,6 +817,12 @@ new class extends Component
                     <x-input-label for="foto" value="Fotografía (opcional)" />
                     <input wire:model="foto" id="foto" type="file" accept="image/*" class="mt-1 block w-full text-sm text-ink-dim file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-ink">
                     <x-input-error :messages="$errors->get('foto')" class="mt-1" />
+                </div>
+                <div>
+                    <x-input-label for="fechaMatricula" value="Fecha de matrícula" />
+                    <x-date-input wire:model="fechaMatricula" id="fechaMatricula" class="mt-1 block w-full" />
+                    <p class="mt-1 text-xs text-ink-faint">Se usa para decidir si el estudiante es menor de edad.</p>
+                    <x-input-error :messages="$errors->get('fechaMatricula')" class="mt-1" />
                 </div>
                 <div class="sm:col-span-2">
                     <x-input-label for="observacionesEstudiante" value="Observaciones (opcional)" />
@@ -834,12 +866,14 @@ new class extends Component
                 <div class="sm:col-span-2">
                     <x-input-label value="Celulares de respaldo (opcional)" />
                     <div class="mt-1 space-y-2">
-                        @foreach ($apoderadoCelularesAdicionales as $indice => $numero)
+                        @foreach ($apoderadoCelularesAdicionales as $indice => $celularAdicional)
                             <div class="flex items-center gap-2">
-                                <x-text-input wire:model="apoderadoCelularesAdicionales.{{ $indice }}" class="block w-full" />
+                                <x-text-input wire:model="apoderadoCelularesAdicionales.{{ $indice }}.numero" placeholder="Número" class="block w-full" />
+                                <x-text-input wire:model="apoderadoCelularesAdicionales.{{ $indice }}.parentesco" placeholder="Parentesco" class="block w-full" />
                                 <button type="button" wire:click="quitarCelularApoderado({{ $indice }})" class="text-sm text-danger hover:underline">Quitar</button>
                             </div>
-                            <x-input-error :messages="$errors->get('apoderadoCelularesAdicionales.'.$indice)" />
+                            <x-input-error :messages="$errors->get('apoderadoCelularesAdicionales.'.$indice.'.numero')" />
+                            <x-input-error :messages="$errors->get('apoderadoCelularesAdicionales.'.$indice.'.parentesco')" />
                         @endforeach
                     </div>
                     <button type="button" wire:click="agregarCelularApoderado" class="mt-2 text-sm font-medium text-accent hover:underline">+ Agregar otro celular</button>
@@ -1018,11 +1052,6 @@ new class extends Component
                         :options="collect($gradosCompatibles)->mapWithKeys(fn ($grado) => [$grado->id => $grado->nombre])"
                     />
                     <x-input-error :messages="$errors->get('gradoId')" class="mt-1" />
-                </div>
-                <div>
-                    <x-input-label for="fechaMatricula" value="Fecha de matrícula" />
-                    <x-date-input wire:model="fechaMatricula" id="fechaMatricula" class="mt-1 block w-full" />
-                    <x-input-error :messages="$errors->get('fechaMatricula')" class="mt-1" />
                 </div>
                 <div class="sm:col-span-2">
                     <x-input-label for="observacionesMatricula" value="Observaciones (opcional)" />

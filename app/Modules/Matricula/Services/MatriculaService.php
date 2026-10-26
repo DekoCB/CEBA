@@ -20,12 +20,17 @@ use App\Modules\Matricula\Enums\EstadoEstudianteEnum;
 use App\Modules\Matricula\Enums\EstadoMatriculaEnum;
 use App\Modules\Matricula\Events\EstudianteMatriculado;
 use App\Modules\Matricula\Models\Apoderado;
+use App\Modules\Matricula\Models\ApoderadoTelefono;
 use App\Modules\Matricula\Models\Estudiante;
+use App\Modules\Matricula\Models\EstudianteTelefono;
+use App\Modules\Matricula\Models\ExamenUbicacion;
 use App\Modules\Matricula\Models\InstitucionProcedencia;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Repositories\Contracts\EstudianteRepositoryInterface;
 use App\Modules\Matricula\Repositories\Contracts\MatriculaRepositoryInterface;
+use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Models\Cuota;
+use App\Modules\Pagos\Models\Pago;
 use App\Modules\Pagos\Models\PlanPago;
 use App\Shared\Enums\RolEnum;
 use App\Shared\Support\ImportaFilasDeExcel;
@@ -60,9 +65,17 @@ class MatriculaService
         return ! $this->estudiantes->existeDni($dni, $exceptoId);
     }
 
-    public static function esMenorDeEdad(string $fechaNacimiento): bool
+    /**
+     * $fechaReferencia es la fecha contra la que se mide la edad -- la de
+     * matrícula, no necesariamente hoy (un registro puede hacerse días
+     * después de la matrícula real, o a propósito con fecha pasada). Si no
+     * se indica, se usa hoy (comportamiento de siempre).
+     */
+    public static function esMenorDeEdad(string $fechaNacimiento, ?string $fechaReferencia = null): bool
     {
-        return Carbon::parse($fechaNacimiento)->age < 18;
+        $referencia = $fechaReferencia !== null ? Carbon::parse($fechaReferencia) : now();
+
+        return Carbon::parse($fechaNacimiento)->diffInYears($referencia) < 18;
     }
 
     /**
@@ -100,11 +113,12 @@ class MatriculaService
                 'apellidos' => $data->apellidos,
                 'dni' => $data->dni->valor(),
                 'fecha_nacimiento' => $data->fechaNacimiento,
-                'es_menor_edad' => self::esMenorDeEdad($data->fechaNacimiento),
+                'es_menor_edad' => self::esMenorDeEdad($data->fechaNacimiento, $data->fechaMatricula),
                 'estado_civil' => $data->estadoCivil,
                 'direccion' => $data->direccion,
                 'celular' => $data->celular?->numero(),
                 'email' => $email,
+                'correo_personal' => $data->correoPersonal,
                 'observaciones' => $data->observaciones,
                 'estado' => EstadoEstudianteEnum::ACTIVO,
             ]);
@@ -288,6 +302,69 @@ class MatriculaService
     public function esEliminable(Matricula $matricula): bool
     {
         return ! $this->tienePagosRegistrados($matricula);
+    }
+
+    public function esEliminableCompleto(Estudiante $estudiante): bool
+    {
+        return ! Pago::query()->where('estudiante_id', $estudiante->id)->whereHas('recibo')->exists();
+    }
+
+    /**
+     * Borra la ficha completa de un estudiante (todas sus matrículas,
+     * apoderado, documentos, exámenes, cargos adicionales y celulares) --
+     * un borrado mucho más amplio que eliminar(Matricula), que solo borra
+     * UNA matrícula puntual. La condición acá es distinta y más laxa: no
+     * que la matrícula no tenga pagos, sino que al estudiante nunca se le
+     * haya emitido ningún Recibo -- un pago pendiente o rechazado sin
+     * recibo no es un obstáculo, porque no hay nada financiero real que
+     * corregir todavía.
+     *
+     * La cuenta de acceso (User) vinculada NO se toca: puede estar
+     * compartida/reutilizada por DNI (ver registrarEstudiante()), así que
+     * es más seguro dejarla huérfana que arriesgar borrar algo ajeno.
+     */
+    public function eliminarEstudianteCompleto(Estudiante $estudiante): void
+    {
+        if (! $this->esEliminableCompleto($estudiante)) {
+            throw ValidationException::withMessages([
+                'estudiante' => 'No se puede eliminar: ya se emitió un recibo de pago para este estudiante.',
+            ]);
+        }
+
+        DB::transaction(function () use ($estudiante): void {
+            $planIds = PlanPago::query()
+                ->whereIn('matricula_id', $estudiante->matriculas()->withTrashed()->pluck('id'))
+                ->pluck('id');
+
+            Cuota::query()->whereIn('plan_pago_id', $planIds)->delete();
+            PlanPago::query()->whereIn('id', $planIds)->delete();
+
+            CargoAdicional::query()->where('estudiante_id', $estudiante->id)->delete();
+            ExamenUbicacion::query()->where('estudiante_id', $estudiante->id)->delete();
+            InstitucionProcedencia::query()->where('estudiante_id', $estudiante->id)->delete();
+            EstudianteTelefono::query()->where('estudiante_id', $estudiante->id)->delete();
+
+            // Los pagos (sin recibo, ya garantizado arriba) y los
+            // documentos tienen media propia (comprobante/archivo/
+            // reverso) -- se borran modelo por modelo, no con una
+            // consulta en bloque, para que el borrado automático de su
+            // media (ver InteractsWithMedia) se dispare.
+            foreach (Pago::query()->where('estudiante_id', $estudiante->id)->get() as $pago) {
+                $pago->delete();
+            }
+
+            foreach ($estudiante->documentos as $documento) {
+                $documento->delete();
+            }
+
+            if ($estudiante->apoderado) {
+                ApoderadoTelefono::query()->where('apoderado_id', $estudiante->apoderado->id)->delete();
+                $estudiante->apoderado->delete();
+            }
+
+            $estudiante->matriculas()->withTrashed()->get()->each->delete();
+            $estudiante->delete();
+        });
     }
 
     private function tienePagosRegistrados(Matricula $matricula): bool

@@ -102,6 +102,101 @@ class MatriculaPermisosTest extends TestCase
         $this->assertSame('Pendiente entregar certificado de estudios del colegio anterior.', $estudiante->observaciones);
     }
 
+    /**
+     * Pedido del cliente: poder registrar el correo personal del
+     * estudiante, distinto del institucional que se asigna automáticamente.
+     */
+    public function test_guardar_correo_personal_del_estudiante(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Rosa')
+            ->set('apellidos', 'Medina Paz')
+            ->set('dni', '55667733')
+            ->set('fechaNacimiento', now()->subYears(28)->format('Y-m-d'))
+            ->set('correoPersonal', 'rosa.medina@gmail.com')
+            ->call('avanzar')
+            ->assertHasNoErrors()
+            ->assertSet('paso', 3)
+            ->call('avanzar')
+            ->assertSet('paso', 4)
+            ->call('avanzar')
+            ->assertSet('paso', 5)
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $estudiante = Estudiante::query()->where('dni', '55667733')->firstOrFail();
+        $this->assertSame('rosa.medina@gmail.com', $estudiante->correo_personal);
+        $this->assertNotSame($estudiante->email, $estudiante->correo_personal);
+    }
+
+    /**
+     * Pedido del cliente: no debe ser obligatorio subir ningún documento
+     * (DNI, certificado, constancia) al matricular -- algunos se
+     * regularizan después.
+     */
+    public function test_confirmar_matricula_sin_subir_ningun_documento(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Jorge')
+            ->set('apellidos', 'Castillo Rojas')
+            ->set('dni', '55667744')
+            ->set('fechaNacimiento', now()->subYears(28)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertHasNoErrors()
+            ->assertSet('paso', 3)
+            ->call('avanzar')
+            ->assertHasNoErrors()
+            ->assertSet('paso', 4)
+            ->call('avanzar')
+            ->assertSet('paso', 5)
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $estudiante = Estudiante::query()->where('dni', '55667744')->firstOrFail();
+        $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id]);
+        $this->assertSame(0, $estudiante->documentos()->count());
+    }
+
     public function test_subir_cara_y_reverso_del_dni_guarda_ambas_colecciones_de_media(): void
     {
         Storage::fake('public');
@@ -221,9 +316,10 @@ class MatriculaPermisosTest extends TestCase
             ->set('fechaNacimiento', now()->subYears(30)->format('Y-m-d'))
             ->set('celular', '987654321')
             ->call('agregarCelular')
-            ->set('celularesAdicionales.0', '912345678')
+            ->set('celularesAdicionales.0.numero', '912345678')
+            ->set('celularesAdicionales.0.parentesco', 'Hermano')
             ->call('agregarCelular')
-            ->set('celularesAdicionales.1', '923456789')
+            ->set('celularesAdicionales.1.numero', '923456789')
             ->call('avanzar')
             ->assertHasNoErrors()
             ->assertSet('paso', 3)
@@ -241,7 +337,7 @@ class MatriculaPermisosTest extends TestCase
         $estudiante = Estudiante::query()->where('dni', '55667722')->firstOrFail();
 
         $this->assertSame(2, $estudiante->telefonos()->count());
-        $this->assertDatabaseHas('estudiante_telefonos', ['estudiante_id' => $estudiante->id, 'numero' => '912345678']);
+        $this->assertDatabaseHas('estudiante_telefonos', ['estudiante_id' => $estudiante->id, 'numero' => '912345678', 'parentesco' => 'Hermano']);
         $this->assertDatabaseHas('estudiante_telefonos', ['estudiante_id' => $estudiante->id, 'numero' => '923456789']);
     }
 
@@ -275,7 +371,7 @@ class MatriculaPermisosTest extends TestCase
             ->set('dni', '55667726')
             ->set('fechaNacimiento', now()->subYears(10)->format('Y-m-d'))
             ->call('agregarCelular')
-            ->set('celularesAdicionales.0', '912345678')
+            ->set('celularesAdicionales.0.numero', '912345678')
             ->call('avanzar')
             ->assertHasNoErrors()
             ->assertSet('paso', 2)
@@ -283,9 +379,10 @@ class MatriculaPermisosTest extends TestCase
             ->set('apoderadoDni', '44556678')
             ->set('apoderadoCelular', '987654321')
             ->call('agregarCelularApoderado')
-            ->set('apoderadoCelularesAdicionales.0', '923456789')
+            ->set('apoderadoCelularesAdicionales.0.numero', '923456789')
+            ->set('apoderadoCelularesAdicionales.0.parentesco', 'Madre')
             ->call('agregarCelularApoderado')
-            ->set('apoderadoCelularesAdicionales.1', '934567890')
+            ->set('apoderadoCelularesAdicionales.1.numero', '934567890')
             ->set('apoderadoParentesco', 'Padre')
             ->call('avanzar')
             ->assertHasNoErrors()
@@ -309,7 +406,7 @@ class MatriculaPermisosTest extends TestCase
 
         $apoderado = $estudiante->apoderado;
         $this->assertSame(2, $apoderado->telefonos()->count());
-        $this->assertDatabaseHas('apoderado_telefonos', ['apoderado_id' => $apoderado->id, 'numero' => '923456789']);
+        $this->assertDatabaseHas('apoderado_telefonos', ['apoderado_id' => $apoderado->id, 'numero' => '923456789', 'parentesco' => 'Madre']);
         $this->assertDatabaseHas('apoderado_telefonos', ['apoderado_id' => $apoderado->id, 'numero' => '934567890']);
     }
 
@@ -332,9 +429,9 @@ class MatriculaPermisosTest extends TestCase
             ->set('apoderadoCelular', '987654321')
             ->set('apoderadoParentesco', 'Padre')
             ->call('agregarCelularApoderado')
-            ->set('apoderadoCelularesAdicionales.0', 'Sólo al Papá escribirle de la pensión 966775990 / mamá 977 187 160')
+            ->set('apoderadoCelularesAdicionales.0.numero', 'Sólo al Papá escribirle de la pensión 966775990 / mamá 977 187 160')
             ->call('avanzar')
-            ->assertHasErrors(['apoderadoCelularesAdicionales.0'])
+            ->assertHasErrors(['apoderadoCelularesAdicionales.0.numero'])
             ->assertSet('paso', 2);
     }
 
@@ -379,9 +476,9 @@ class MatriculaPermisosTest extends TestCase
             ->set('dni', '55667724')
             ->set('fechaNacimiento', now()->subYears(30)->format('Y-m-d'))
             ->call('agregarCelular')
-            ->set('celularesAdicionales.0', 'Sólo al Papá escribirle de la pensión 966775990 / mamá 977 187 160')
+            ->set('celularesAdicionales.0.numero', 'Sólo al Papá escribirle de la pensión 966775990 / mamá 977 187 160')
             ->call('avanzar')
-            ->assertHasErrors(['celularesAdicionales.0'])
+            ->assertHasErrors(['celularesAdicionales.0.numero'])
             ->assertSet('paso', 1);
     }
 
@@ -417,11 +514,11 @@ class MatriculaPermisosTest extends TestCase
 
         Volt::test('matricula.wizard')
             ->call('agregarCelular')
-            ->set('celularesAdicionales.0', '912345678')
+            ->set('celularesAdicionales.0.numero', '912345678')
             ->call('agregarCelular')
-            ->set('celularesAdicionales.1', '923456789')
+            ->set('celularesAdicionales.1.numero', '923456789')
             ->call('quitarCelular', 0)
-            ->assertSet('celularesAdicionales', ['923456789']);
+            ->assertSet('celularesAdicionales', [['numero' => '923456789', 'parentesco' => '']]);
     }
 
     public function test_descargar_pdf_del_dni_solo_esta_disponible_con_ambas_caras(): void
@@ -448,6 +545,42 @@ class MatriculaPermisosTest extends TestCase
 
         $this->assertArrayHasKey('download', $testable->effects);
         $this->assertSame('application/pdf', $testable->effects['download']['contentType']);
+    }
+
+    /**
+     * Pedido del cliente: poder actualizar (reemplazar) un documento ya
+     * subido -- ej. un DNI vencido o un certificado corregido -- sin tener
+     * que borrarlo primero. Spatie MediaLibrary ya trata estas colecciones
+     * como singleFile(), así que subirDocumento() reemplaza en vez de
+     * duplicar.
+     */
+    public function test_reemplazar_un_documento_ya_subido_desde_la_ficha(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+        $estudiante = Estudiante::factory()->create();
+
+        $documentoService = $this->app->make(DocumentoEstudianteService::class);
+        $documento = $documentoService->subir(
+            $estudiante,
+            TipoDocumentoEnum::CERTIFICADO_ESTUDIOS,
+            UploadedFile::fake()->create('certificado-viejo.pdf', 100, 'application/pdf'),
+            $usuario->id,
+        );
+        $mediaIdViejo = $documento->getFirstMedia('archivo')->id;
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->set('documentoNuevo.certificado_estudios', UploadedFile::fake()->create('certificado-nuevo.pdf', 200, 'application/pdf'))
+            ->call('subirDocumento', 'certificado_estudios')
+            ->assertHasNoErrors();
+
+        $this->assertSame(1, $estudiante->documentos()->count());
+        $documento->refresh();
+        $this->assertNotSame($mediaIdViejo, $documento->getFirstMedia('archivo')->id);
     }
 
     public function test_registrar_matricula_desde_el_wizard_guarda_el_siagie_elegido(): void
