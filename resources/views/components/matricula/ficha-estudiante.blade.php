@@ -22,6 +22,11 @@
     'estudianteEliminable' => false,
     'editandoCelular' => null,
     'celularNuevo' => '',
+    'agregandoCelular' => null,
+    'celularAdicionalNumeroNuevo' => '',
+    'celularAdicionalParentescoNuevo' => '',
+    'editandoCorreoPersonal' => false,
+    'correoPersonalNuevo' => '',
     'historialCelularEstudiante' => [],
     'historialCelularApoderado' => [],
 ])
@@ -68,11 +73,42 @@
                     @foreach ($estudiante->telefonos as $telefono)
                         <span class="block text-ink-dim">{{ $telefono->numero }}{{ $telefono->parentesco ? ' — '.$telefono->parentesco : '' }}</span>
                     @endforeach
+                    @can('matricula.editar')
+                        @if ($agregandoCelular === 'estudiante')
+                            <form wire:submit="guardarCelularAdicionalNuevo" class="mt-1 flex flex-wrap items-center gap-2">
+                                <x-text-input wire:model="celularAdicionalNumeroNuevo" placeholder="Número" class="w-32 text-xs" />
+                                <x-text-input wire:model="celularAdicionalParentescoNuevo" placeholder="Parentesco" class="w-28 text-xs" />
+                                <x-secondary-button type="submit">Guardar</x-secondary-button>
+                                <button type="button" wire:click="cancelarCelularAdicionalNuevo" class="text-xs text-ink-faint hover:text-ink">Cancelar</button>
+                            </form>
+                            <x-input-error :messages="$errors->get('celularAdicionalNumeroNuevo')" class="mt-1" />
+                            <x-input-error :messages="$errors->get('celularAdicionalParentescoNuevo')" class="mt-1" />
+                        @else
+                            <button type="button" wire:click="mostrarFormularioCelularAdicional('estudiante')" class="mt-1 block text-xs font-medium text-accent hover:underline">+ Agregar celular</button>
+                        @endif
+                    @endcan
                     <x-historial-celular :historial="$historialCelularEstudiante" />
                 </dd>
             </div>
             <div><dt class="text-ink-faint">Correo</dt><dd class="text-ink">{{ $estudiante->email ?? '—' }}</dd></div>
-            <div><dt class="text-ink-faint">Correo personal</dt><dd class="text-ink">{{ $estudiante->correo_personal ?? '—' }}</dd></div>
+            <div>
+                <dt class="text-ink-faint">Correo personal</dt>
+                <dd class="text-ink">
+                    @if ($editandoCorreoPersonal)
+                        <form wire:submit="guardarCorreoPersonal" class="flex flex-wrap items-center gap-2">
+                            <x-text-input wire:model="correoPersonalNuevo" type="email" class="w-48 text-xs" />
+                            <x-secondary-button type="submit">Guardar</x-secondary-button>
+                            <button type="button" wire:click="cancelarEdicionCorreoPersonal" class="text-xs text-ink-faint hover:text-ink">Cancelar</button>
+                        </form>
+                        <x-input-error :messages="$errors->get('correoPersonalNuevo')" class="mt-1" />
+                    @else
+                        {{ $estudiante->correo_personal ?? '—' }}
+                        @can('matricula.editar')
+                            <button type="button" wire:click="editarCorreoPersonal" class="ml-2 text-xs font-medium text-accent hover:underline">Editar</button>
+                        @endcan
+                    @endif
+                </dd>
+            </div>
             <div class="sm:col-span-2"><dt class="text-ink-faint">Dirección</dt><dd class="text-ink">{{ $estudiante->direccion ?? '—' }}</dd></div>
             <div><dt class="text-ink-faint">Grado actual</dt><dd class="text-ink">{{ $estudiante->gradoActual?->nombre ?? '—' }}</dd></div>
             <div>
@@ -123,6 +159,20 @@
                         @foreach ($estudiante->apoderado->telefonos as $telefono)
                             <span class="block text-ink-dim">{{ $telefono->numero }}{{ $telefono->parentesco ? ' — '.$telefono->parentesco : '' }}</span>
                         @endforeach
+                        @can('matricula.editar')
+                            @if ($agregandoCelular === 'apoderado')
+                                <form wire:submit="guardarCelularAdicionalNuevo" class="mt-1 flex flex-wrap items-center gap-2">
+                                    <x-text-input wire:model="celularAdicionalNumeroNuevo" placeholder="Número" class="w-32 text-xs" />
+                                    <x-text-input wire:model="celularAdicionalParentescoNuevo" placeholder="Parentesco" class="w-28 text-xs" />
+                                    <x-secondary-button type="submit">Guardar</x-secondary-button>
+                                    <button type="button" wire:click="cancelarCelularAdicionalNuevo" class="text-xs text-ink-faint hover:text-ink">Cancelar</button>
+                                </form>
+                                <x-input-error :messages="$errors->get('celularAdicionalNumeroNuevo')" class="mt-1" />
+                                <x-input-error :messages="$errors->get('celularAdicionalParentescoNuevo')" class="mt-1" />
+                            @else
+                                <button type="button" wire:click="mostrarFormularioCelularAdicional('apoderado')" class="mt-1 block text-xs font-medium text-accent hover:underline">+ Agregar celular</button>
+                            @endif
+                        @endcan
                         <x-historial-celular :historial="$historialCelularApoderado" />
                     </dd>
                 </div>

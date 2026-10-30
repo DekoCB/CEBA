@@ -40,6 +40,16 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $celularNuevo = '';
 
+    public ?string $agregandoCelular = null;
+
+    public string $celularAdicionalNumeroNuevo = '';
+
+    public string $celularAdicionalParentescoNuevo = '';
+
+    public bool $editandoCorreoPersonal = false;
+
+    public string $correoPersonalNuevo = '';
+
     public ?int $editandoFechaFinMatriculaId = null;
 
     public string $fechaFinEstudioNueva = '';
@@ -137,6 +147,79 @@ new #[Layout('layouts.app')] class extends Component
         $this->celularNuevo = '';
 
         session()->flash('status', 'Celular actualizado.');
+    }
+
+    public function mostrarFormularioCelularAdicional(string $quien): void
+    {
+        Gate::authorize('matricula.editar');
+
+        $this->agregandoCelular = $quien;
+        $this->celularAdicionalNumeroNuevo = '';
+        $this->celularAdicionalParentescoNuevo = '';
+    }
+
+    public function cancelarCelularAdicionalNuevo(): void
+    {
+        $this->agregandoCelular = null;
+        $this->celularAdicionalNumeroNuevo = '';
+        $this->celularAdicionalParentescoNuevo = '';
+    }
+
+    public function guardarCelularAdicionalNuevo(): void
+    {
+        Gate::authorize('matricula.editar');
+
+        if ($this->agregandoCelular === null) {
+            return;
+        }
+
+        $this->validate([
+            'celularAdicionalNumeroNuevo' => ['required', 'string', new CelularValido],
+            'celularAdicionalParentescoNuevo' => 'nullable|string|max:50',
+        ]);
+
+        $numero = (new Telefono($this->celularAdicionalNumeroNuevo))->numero();
+        $parentesco = $this->celularAdicionalParentescoNuevo !== '' ? $this->celularAdicionalParentescoNuevo : null;
+
+        if ($this->agregandoCelular === 'estudiante') {
+            $this->estudiante->telefonos()->create(['numero' => $numero, 'parentesco' => $parentesco]);
+        } else {
+            $this->estudiante->apoderado?->telefonos()->create(['numero' => $numero, 'parentesco' => $parentesco]);
+        }
+
+        $this->agregandoCelular = null;
+        $this->celularAdicionalNumeroNuevo = '';
+        $this->celularAdicionalParentescoNuevo = '';
+
+        session()->flash('status', 'Celular adicional agregado.');
+    }
+
+    public function editarCorreoPersonal(): void
+    {
+        Gate::authorize('matricula.editar');
+
+        $this->editandoCorreoPersonal = true;
+        $this->correoPersonalNuevo = $this->estudiante->correo_personal ?? '';
+    }
+
+    public function cancelarEdicionCorreoPersonal(): void
+    {
+        $this->editandoCorreoPersonal = false;
+        $this->correoPersonalNuevo = '';
+    }
+
+    public function guardarCorreoPersonal(): void
+    {
+        Gate::authorize('matricula.editar');
+
+        $this->validate(['correoPersonalNuevo' => 'nullable|email|max:150']);
+
+        $this->estudiante->update(['correo_personal' => $this->correoPersonalNuevo ?: null]);
+
+        $this->editandoCorreoPersonal = false;
+        $this->correoPersonalNuevo = '';
+
+        session()->flash('status', 'Correo personal actualizado.');
     }
 
     /**
@@ -489,6 +572,11 @@ new #[Layout('layouts.app')] class extends Component
         :estudiante-eliminable="$estudianteEliminable"
         :editando-celular="$editandoCelular"
         :celular-nuevo="$celularNuevo"
+        :agregando-celular="$agregandoCelular"
+        :celular-adicional-numero-nuevo="$celularAdicionalNumeroNuevo"
+        :celular-adicional-parentesco-nuevo="$celularAdicionalParentescoNuevo"
+        :editando-correo-personal="$editandoCorreoPersonal"
+        :correo-personal-nuevo="$correoPersonalNuevo"
         :historial-celular-estudiante="$historialCelularEstudiante"
         :historial-celular-apoderado="$historialCelularApoderado"
     />

@@ -11,6 +11,7 @@ use App\Modules\Academico\Models\Horario;
 use App\Modules\Academico\Models\Siagie;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\Enums\TipoDocumentoEnum;
+use App\Modules\Matricula\Models\Apoderado;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Matricula\Services\DocumentoEstudianteService;
@@ -1509,5 +1510,162 @@ class MatriculaPermisosTest extends TestCase
             ->assertHasErrors(['cargoConceptoNuevo', 'cargoMontoNuevo']);
 
         $this->assertDatabaseCount('cargos_adicionales', 0);
+    }
+
+    /**
+     * Pedido del cliente: el correo personal se podía registrar solo al
+     * matricular -- ahora también se puede agregar/editar después, desde
+     * la ficha del estudiante.
+     */
+    public function test_editar_correo_personal_desde_la_pagina_completa_de_la_ficha(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create(['correo_personal' => null]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('editarCorreoPersonal')
+            ->set('correoPersonalNuevo', 'nuevo.correo@example.com')
+            ->call('guardarCorreoPersonal')
+            ->assertHasNoErrors();
+
+        $this->assertSame('nuevo.correo@example.com', $estudiante->fresh()->correo_personal);
+    }
+
+    public function test_editar_correo_personal_desde_el_modal_de_ficha(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create(['correo_personal' => null]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.ficha-modal')
+            ->call('abrir', $estudiante->id)
+            ->call('editarCorreoPersonal')
+            ->set('correoPersonalNuevo', 'nuevo.correo@example.com')
+            ->call('guardarCorreoPersonal')
+            ->assertHasNoErrors();
+
+        $this->assertSame('nuevo.correo@example.com', $estudiante->fresh()->correo_personal);
+    }
+
+    public function test_correo_personal_invalido_queda_como_error_de_formulario(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('editarCorreoPersonal')
+            ->set('correoPersonalNuevo', 'no-es-un-correo')
+            ->call('guardarCorreoPersonal')
+            ->assertHasErrors(['correoPersonalNuevo']);
+    }
+
+    public function test_no_se_puede_editar_correo_personal_sin_el_permiso_de_editar_matricula(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('editarCorreoPersonal')
+            ->assertForbidden();
+    }
+
+    /**
+     * Pedido del cliente: poder agregar más celulares de respaldo (con
+     * parentesco) para el estudiante y su apoderado desde la ficha, no
+     * solo al matricular.
+     */
+    public function test_agregar_celular_adicional_al_estudiante_desde_la_pagina_completa_de_la_ficha(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('mostrarFormularioCelularAdicional', 'estudiante')
+            ->set('celularAdicionalNumeroNuevo', '912345678')
+            ->set('celularAdicionalParentescoNuevo', 'Tío')
+            ->call('guardarCelularAdicionalNuevo')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('estudiante_telefonos', [
+            'estudiante_id' => $estudiante->id,
+            'numero' => '912345678',
+            'parentesco' => 'Tío',
+        ]);
+    }
+
+    public function test_agregar_celular_adicional_al_apoderado_desde_el_modal_de_ficha(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create(['es_menor_edad' => true]);
+        $apoderado = Apoderado::factory()->create(['estudiante_id' => $estudiante->id]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.ficha-modal')
+            ->call('abrir', $estudiante->id)
+            ->call('mostrarFormularioCelularAdicional', 'apoderado')
+            ->set('celularAdicionalNumeroNuevo', '955333445')
+            ->set('celularAdicionalParentescoNuevo', 'Abuela')
+            ->call('guardarCelularAdicionalNuevo')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('apoderado_telefonos', [
+            'apoderado_id' => $apoderado->id,
+            'numero' => '955333445',
+            'parentesco' => 'Abuela',
+        ]);
+    }
+
+    public function test_un_celular_adicional_mal_escrito_desde_la_ficha_queda_como_error_de_formulario(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('mostrarFormularioCelularAdicional', 'estudiante')
+            ->set('celularAdicionalNumeroNuevo', 'no es un celular')
+            ->call('guardarCelularAdicionalNuevo')
+            ->assertHasErrors(['celularAdicionalNumeroNuevo']);
+
+        $this->assertDatabaseCount('estudiante_telefonos', 0);
+    }
+
+    public function test_no_se_puede_agregar_celular_adicional_desde_la_ficha_sin_el_permiso_de_editar_matricula(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('mostrarFormularioCelularAdicional', 'estudiante')
+            ->assertForbidden();
     }
 }

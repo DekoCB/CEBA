@@ -46,6 +46,16 @@ new class extends Component
 
     public string $celularNuevo = '';
 
+    public ?string $agregandoCelular = null;
+
+    public string $celularAdicionalNumeroNuevo = '';
+
+    public string $celularAdicionalParentescoNuevo = '';
+
+    public bool $editandoCorreoPersonal = false;
+
+    public string $correoPersonalNuevo = '';
+
     public ?int $editandoFechaFinMatriculaId = null;
 
     public string $fechaFinEstudioNueva = '';
@@ -92,6 +102,11 @@ new class extends Component
         $this->documentoNuevo = [];
         $this->editandoCelular = null;
         $this->celularNuevo = '';
+        $this->agregandoCelular = null;
+        $this->celularAdicionalNumeroNuevo = '';
+        $this->celularAdicionalParentescoNuevo = '';
+        $this->editandoCorreoPersonal = false;
+        $this->correoPersonalNuevo = '';
     }
 
     public function verificarDocumento(int $documentoId, DocumentoEstudianteService $service): void
@@ -162,6 +177,80 @@ new class extends Component
 
         $this->editandoCelular = null;
         $this->celularNuevo = '';
+    }
+
+    public function mostrarFormularioCelularAdicional(string $quien): void
+    {
+        Gate::authorize('matricula.editar');
+
+        $this->agregandoCelular = $quien;
+        $this->celularAdicionalNumeroNuevo = '';
+        $this->celularAdicionalParentescoNuevo = '';
+    }
+
+    public function cancelarCelularAdicionalNuevo(): void
+    {
+        $this->agregandoCelular = null;
+        $this->celularAdicionalNumeroNuevo = '';
+        $this->celularAdicionalParentescoNuevo = '';
+    }
+
+    public function guardarCelularAdicionalNuevo(): void
+    {
+        Gate::authorize('matricula.editar');
+
+        if ($this->agregandoCelular === null || $this->estudianteId === null) {
+            return;
+        }
+
+        $this->validate([
+            'celularAdicionalNumeroNuevo' => ['required', 'string', new CelularValido],
+            'celularAdicionalParentescoNuevo' => 'nullable|string|max:50',
+        ]);
+
+        $numero = (new Telefono($this->celularAdicionalNumeroNuevo))->numero();
+        $parentesco = $this->celularAdicionalParentescoNuevo !== '' ? $this->celularAdicionalParentescoNuevo : null;
+        $estudiante = Estudiante::query()->with('apoderado')->findOrFail($this->estudianteId);
+
+        if ($this->agregandoCelular === 'estudiante') {
+            $estudiante->telefonos()->create(['numero' => $numero, 'parentesco' => $parentesco]);
+        } else {
+            $estudiante->apoderado?->telefonos()->create(['numero' => $numero, 'parentesco' => $parentesco]);
+        }
+
+        $this->agregandoCelular = null;
+        $this->celularAdicionalNumeroNuevo = '';
+        $this->celularAdicionalParentescoNuevo = '';
+    }
+
+    public function editarCorreoPersonal(): void
+    {
+        Gate::authorize('matricula.editar');
+
+        $this->editandoCorreoPersonal = true;
+        $this->correoPersonalNuevo = Estudiante::query()->find($this->estudianteId)?->correo_personal ?? '';
+    }
+
+    public function cancelarEdicionCorreoPersonal(): void
+    {
+        $this->editandoCorreoPersonal = false;
+        $this->correoPersonalNuevo = '';
+    }
+
+    public function guardarCorreoPersonal(): void
+    {
+        Gate::authorize('matricula.editar');
+
+        if ($this->estudianteId === null) {
+            return;
+        }
+
+        $this->validate(['correoPersonalNuevo' => 'nullable|email|max:150']);
+
+        Estudiante::query()->findOrFail($this->estudianteId)->update(['correo_personal' => $this->correoPersonalNuevo ?: null]);
+
+        $this->editandoCorreoPersonal = false;
+        $this->correoPersonalNuevo = '';
     }
 
     /**
@@ -511,6 +600,11 @@ new class extends Component
                     :estudiante-eliminable="$estudianteEliminable"
                     :editando-celular="$editandoCelular"
                     :celular-nuevo="$celularNuevo"
+                    :agregando-celular="$agregandoCelular"
+                    :celular-adicional-numero-nuevo="$celularAdicionalNumeroNuevo"
+                    :celular-adicional-parentesco-nuevo="$celularAdicionalParentescoNuevo"
+                    :editando-correo-personal="$editandoCorreoPersonal"
+                    :correo-personal-nuevo="$correoPersonalNuevo"
                     :historial-celular-estudiante="$historialCelularEstudiante"
                     :historial-celular-apoderado="$historialCelularApoderado"
                 />
