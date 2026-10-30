@@ -399,15 +399,60 @@ class MatriculaServiceTest extends TestCase
         $estudianteId = $estudiante->id;
         $apoderadoId = $estudiante->apoderado->id;
 
+        $dni = $estudiante->dni;
+
         $this->service()->eliminarEstudianteCompleto($estudiante);
 
-        $this->assertSoftDeleted('estudiantes', ['id' => $estudianteId]);
-        $this->assertSoftDeleted('matriculas', ['id' => $matricula->id]);
+        // forceDelete(), no borrado lógico: una fila "blanda" seguiría
+        // ocupando el DNI contra el índice único de la columna.
+        $this->assertDatabaseMissing('estudiantes', ['id' => $estudianteId]);
+        $this->assertDatabaseMissing('matriculas', ['id' => $matricula->id]);
         $this->assertDatabaseMissing('apoderados', ['id' => $apoderadoId]);
         $this->assertDatabaseMissing('planes_pago', ['id' => $plan->id]);
         $this->assertDatabaseMissing('pagos', ['estudiante_id' => $estudianteId]);
         $this->assertDatabaseMissing('cargos_adicionales', ['estudiante_id' => $estudianteId]);
         $this->assertDatabaseMissing('estudiante_telefonos', ['estudiante_id' => $estudianteId]);
+
+        $this->assertTrue($this->service()->dniDisponible($dni));
+    }
+
+    /**
+     * Bug real visto en producción: después de eliminar un estudiante,
+     * volver a registrar a alguien con el mismo DNI reventaba con un 500
+     * crudo (Duplicate entry ... for key estudiantes_dni_unique) porque el
+     * borrado era lógico y la fila vieja seguía ocupando el DNI. Cubre el
+     * caso feliz (forceDelete libera el DNI de verdad) además del test de
+     * arriba.
+     */
+    public function test_el_dni_de_un_estudiante_eliminado_queda_disponible_para_un_registro_nuevo(): void
+    {
+        $datos = $this->datosEstudianteMayor();
+        $estudiante = $this->service()->registrarEstudiante($datos);
+        $dni = $estudiante->dni;
+
+        $this->service()->eliminarEstudianteCompleto($estudiante);
+
+        $nuevo = $this->service()->registrarEstudiante($datos);
+
+        $this->assertSame($dni, $nuevo->dni);
+        $this->assertNotSame($estudiante->id, $nuevo->id);
+    }
+
+    /**
+     * Defensa adicional: si por cualquier motivo quedara una fila "resto"
+     * con un DNI fuera del alcance normal de Eloquent (ej. de antes de este
+     * fix), registrar ya no debe reventar con un 500 crudo -- debe quedar
+     * como un error de formulario claro.
+     */
+    public function test_registrar_estudiante_con_un_dni_en_conflicto_fuera_del_alcance_normal_lanza_error_de_formulario(): void
+    {
+        $datos = $this->datosEstudianteMayor();
+        $estudiante = $this->service()->registrarEstudiante($datos);
+        $estudiante->delete(); // borrado lógico a propósito, para simular el resto
+
+        $this->expectException(ValidationException::class);
+
+        $this->service()->registrarEstudiante($datos);
     }
 
     public function test_no_permite_eliminar_estudiante_completo_si_ya_se_emitio_un_recibo(): void

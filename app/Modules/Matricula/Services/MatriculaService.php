@@ -37,6 +37,7 @@ use App\Shared\Support\ImportaFilasDeExcel;
 use App\Shared\ValueObjects\Dni;
 use App\Shared\ValueObjects\Telefono;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -107,21 +108,33 @@ class MatriculaService
                 ));
             }
 
-            return $this->estudiantes->create([
-                'user_id' => $usuario->id,
-                'nombres' => $data->nombres,
-                'apellidos' => $data->apellidos,
-                'dni' => $data->dni->valor(),
-                'fecha_nacimiento' => $data->fechaNacimiento,
-                'es_menor_edad' => self::esMenorDeEdad($data->fechaNacimiento, $data->fechaMatricula),
-                'estado_civil' => $data->estadoCivil,
-                'direccion' => $data->direccion,
-                'celular' => $data->celular?->numero(),
-                'email' => $email,
-                'correo_personal' => $data->correoPersonal,
-                'observaciones' => $data->observaciones,
-                'estado' => EstadoEstudianteEnum::ACTIVO,
-            ]);
+            try {
+                return $this->estudiantes->create([
+                    'user_id' => $usuario->id,
+                    'nombres' => $data->nombres,
+                    'apellidos' => $data->apellidos,
+                    'dni' => $data->dni->valor(),
+                    'fecha_nacimiento' => $data->fechaNacimiento,
+                    'es_menor_edad' => self::esMenorDeEdad($data->fechaNacimiento, $data->fechaMatricula),
+                    'estado_civil' => $data->estadoCivil,
+                    'direccion' => $data->direccion,
+                    'celular' => $data->celular?->numero(),
+                    'email' => $email,
+                    'correo_personal' => $data->correoPersonal,
+                    'observaciones' => $data->observaciones,
+                    'estado' => EstadoEstudianteEnum::ACTIVO,
+                ]);
+            } catch (UniqueConstraintViolationException) {
+                // dniDisponible() ya descarta un DNI activo antes de llegar
+                // acá -- si de todas formas choca contra el índice único es
+                // porque hay una fila con ese DNI fuera del alcance normal
+                // de Eloquent (ej. un resto de un estudiante eliminado que
+                // no llegó a limpiarse del todo). Error de formulario claro
+                // en vez de un 500 crudo.
+                throw ValidationException::withMessages([
+                    'dni' => 'Ya existe un registro con este DNI. Contacta a Dirección para revisarlo antes de volver a intentar.',
+                ]);
+            }
         });
     }
 
@@ -362,8 +375,20 @@ class MatriculaService
                 $estudiante->apoderado->delete();
             }
 
-            $estudiante->matriculas()->withTrashed()->get()->each->delete();
-            $estudiante->delete();
+            // forceDelete(), no delete(): un borrado lógico dejaría la fila
+            // del estudiante viva con su DNI ocupado -- la restricción
+            // unique de la columna no distingue borrados lógicos, así que
+            // una nueva matrícula con ese mismo DNI chocaría más adelante
+            // contra el índice único y reventaría como 500 crudo en vez de
+            // un error de formulario (bug real visto en producción:
+            // "Duplicate entry ... for key estudiantes_dni_unique"). Como
+            // ya no queda nada más que preservar (todo lo demás arriba se
+            // borra físicamente), no hay razón para dejar un resto blando
+            // de Estudiante/Matricula -- de paso, forceDelete() sí dispara
+            // la limpieza automática de su media (foto, ficha, constancia),
+            // que un borrado lógico no dispara.
+            $estudiante->matriculas()->withTrashed()->get()->each->forceDelete();
+            $estudiante->forceDelete();
         });
     }
 
