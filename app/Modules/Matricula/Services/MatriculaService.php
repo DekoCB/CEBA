@@ -108,32 +108,47 @@ class MatriculaService
                 ));
             }
 
+            $atributos = [
+                'user_id' => $usuario->id,
+                'nombres' => $data->nombres,
+                'apellidos' => $data->apellidos,
+                'dni' => $data->dni->valor(),
+                'fecha_nacimiento' => $data->fechaNacimiento,
+                'es_menor_edad' => self::esMenorDeEdad($data->fechaNacimiento, $data->fechaMatricula),
+                'estado_civil' => $data->estadoCivil,
+                'direccion' => $data->direccion,
+                'celular' => $data->celular?->numero(),
+                'email' => $email,
+                'correo_personal' => $data->correoPersonal,
+                'observaciones' => $data->observaciones,
+                'estado' => EstadoEstudianteEnum::ACTIVO,
+            ];
+
             try {
-                return $this->estudiantes->create([
-                    'user_id' => $usuario->id,
-                    'nombres' => $data->nombres,
-                    'apellidos' => $data->apellidos,
-                    'dni' => $data->dni->valor(),
-                    'fecha_nacimiento' => $data->fechaNacimiento,
-                    'es_menor_edad' => self::esMenorDeEdad($data->fechaNacimiento, $data->fechaMatricula),
-                    'estado_civil' => $data->estadoCivil,
-                    'direccion' => $data->direccion,
-                    'celular' => $data->celular?->numero(),
-                    'email' => $email,
-                    'correo_personal' => $data->correoPersonal,
-                    'observaciones' => $data->observaciones,
-                    'estado' => EstadoEstudianteEnum::ACTIVO,
-                ]);
+                return $this->estudiantes->create($atributos);
             } catch (UniqueConstraintViolationException) {
                 // dniDisponible() ya descarta un DNI activo antes de llegar
                 // acá -- si de todas formas choca contra el índice único es
-                // porque hay una fila con ese DNI fuera del alcance normal
-                // de Eloquent (ej. un resto de un estudiante eliminado que
-                // no llegó a limpiarse del todo). Error de formulario claro
-                // en vez de un 500 crudo.
-                throw ValidationException::withMessages([
-                    'dni' => 'Ya existe un registro con este DNI. Contacta a Dirección para revisarlo antes de volver a intentar.',
-                ]);
+                // casi siempre un resto de un estudiante eliminado con
+                // eliminarEstudianteCompleto() antes de que ese método
+                // pasara a hacer forceDelete() (ver commit c0fd758): quedó
+                // con un borrado lógico, y el índice único no distingue
+                // borrados lógicos. Se limpia ese resto y se reintenta una
+                // sola vez -- así el DNI queda disponible de inmediato, sin
+                // que alguien tenga que correr un comando a mano por cada
+                // estudiante viejo eliminado antes del fix.
+                $resto = Estudiante::withTrashed()->where('dni', $data->dni->valor())->first();
+
+                if (! $resto || ! $resto->trashed()) {
+                    throw ValidationException::withMessages([
+                        'dni' => 'Ya existe un registro con este DNI. Contacta a Dirección para revisarlo antes de volver a intentar.',
+                    ]);
+                }
+
+                $resto->matriculas()->withTrashed()->get()->each->forceDelete();
+                $resto->forceDelete();
+
+                return $this->estudiantes->create($atributos);
             }
         });
     }

@@ -444,14 +444,36 @@ class MatriculaServiceTest extends TestCase
      * fix), registrar ya no debe reventar con un 500 crudo -- debe quedar
      * como un error de formulario claro.
      */
-    public function test_registrar_estudiante_con_un_dni_en_conflicto_fuera_del_alcance_normal_lanza_error_de_formulario(): void
+    /**
+     * Bug real visto en producción: estudiantes eliminados ANTES del fix de
+     * c0fd758 (cuando eliminarEstudianteCompleto() todavía hacía un borrado
+     * lógico) quedaron con un resto de fila ocupando su DNI. Registrar a
+     * alguien nuevo con ese DNI debe limpiar ese resto solo, sin que haga
+     * falta correr un comando a mano por cada estudiante viejo.
+     */
+    public function test_registrar_estudiante_limpia_solo_un_resto_de_un_estudiante_eliminado_con_borrado_logico(): void
     {
         $datos = $this->datosEstudianteMayor();
-        $estudiante = $this->service()->registrarEstudiante($datos);
-        $estudiante->delete(); // borrado lógico a propósito, para simular el resto
+        $viejo = $this->service()->registrarEstudiante($datos);
+        $viejoId = $viejo->id;
+        $viejo->delete(); // borrado lógico a propósito, para simular el resto de antes del fix
+
+        $nuevo = $this->service()->registrarEstudiante($datos);
+
+        $this->assertSame($datos->dni->valor(), $nuevo->dni);
+        $this->assertNotSame($viejoId, $nuevo->id);
+        $this->assertDatabaseMissing('estudiantes', ['id' => $viejoId]);
+    }
+
+    public function test_registrar_estudiante_con_un_dni_de_otro_estudiante_activo_lanza_error_de_formulario(): void
+    {
+        $datos = $this->datosEstudianteMayor();
+        $this->service()->registrarEstudiante($datos);
 
         $this->expectException(ValidationException::class);
 
+        // Mismo DNI, sin pasar por dniDisponible() primero (como lo haría
+        // el asistente) -- simula un choque real contra un registro activo.
         $this->service()->registrarEstudiante($datos);
     }
 
