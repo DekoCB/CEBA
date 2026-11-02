@@ -3,6 +3,7 @@
 use App\Modules\Docentes\Models\Docente;
 use App\Modules\Docentes\Services\DocenteService;
 use App\Shared\Rules\CelularValido;
+use App\Shared\Rules\DniValido;
 use App\Shared\ValueObjects\Dni;
 use App\Shared\ValueObjects\Telefono;
 use Illuminate\Support\Facades\Gate;
@@ -100,7 +101,7 @@ new #[Layout('layouts.app')] class extends Component
         $this->validate([
             'nombres' => 'required|string|max:150',
             'apellidos' => 'required|string|max:150',
-            'dni' => 'required|string|min:8|max:12',
+            'dni' => ['required', 'string', 'min:8', 'max:12', new DniValido],
             'celular' => ['nullable', 'string', new CelularValido],
             'especialidad' => 'nullable|string|max:150',
             'gradoAcademico' => 'nullable|string|max:150',

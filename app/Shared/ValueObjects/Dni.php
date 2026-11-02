@@ -17,7 +17,12 @@ final readonly class Dni implements Stringable
 
     public function __construct(string $valor)
     {
-        $normalizado = strtoupper(trim($valor));
+        // preg_replace quita cualquier espacio, no solo los de los
+        // extremos -- un carné de extranjería tecleado como "CE 008012078"
+        // (como suele verse impreso en el documento) es igual de válido
+        // que "CE008012078", y antes de esto tumbaba el registro con un
+        // 500 crudo en vez de guardarse.
+        $normalizado = strtoupper(preg_replace('/\s+/', '', trim($valor)));
 
         if ($normalizado === '') {
             throw new InvalidArgumentException('El documento de identidad no puede estar vacío.');

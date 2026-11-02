@@ -8,6 +8,7 @@ use App\Modules\Identidad\Services\UserManagementService;
 use App\Shared\Enums\EstadoUsuarioEnum;
 use App\Shared\Enums\RolEnum;
 use App\Shared\Rules\CelularValido;
+use App\Shared\Rules\DniValido;
 use App\Shared\ValueObjects\Dni;
 use App\Shared\ValueObjects\Telefono;
 use Illuminate\Support\Facades\Gate;
@@ -59,7 +60,7 @@ new class extends Component
         $this->validate([
             'name' => 'required|string|max:150',
             'email' => 'required|email|max:150',
-            'dni' => 'required|string|min:8|max:12',
+            'dni' => ['required', 'string', 'min:8', 'max:12', new DniValido],
             'phone' => ['nullable', 'string', new CelularValido],
             'estado' => 'required|string|in:activo,inactivo,suspendido',
         ]);

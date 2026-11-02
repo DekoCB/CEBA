@@ -464,6 +464,97 @@ class MatriculaPermisosTest extends TestCase
         $this->assertDatabaseMissing('estudiantes', ['dni' => '55667723']);
     }
 
+    /**
+     * Pedido del cliente ("casi diario"): un carné de extranjería tecleado
+     * con un espacio, tal como aparece impreso en el documento (ej. "CE
+     * 008012078"), tumbaba la matrícula entera con un 500 en vez de
+     * guardarse -- la validación del paso 1 solo exigía longitud
+     * (min:8|max:12), que un valor con espacio sigue cumpliendo, así que
+     * nunca se detectaba antes de llegar a construir Dni dentro de la
+     * transacción de confirmar().
+     */
+    public function test_un_carne_de_extranjeria_con_espacio_se_registra_sin_problema(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Carlos')
+            ->set('apellidos', 'Gutierrez Mamani')
+            ->set('dni', 'CE 008012078')
+            ->set('fechaNacimiento', now()->subYears(25)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertHasNoErrors()
+            ->assertSet('paso', 3)
+            ->call('avanzar')
+            ->assertSet('paso', 4)
+            ->call('avanzar')
+            ->assertSet('paso', 5)
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $this->assertDatabaseHas('estudiantes', ['dni' => 'CE008012078']);
+    }
+
+    public function test_un_dni_mal_escrito_no_tumba_la_pagina_y_queda_como_error_de_formulario(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Patricia')
+            ->set('apellidos', 'Salcedo Nina')
+            ->set('dni', '4567-8912')
+            ->set('fechaNacimiento', now()->subYears(30)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertHasErrors(['dni'])
+            ->assertSet('paso', 1);
+
+        $this->assertDatabaseMissing('estudiantes', ['dni' => '4567-8912']);
+    }
+
+    public function test_un_dni_de_apoderado_mal_escrito_no_tumba_la_pagina_y_queda_como_error_de_formulario(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Diego')
+            ->set('apellidos', 'Torres Huaman')
+            ->set('dni', '55667799')
+            ->set('fechaNacimiento', now()->subYears(10)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertSet('paso', 2)
+            ->set('apoderadoNombres', 'Jose Torres')
+            ->set('apoderadoDni', '4567-8912')
+            ->set('apoderadoCelular', '987654321')
+            ->set('apoderadoParentesco', 'Padre')
+            ->call('avanzar')
+            ->assertHasErrors(['apoderadoDni'])
+            ->assertSet('paso', 2);
+    }
+
     public function test_un_celular_adicional_mal_escrito_no_tumba_la_pagina_y_queda_como_error_de_formulario(): void
     {
         $usuario = User::factory()->create();

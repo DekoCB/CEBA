@@ -3,6 +3,7 @@
 use App\Modules\Personal\Models\Personal;
 use App\Modules\Personal\Services\PersonalService;
 use App\Shared\Rules\CelularValido;
+use App\Shared\Rules\DniValido;
 use App\Shared\ValueObjects\Dni;
 use App\Shared\ValueObjects\Telefono;
 use Illuminate\Support\Facades\Gate;
@@ -83,7 +84,7 @@ new #[Layout('layouts.app')] class extends Component
         $this->validate([
             'nombres' => 'required|string|max:150',
             'apellidos' => 'required|string|max:150',
-            'dni' => 'required|string|min:8|max:12',
+            'dni' => ['required', 'string', 'min:8', 'max:12', new DniValido],
             'celular' => ['nullable', 'string', new CelularValido],
             'cargo' => 'required|string|max:150',
             'area' => 'nullable|string|max:150',

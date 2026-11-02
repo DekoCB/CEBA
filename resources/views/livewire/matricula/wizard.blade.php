@@ -20,6 +20,7 @@ use App\Modules\Pagos\Enums\NumeroCuotasEnum;
 use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Services\PlanPagoService;
 use App\Shared\Rules\CelularValido;
+use App\Shared\Rules\DniValido;
 use App\Shared\ValueObjects\Dni;
 use App\Shared\ValueObjects\Telefono;
 use Illuminate\Support\Facades\DB;
@@ -267,7 +268,7 @@ new class extends Component
             $this->validate([
                 'nombres' => 'required|string|max:100',
                 'apellidos' => 'required|string|max:100',
-                'dni' => 'required|string|min:8|max:12',
+                'dni' => ['required', 'string', 'min:8', 'max:12', new DniValido],
                 'fechaNacimiento' => 'required|date|before:today',
                 'fechaMatricula' => 'required|date',
                 'estadoCivil' => 'nullable|string|in:'.implode(',', array_column(EstadoCivilEnum::cases(), 'value')),
@@ -292,7 +293,7 @@ new class extends Component
         if ($this->paso === 2) {
             $this->validate([
                 'apoderadoNombres' => 'required|string|max:150',
-                'apoderadoDni' => 'required|string|min:8|max:12',
+                'apoderadoDni' => ['required', 'string', 'min:8', 'max:12', new DniValido],
                 'apoderadoCelular' => ['required', 'string', new CelularValido],
                 'apoderadoCelularesAdicionales.*.numero' => ['nullable', 'string', new CelularValido],
                 'apoderadoCelularesAdicionales.*.parentesco' => 'nullable|string|max:50',
