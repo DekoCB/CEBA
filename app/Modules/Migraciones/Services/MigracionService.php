@@ -89,7 +89,12 @@ class MigracionService
                 $exitosos++;
             } catch (Throwable $e) {
                 $errores[] = [
-                    'estudiante' => $origen->estudiante->nombreCompleto(),
+                    // Se usa ?-> con un respaldo por id: este bloque reporta
+                    // el error de migrar(), así que no debe poder lanzar uno
+                    // nuevo él mismo -- si el estudiante de origen ya no
+                    // existe (ej. matrícula huérfana), perder el error
+                    // original sería peor que mostrar solo el id.
+                    'estudiante' => $origen->estudiante?->nombreCompleto() ?? "Estudiante #{$origen->estudiante_id}",
                     'mensaje' => $e instanceof ValidationException ? $e->validator->errors()->first() : $e->getMessage(),
                 ];
             }

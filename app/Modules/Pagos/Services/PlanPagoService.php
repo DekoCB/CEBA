@@ -155,7 +155,16 @@ class PlanPagoService
 
         $cuota->update(['fecha_compromiso' => $fecha, 'monto_compromiso' => $monto]);
 
-        $this->bloqueos->evaluarYDesbloquear($cuota->planPago->matricula->estudiante);
+        // ?-> en matricula: hoy eliminar(Matricula) siempre borra sus
+        // Cuotas junto con la matrícula en la misma transacción, así que no
+        // debería quedar una Cuota huérfana apuntando a una matrícula
+        // eliminada -- pero si ese invariante alguna vez se rompe (ya pasó
+        // una vez con el estudiante, ver commit c0fd758), que el compromiso
+        // quede igual registrado en vez de reventar con un 500.
+        $estudiante = $cuota->planPago->matricula?->estudiante;
+        if ($estudiante !== null) {
+            $this->bloqueos->evaluarYDesbloquear($estudiante);
+        }
 
         return $cuota;
     }

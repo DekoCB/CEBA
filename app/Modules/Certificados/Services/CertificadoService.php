@@ -173,7 +173,7 @@ class CertificadoService
             'libreta_id' => $libreta->id,
         ]);
 
-        if ($solicitud->estudiante->user) {
+        if ($solicitud->estudiante?->user) {
             $this->notificaciones->notificar(
                 $solicitud->estudiante->user,
                 TipoNotificacionEnum::CERTIFICADO_LISTO,
@@ -236,7 +236,10 @@ class CertificadoService
 
     public function duplicar(Certificado $original, ?string $observaciones, User $emisor): Certificado
     {
-        $base = $original->es_duplicado ? $original->original : $original;
+        // El original de un duplicado ya borrado (certificado_original_id
+        // nullOnDelete) dejaría es_duplicado=true con original=null -- ante
+        // ese caso, duplicar el propio registro en vez de reventar.
+        $base = ($original->es_duplicado ? $original->original : null) ?? $original;
 
         return DB::transaction(function () use ($base, $observaciones, $emisor) {
             $duplicado = $this->crearConNumeroUnico([
