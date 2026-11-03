@@ -199,18 +199,49 @@ class MatriculaService
             ? $ciclo->fecha_fin
             : $fechaMatricula->clone()->addMonths($estudiante->es_menor_edad ? 8 : 6);
 
-        return DB::transaction(function () use ($estudiante, $ciclo, $grado, $data, $fechaMatricula, $fechaFinEstudio) {
-            $matricula = $this->matriculas->create([
-                'estudiante_id' => $estudiante->id,
-                'ciclo_id' => $ciclo->id,
-                'grado_id' => $grado->id,
-                'siagie_id' => $data->siagieId,
-                'fecha_matricula' => $fechaMatricula,
-                'fecha_fin_estudio' => $fechaFinEstudio,
-                'estado' => EstadoMatriculaEnum::APROBADA,
-                'observaciones' => $data->observaciones,
-                'registrado_por' => $data->registradoPor,
-            ]);
+        $atributos = [
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $ciclo->id,
+            'grado_id' => $grado->id,
+            'siagie_id' => $data->siagieId,
+            'fecha_matricula' => $fechaMatricula,
+            'fecha_fin_estudio' => $fechaFinEstudio,
+            'estado' => EstadoMatriculaEnum::APROBADA,
+            'observaciones' => $data->observaciones,
+            'registrado_por' => $data->registradoPor,
+        ];
+
+        return DB::transaction(function () use ($estudiante, $grado, $atributos) {
+            try {
+                $matricula = $this->matriculas->create($atributos);
+            } catch (UniqueConstraintViolationException) {
+                // existeParaEstudianteYCiclo() ya descarta una matrícula
+                // activa antes de llegar acá -- si de todas formas choca
+                // contra el índice único (estudiante_id, ciclo_id) es un
+                // resto en borrado lógico de una matrícula eliminada antes
+                // (ver eliminar(Matricula) más abajo, y el mismo caso ya
+                // resuelto para el DNI en commit 0d06f1d). Se limpia junto
+                // con su plan de pago y se reintenta una sola vez.
+                $resto = Matricula::withTrashed()
+                    ->where('estudiante_id', $atributos['estudiante_id'])
+                    ->where('ciclo_id', $atributos['ciclo_id'])
+                    ->first();
+
+                if ($resto === null || ! $resto->trashed()) {
+                    throw ValidationException::withMessages([
+                        'ciclo' => 'Este estudiante ya tiene una matrícula registrada para este ciclo.',
+                    ]);
+                }
+
+                $plan = PlanPago::query()->where('matricula_id', $resto->id)->first();
+                if ($plan !== null) {
+                    Cuota::query()->where('plan_pago_id', $plan->id)->delete();
+                    $plan->delete();
+                }
+                $resto->forceDelete();
+
+                $matricula = $this->matriculas->create($atributos);
+            }
 
             $estudiante->update(['grado_actual_id' => $grado->id]);
 
@@ -323,7 +354,15 @@ class MatriculaService
                 $plan->delete();
             }
 
-            $matricula->delete();
+            // forceDelete(), no delete(): un borrado lógico dejaría la fila
+            // ocupando el índice único (estudiante_id, ciclo_id) -- una
+            // rematrícula del mismo estudiante en el mismo ciclo chocaría
+            // más adelante y reventaría con un 500 (bug real visto en
+            // producción, mismo patrón que el DNI en el commit c0fd758).
+            // Los demás registros que cuelgan de matricula_id (horarios,
+            // certificados, vacaciones) ya se limpian solos vía FK al
+            // hacer un borrado físico de verdad.
+            $matricula->forceDelete();
         });
     }
 

@@ -45,7 +45,7 @@ class MatriculaEliminarTest extends TestCase
             ->call('eliminarMatricula', $matricula->id)
             ->assertHasNoErrors();
 
-        $this->assertSoftDeleted('matriculas', ['id' => $matricula->id]);
+        $this->assertDatabaseMissing('matriculas', ['id' => $matricula->id]);
     }
 
     public function test_elimina_una_matricula_con_plan_de_pago_pero_sin_pagos_y_borra_el_plan_y_sus_cuotas(): void
@@ -64,7 +64,7 @@ class MatriculaEliminarTest extends TestCase
             ->call('eliminarMatricula', $matricula->id)
             ->assertHasNoErrors();
 
-        $this->assertSoftDeleted('matriculas', ['id' => $matricula->id]);
+        $this->assertDatabaseMissing('matriculas', ['id' => $matricula->id]);
         $this->assertDatabaseMissing('planes_pago', ['id' => $plan->id]);
         $this->assertDatabaseMissing('cuotas', ['id' => $cuota->id]);
     }
@@ -121,7 +121,7 @@ class MatriculaEliminarTest extends TestCase
             ->call('abrir', $estudiante->id)
             ->call('eliminarMatricula', $matricula->id);
 
-        $this->assertSoftDeleted('matriculas', ['id' => $matricula->id]);
+        $this->assertDatabaseMissing('matriculas', ['id' => $matricula->id]);
     }
 
     public function test_eliminar_una_matricula_con_pagos_desde_la_ui_muestra_un_error_claro(): void

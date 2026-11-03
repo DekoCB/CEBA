@@ -496,4 +496,53 @@ class MatriculaServiceTest extends TestCase
 
         $this->assertFalse($this->service()->esEliminableCompleto($estudiante));
     }
+
+    /**
+     * Bug real visto en producción: eliminar(Matricula) hacía un borrado
+     * lógico, así que la fila seguía ocupando el índice único
+     * (estudiante_id, ciclo_id) -- rematricular al mismo estudiante en el
+     * mismo ciclo reventaba con un 500 crudo (Duplicate entry ... for key
+     * matriculas_estudiante_id_ciclo_id_unique) en vez de guardarse.
+     */
+    public function test_eliminar_matricula_libera_el_ciclo_para_una_rematricula_del_mismo_estudiante(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $ciclo = $this->cicloConPeriodoAbierto();
+        $grado = Grado::factory()->create();
+
+        $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
+        $matriculaId = $matricula->id;
+
+        $this->service()->eliminar($matricula);
+
+        $this->assertDatabaseMissing('matriculas', ['id' => $matriculaId]);
+
+        $nueva = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
+
+        $this->assertSame($ciclo->id, $nueva->ciclo_id);
+        $this->assertNotSame($matriculaId, $nueva->id);
+    }
+
+    /**
+     * Defensa adicional, igual que con el DNI (ver
+     * test_registrar_estudiante_limpia_solo_un_resto_de_un_estudiante_eliminado_con_borrado_logico):
+     * si queda un resto en borrado lógico de antes de este fix, matricular()
+     * se autorepara en vez de reventar.
+     */
+    public function test_matricular_limpia_solo_un_resto_de_una_matricula_eliminada_con_borrado_logico(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $ciclo = $this->cicloConPeriodoAbierto();
+        $grado = Grado::factory()->create();
+
+        $vieja = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
+        $viejaId = $vieja->id;
+        $vieja->delete(); // borrado lógico a propósito, para simular el resto de antes del fix
+
+        $nueva = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
+
+        $this->assertSame($ciclo->id, $nueva->ciclo_id);
+        $this->assertNotSame($viejaId, $nueva->id);
+        $this->assertDatabaseMissing('matriculas', ['id' => $viejaId]);
+    }
 }
