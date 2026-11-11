@@ -51,6 +51,7 @@ class PagoService
         ?int $registradoPor,
         ?string $observacion = null,
         ?string $fechaPago = null,
+        ?string $numeroOperacion = null,
     ): Pago {
         if ($partes === []) {
             throw new InvalidArgumentException('Un pago necesita al menos una parte (monto y método).');
@@ -105,13 +106,14 @@ class PagoService
         $fecha = $fechaPago !== null ? Carbon::parse($fechaPago) : now();
         $unico = count($destinos) === 1 ? $destinos[0] : null;
 
-        return DB::transaction(function () use ($estudiante, $destinos, $partes, $observacion, $montoPartes, $metodo, $registradoPor, $comprobante, $fecha, $unico) {
+        return DB::transaction(function () use ($estudiante, $destinos, $partes, $observacion, $numeroOperacion, $montoPartes, $metodo, $registradoPor, $comprobante, $fecha, $unico) {
             /** @var Pago $pago */
             $pago = Pago::query()->create([
                 'estudiante_id' => $estudiante->id,
                 'concepto_id' => $unico['concepto_id'] ?? $destinos[0]['concepto_id'],
                 'detalle' => $unico['detalle'] ?? null,
                 'observacion' => $observacion,
+                'numero_operacion' => $numeroOperacion,
                 'cuota_id' => $unico['cuota_id'] ?? null,
                 'cargo_adicional_id' => $unico['cargo_adicional_id'] ?? null,
                 'monto' => $montoPartes,
@@ -323,13 +325,22 @@ class PagoService
     }
 
     /**
+     * Ordenado por cuándo se emitió el recibo (Recibo::emitido_en), no por
+     * fecha_pago -- esta última puede quedar editada a mano (un registro
+     * atrasado), así que un pago recién aprobado podía no subir al tope del
+     * Historial aunque su recibo se acabe de emitir. Los pagos sin recibo
+     * (pendientes, rechazados, o anulados antes de llegar a emitirlo) caen
+     * a pagos.created_at como respaldo.
+     *
      * @return Collection<int, Pago>
      */
     public function todos(): Collection
     {
         return Pago::query()
             ->with(['estudiante', 'concepto', 'cuota', 'cargoAdicional', 'recibo', 'partes'])
-            ->latest('fecha_pago')
+            ->leftJoin('recibos', 'recibos.pago_id', '=', 'pagos.id')
+            ->select('pagos.*')
+            ->orderByRaw('COALESCE(recibos.emitido_en, pagos.created_at) DESC')
             ->get();
     }
 

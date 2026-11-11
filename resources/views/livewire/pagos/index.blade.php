@@ -68,6 +68,8 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $observacion = '';
 
+    public string $numeroOperacion = '';
+
     // Fecha en la que se recibió el pago (editable) -- distinta de la
     // fecha de emisión del recibo, que siempre es el momento en que
     // Tesorería aprueba y no se toca. Por defecto hoy, para el caso común.
@@ -106,6 +108,15 @@ new #[Layout('layouts.app')] class extends Component
 
     /** @var array<int, string> */
     public array $montoTotalPorMatricula = [];
+
+    // Cronograma editable por cuota -- igual que en el wizard de matrícula
+    // (ver generarCronogramaAutomatico() ahí), pero indexado también por
+    // matricula_id: [$matriculaId][$numeroDeCuota] => valor.
+    /** @var array<int, array<int, string>> */
+    public array $cuotaMontosPorMatricula = [];
+
+    /** @var array<int, array<int, string>> */
+    public array $cuotaFechasPorMatricula = [];
 
     // Filtro de historial
     public string $filtroEstado = '';
@@ -284,6 +295,7 @@ new #[Layout('layouts.app')] class extends Component
             'partes.*.nota' => 'nullable|string|max:40',
             'comprobante' => 'nullable|file|max:5120',
             'fechaPago' => 'required|date|before_or_equal:today',
+            'numeroOperacion' => 'nullable|string|max:40',
         ];
 
         if ($this->cuotasSeleccionadas !== []) {
@@ -368,11 +380,45 @@ new #[Layout('layouts.app')] class extends Component
             'nota' => $parte['nota'] !== '' ? $parte['nota'] : null,
         ])->all();
 
-        $service->registrar($estudiante, $destinos, $partes, $this->comprobante, Auth::id(), $this->observacion ?: null, $this->fechaPago);
+        $service->registrar($estudiante, $destinos, $partes, $this->comprobante, Auth::id(), $this->observacion ?: null, $this->fechaPago, $this->numeroOperacion ?: null);
 
-        $this->reset(['estudianteSeleccionadoId', 'estudianteSeleccionadoNombre', 'cuotasSeleccionadas', 'cargosSeleccionados', 'montoPorCuotaSeleccionada', 'montoPorCargoSeleccionado', 'conceptoSueltoId', 'montoConceptoSuelto', 'detalleConceptoSuelto', 'observacion', 'partes', 'comprobante']);
+        $this->reset(['estudianteSeleccionadoId', 'estudianteSeleccionadoNombre', 'cuotasSeleccionadas', 'cargosSeleccionados', 'montoPorCuotaSeleccionada', 'montoPorCargoSeleccionado', 'conceptoSueltoId', 'montoConceptoSuelto', 'detalleConceptoSuelto', 'observacion', 'numeroOperacion', 'partes', 'comprobante']);
         $this->fechaPago = now()->format('Y-m-d');
         session()->flash('status', 'Pago registrado. Queda pendiente de aprobación de Tesorería.');
+    }
+
+    /**
+     * Calcula el reparto inicial (partes iguales + vencimientos mensuales
+     * desde la fecha de matrícula) y lo deja editable en una tabla por
+     * cuota -- mismo patrón que el wizard de matrícula (ver
+     * generarCronogramaAutomatico() ahí).
+     */
+    public function generarCronograma(int $matriculaId): void
+    {
+        abort_unless(Auth::user()->hasAnyPermission(['pagos.gestionar']), 403);
+
+        $this->validate([
+            "numeroCuotasPorMatricula.{$matriculaId}" => ['required', 'integer', Rule::in(array_column(NumeroCuotasEnum::cases(), 'value'))],
+            "montoTotalPorMatricula.{$matriculaId}" => 'required|numeric|min:1',
+        ]);
+
+        $matricula = Matricula::query()->findOrFail($matriculaId);
+        $numero = (int) $this->numeroCuotasPorMatricula[$matriculaId];
+        $total = (float) $this->montoTotalPorMatricula[$matriculaId];
+        $montoPorCuota = round($total / $numero, 2);
+        $montoAcumulado = 0.0;
+
+        $this->cuotaMontosPorMatricula[$matriculaId] = [];
+        $this->cuotaFechasPorMatricula[$matriculaId] = [];
+
+        for ($i = 1; $i <= $numero; $i++) {
+            $esUltima = $i === $numero;
+            $monto = $esUltima ? round($total - $montoAcumulado, 2) : $montoPorCuota;
+            $montoAcumulado += $monto;
+
+            $this->cuotaMontosPorMatricula[$matriculaId][$i] = number_format($monto, 2, '.', '');
+            $this->cuotaFechasPorMatricula[$matriculaId][$i] = $matricula->fecha_matricula->copy()->addMonths($i)->format('Y-m-d');
+        }
     }
 
     public function crearPlan(int $matriculaId, PlanPagoService $service): void
@@ -384,15 +430,38 @@ new #[Layout('layouts.app')] class extends Component
             "montoTotalPorMatricula.{$matriculaId}" => 'required|numeric|min:1',
         ]);
 
+        $cuotasPersonalizadas = null;
+
+        if (! empty($this->cuotaFechasPorMatricula[$matriculaId] ?? [])) {
+            $this->validate([
+                "cuotaMontosPorMatricula.{$matriculaId}.*" => 'required|numeric|min:0.01',
+                "cuotaFechasPorMatricula.{$matriculaId}.*" => 'required|date',
+            ]);
+
+            $cuotasPersonalizadas = collect($this->cuotaMontosPorMatricula[$matriculaId])
+                ->map(fn ($monto, $numero) => [
+                    'monto' => (float) $monto,
+                    'fecha_vencimiento' => $this->cuotaFechasPorMatricula[$matriculaId][$numero],
+                ])
+                ->values()
+                ->all();
+        }
+
         $matricula = Matricula::query()->findOrFail($matriculaId);
 
         $service->crear(
             $matricula,
             NumeroCuotasEnum::from((int) $this->numeroCuotasPorMatricula[$matriculaId]),
             (float) $this->montoTotalPorMatricula[$matriculaId],
+            $cuotasPersonalizadas,
         );
 
-        unset($this->numeroCuotasPorMatricula[$matriculaId], $this->montoTotalPorMatricula[$matriculaId]);
+        unset(
+            $this->numeroCuotasPorMatricula[$matriculaId],
+            $this->montoTotalPorMatricula[$matriculaId],
+            $this->cuotaMontosPorMatricula[$matriculaId],
+            $this->cuotaFechasPorMatricula[$matriculaId],
+        );
         session()->flash('status', 'Plan de pago creado.');
     }
 
@@ -806,6 +875,12 @@ new #[Layout('layouts.app')] class extends Component
             </div>
 
             <div>
+                <x-input-label for="numeroOperacion" value="N.° de operación (opcional)" />
+                <x-text-input wire:model="numeroOperacion" id="numeroOperacion" class="mt-1 block w-full" placeholder="Ej. transferencia o Yape…" />
+                <x-input-error :messages="$errors->get('numeroOperacion')" class="mt-1" />
+            </div>
+
+            <div>
                 <div class="flex items-center justify-between">
                     <x-input-label value="Monto y método" />
                     {{--
@@ -882,34 +957,68 @@ new #[Layout('layouts.app')] class extends Component
             <p class="text-sm text-ink-dim">Matrículas aprobadas sin un plan de pago asignado este ciclo.</p>
             <div class="divide-y divide-border rounded-2xl border border-border bg-surface shadow-sm">
                 @forelse ($matriculasSinPlan as $matricula)
-                    <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
-                        <div>
-                            <p class="text-ink">{{ $matricula->estudiante?->nombreCompleto() ?? '—' }}</p>
-                            <p class="text-xs text-ink-faint">{{ $matricula->grado->nombre }} · {{ $matricula->ciclo->nombre }}</p>
+                    <div class="px-4 py-3 text-sm">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <p class="text-ink">{{ $matricula->estudiante?->nombreCompleto() ?? '—' }}</p>
+                                <p class="text-xs text-ink-faint">{{ $matricula->grado->nombre }} · {{ $matricula->ciclo->nombre }}</p>
+                            </div>
+                            <div class="flex items-start gap-2">
+                                <div>
+                                    <x-select-input
+                                        wire:model="numeroCuotasPorMatricula.{{ $matricula->id }}"
+                                        class="text-xs"
+                                        :options="collect($numerosCuotas)->mapWithKeys(fn ($opcion) => [$opcion->value => $opcion->label()])"
+                                    />
+                                </div>
+                                <div>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="1"
+                                        placeholder="Monto total"
+                                        wire:model="montoTotalPorMatricula.{{ $matricula->id }}"
+                                        class="w-28 rounded-md border-border bg-surface text-xs text-ink placeholder:text-ink-faint focus:border-accent focus:ring-accent"
+                                    >
+                                    <x-input-error :messages="$errors->get('montoTotalPorMatricula.'.$matricula->id)" class="mt-1" />
+                                </div>
+                                <x-secondary-button type="button" wire:click="generarCronograma({{ $matricula->id }})" class="text-xs">
+                                    Generar cronograma
+                                </x-secondary-button>
+                                <button type="button" wire:click="crearPlan({{ $matricula->id }})" class="text-xs font-medium text-accent hover:underline">
+                                    Crear plan
+                                </button>
+                            </div>
                         </div>
-                        <form wire:submit="crearPlan({{ $matricula->id }})" class="flex items-start gap-2">
-                            <div>
-                                <x-select-input
-                                    wire:model="numeroCuotasPorMatricula.{{ $matricula->id }}"
-                                    class="text-xs"
-                                    :options="collect($numerosCuotas)->mapWithKeys(fn ($opcion) => [$opcion->value => $opcion->label()])"
-                                />
+
+                        @if (! empty($cuotaMontosPorMatricula[$matricula->id] ?? []))
+                            <div class="mt-3 overflow-hidden rounded-lg border border-border">
+                                <table class="min-w-full divide-y divide-border text-xs">
+                                    <thead class="bg-surface-2">
+                                        <tr>
+                                            <th class="px-3 py-1.5 text-left font-mono uppercase tracking-wide text-ink-faint">Cuota</th>
+                                            <th class="px-3 py-1.5 text-left font-mono uppercase tracking-wide text-ink-faint">Monto (S/)</th>
+                                            <th class="px-3 py-1.5 text-left font-mono uppercase tracking-wide text-ink-faint">Vencimiento</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-border">
+                                        @foreach ($cuotaMontosPorMatricula[$matricula->id] as $numero => $monto)
+                                            <tr wire:key="plan-{{ $matricula->id }}-cuota-{{ $numero }}">
+                                                <td class="px-3 py-1.5 text-ink-dim">{{ $numero }}</td>
+                                                <td class="px-3 py-1.5">
+                                                    <input type="number" step="0.01" min="0" wire:model="cuotaMontosPorMatricula.{{ $matricula->id }}.{{ $numero }}" class="w-24 rounded-md border-border bg-surface text-xs text-ink focus:border-accent focus:ring-accent">
+                                                </td>
+                                                <td class="px-3 py-1.5">
+                                                    <x-date-input wire:model="cuotaFechasPorMatricula.{{ $matricula->id }}.{{ $numero }}" class="w-36 text-xs" />
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
                             </div>
-                            <div>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    min="1"
-                                    placeholder="Monto total"
-                                    wire:model="montoTotalPorMatricula.{{ $matricula->id }}"
-                                    class="w-28 rounded-md border-border bg-surface text-xs text-ink placeholder:text-ink-faint focus:border-accent focus:ring-accent"
-                                >
-                                <x-input-error :messages="$errors->get('montoTotalPorMatricula.'.$matricula->id)" class="mt-1" />
-                            </div>
-                            <button type="submit" class="text-xs font-medium text-accent hover:underline">
-                                Crear plan
-                            </button>
-                        </form>
+                            <x-input-error :messages="$errors->get('cuotaMontosPorMatricula.'.$matricula->id.'.*')" class="mt-1" />
+                            <x-input-error :messages="$errors->get('cuotaFechasPorMatricula.'.$matricula->id.'.*')" class="mt-1" />
+                        @endif
                     </div>
                 @empty
                     <p class="px-4 py-8 text-center text-sm text-ink-faint">Todas las matrículas aprobadas ya tienen un plan de pago.</p>

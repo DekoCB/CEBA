@@ -226,7 +226,7 @@ new class extends Component
      * ubicación): no hace falta volver a pedir nada de eso, solo el
      * ciclo/grado de la nueva matrícula.
      */
-    public function continuarComoRematricula(): void
+    public function continuarComoRematricula(CicloService $ciclos): void
     {
         if (! $this->estudianteEncontradoId) {
             return;
@@ -243,19 +243,35 @@ new class extends Component
 
         $this->modalidadCiclo = $ultimaMatricula?->ciclo?->modalidad->value ?? 'seis_meses';
 
+        // Asignar $this->modalidadCiclo acá arriba no dispara
+        // updatedModalidadCiclo() -- ese hook solo corre cuando el cambio
+        // viene de un wire:model (input del usuario), no de una asignación
+        // directa en PHP. Sin este llamado explícito, cicloId quedaría
+        // vacío para una rematrícula a un ciclo anual, y matricular()
+        // reventaría más adelante con Ciclo::findOrFail(0) sin manejar.
+        $this->asignarCicloAnualPorDefecto($ciclos);
+
         $this->paso = 5;
     }
 
     /**
      * Al cambiar de modalidad se limpia el ciclo elegido; para SIAGIE anual
-     * no hay selector -- se autoasigna el ciclo anual vigente, si existe
-     * (ver CicloService::cicloAnualVigente() y with()). A diferencia de
-     * los Grupos de 6 meses, no depende de un periodo de matrícula abierto.
+     * se preselecciona el ciclo anual vigente como punto de partida, pero
+     * queda editable (puede haber más de un ciclo anual a la vez, ej. 2026
+     * y 2027 coexistiendo mientras se habilita el siguiente año -- ver
+     * CicloService::ciclosAnuales() y el selector "Año" en el paso 5). A
+     * diferencia de los Grupos de 6 meses, no depende de un periodo de
+     * matrícula abierto.
      */
     public function updatedModalidadCiclo(CicloService $ciclos): void
     {
         $this->cicloId = '';
 
+        $this->asignarCicloAnualPorDefecto($ciclos);
+    }
+
+    private function asignarCicloAnualPorDefecto(CicloService $ciclos): void
+    {
         if ($this->modalidadCiclo === ModalidadCicloEnum::ANUAL->value) {
             $cicloAnual = $ciclos->cicloAnualVigente();
             $this->cicloId = $cicloAnual !== null ? (string) $cicloAnual->id : '';
@@ -462,6 +478,8 @@ new class extends Component
         // cronograma opcional), reutilizando matricular() tal cual la usa
         // matricularDesdeFilas() para la carga masiva.
         if ($this->esRematricula) {
+            $this->validate(['fechaMatricula' => 'required|date']);
+
             $estudiante = DB::transaction(function () use ($matriculaService, $planPagoService) {
                 $estudiante = Estudiante::query()->findOrFail($this->estudianteEncontradoId);
 
@@ -667,7 +685,7 @@ new class extends Component
             'modalidadesCiclo' => ModalidadCicloEnum::cases(),
             'siagiesDisponibles' => Siagie::query()->orderByDesc('anio')->orderBy('tipo')->get(),
             'ciclosDisponibles' => $ciclosConMatriculaAbierta,
-            'cicloAnualVigente' => $ciclos->cicloAnualVigente(),
+            'ciclosAnuales' => $ciclos->ciclosAnuales(),
             'numerosCuotas' => NumeroCuotasEnum::cases(),
         ];
     }
@@ -1021,9 +1039,14 @@ new class extends Component
                 </div>
                 @if ($modalidadCiclo === 'anual')
                     <div>
-                        <x-input-label value="Año" />
-                        @if ($cicloAnualVigente)
-                            <p class="mt-1 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-ink">{{ $cicloAnualVigente->anio }}</p>
+                        <x-input-label for="cicloId" value="Año" />
+                        @if ($ciclosAnuales->isNotEmpty())
+                            <x-select-input
+                                wire:model.live="cicloId"
+                                id="cicloId"
+                                class="mt-1 block w-full"
+                                :options="$ciclosAnuales->mapWithKeys(fn ($ciclo) => [$ciclo->id => (string) $ciclo->anio])"
+                            />
                         @else
                             <p class="mt-1 text-xs text-danger">No hay ningún ciclo SIAGIE anual registrado todavía. Créalo primero en Ciclos.</p>
                         @endif
@@ -1054,6 +1077,13 @@ new class extends Component
                     />
                     <x-input-error :messages="$errors->get('gradoId')" class="mt-1" />
                 </div>
+                @if ($esRematricula)
+                    <div>
+                        <x-input-label for="fechaMatricula" value="Fecha de matrícula" />
+                        <x-date-input wire:model="fechaMatricula" id="fechaMatricula" class="mt-1 block w-full" />
+                        <x-input-error :messages="$errors->get('fechaMatricula')" class="mt-1" />
+                    </div>
+                @endif
                 <div class="sm:col-span-2">
                     <x-input-label for="observacionesMatricula" value="Observaciones (opcional)" />
                     <textarea wire:model="observacionesMatricula" id="observacionesMatricula" rows="2" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent"></textarea>

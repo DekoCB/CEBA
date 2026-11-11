@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Modules\FlujoCaja\Services;
 
 use App\Modules\FlujoCaja\Enums\CategoriaEgresoEnum;
+use App\Modules\FlujoCaja\Enums\SedeEnum;
 use App\Modules\FlujoCaja\Models\Egreso;
 use App\Modules\Pagos\Enums\EstadoPagoEnum;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
+use App\Modules\Pagos\Enums\SerieReciboEnum;
 use App\Modules\Pagos\Models\Pago;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -17,11 +19,16 @@ use Illuminate\Support\Collection as SupportCollection;
  * Ingresos = Pago aprobado (mismo criterio que ya usa el Dashboard, ver
  * dashboard/index.blade.php: ingresosDelMes/calcularIngresosPorSemana,
  * agregando por fecha_aprobacion). Egresos son registrados a mano acá.
+ *
+ * Cada sede (PB/CA) tiene su propio flujo de caja: un ingreso pertenece a
+ * la sede de la serie de su Recibo (ver SerieReciboEnum::centroCostoIniciales()
+ * -- 001/PB, 002/CA; solo un Pago APROBADO tiene Recibo, así que el join es
+ * seguro), y un egreso pertenece a la sede elegida a mano al registrarlo.
  */
 class FlujoCajaService
 {
     /**
-     * @param  array{categoria: CategoriaEgresoEnum, descripcion: ?string, monto: float, metodo: MetodoPagoEnum, fecha_egreso: string}  $datos
+     * @param  array{categoria: CategoriaEgresoEnum, sede: SedeEnum, descripcion: ?string, monto: float, metodo: MetodoPagoEnum, fecha_egreso: string}  $datos
      */
     public function registrarEgreso(array $datos, ?UploadedFile $comprobante, ?int $registradoPor): Egreso
     {
@@ -35,19 +42,26 @@ class FlujoCajaService
         return $egreso;
     }
 
-    public function ingresosDelPeriodo(Carbon $inicio, Carbon $fin): float
+    public function ingresosDelPeriodo(Carbon $inicio, Carbon $fin, SedeEnum $sede): float
     {
         return (float) Pago::query()
             ->where('estado', EstadoPagoEnum::APROBADO)
             ->whereBetween('fecha_aprobacion', [$inicio, $fin])
+            ->whereHas('recibo', fn ($query) => $query->where('serie', $this->serieDe($sede)))
             ->sum('monto');
     }
 
-    public function egresosDelPeriodo(Carbon $inicio, Carbon $fin): float
+    public function egresosDelPeriodo(Carbon $inicio, Carbon $fin, SedeEnum $sede): float
     {
         return (float) Egreso::query()
             ->whereBetween('fecha_egreso', [$inicio, $fin])
+            ->where('sede', $sede)
             ->sum('monto');
+    }
+
+    private function serieDe(SedeEnum $sede): SerieReciboEnum
+    {
+        return $sede === SedeEnum::PB ? SerieReciboEnum::ORIGINAL : SerieReciboEnum::COPIA;
     }
 
     /**
@@ -61,11 +75,12 @@ class FlujoCajaService
      * (string), "metodo" (string), "monto" (float) y "comprobanteUrl"
      * (?string).
      */
-    public function movimientosDelPeriodo(Carbon $inicio, Carbon $fin): SupportCollection
+    public function movimientosDelPeriodo(Carbon $inicio, Carbon $fin, SedeEnum $sede): SupportCollection
     {
         $ingresos = Pago::query()
             ->where('estado', EstadoPagoEnum::APROBADO)
             ->whereBetween('fecha_aprobacion', [$inicio, $fin])
+            ->whereHas('recibo', fn ($query) => $query->where('serie', $this->serieDe($sede)))
             ->with(['concepto', 'cargoAdicional', 'recibo'])
             ->get()
             ->map(fn (Pago $pago) => [
@@ -79,6 +94,7 @@ class FlujoCajaService
 
         $egresos = Egreso::query()
             ->whereBetween('fecha_egreso', [$inicio, $fin])
+            ->where('sede', $sede)
             ->get()
             ->map(fn (Egreso $egreso) => [
                 'tipo' => 'egreso',
@@ -95,17 +111,17 @@ class FlujoCajaService
     /**
      * @return array{0: list<string>, 1: list<float>}
      */
-    public function ingresosPorMes(int $meses = 6): array
+    public function ingresosPorMes(SedeEnum $sede, int $meses = 6): array
     {
-        return $this->serieMensual($meses, fn (Carbon $inicio, Carbon $fin) => $this->ingresosDelPeriodo($inicio, $fin));
+        return $this->serieMensual($meses, fn (Carbon $inicio, Carbon $fin) => $this->ingresosDelPeriodo($inicio, $fin, $sede));
     }
 
     /**
      * @return array{0: list<string>, 1: list<float>}
      */
-    public function egresosPorMes(int $meses = 6): array
+    public function egresosPorMes(SedeEnum $sede, int $meses = 6): array
     {
-        return $this->serieMensual($meses, fn (Carbon $inicio, Carbon $fin) => $this->egresosDelPeriodo($inicio, $fin));
+        return $this->serieMensual($meses, fn (Carbon $inicio, Carbon $fin) => $this->egresosDelPeriodo($inicio, $fin, $sede));
     }
 
     /**

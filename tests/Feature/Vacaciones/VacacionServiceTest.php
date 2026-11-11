@@ -90,6 +90,27 @@ class VacacionServiceTest extends TestCase
         $this->assertSame('2026-08-01', $vacacion->fecha_fin->format('Y-m-d'));
     }
 
+    public function test_activar_respeta_una_fecha_fin_personalizada(): void
+    {
+        $ciclo = $this->cicloConPeriodoAbierto(['modalidad' => ModalidadCicloEnum::ANUAL, 'tipo' => null]);
+        $estudiante = $this->estudianteMatriculado($ciclo);
+
+        $vacacion = $this->service()->activar($estudiante, '2026-06-01', null, '2026-07-15');
+
+        $this->assertSame('2026-06-01', $vacacion->fecha_inicio->format('Y-m-d'));
+        $this->assertSame('2026-07-15', $vacacion->fecha_fin->format('Y-m-d'));
+    }
+
+    public function test_activar_rechaza_una_fecha_fin_personalizada_anterior_al_inicio(): void
+    {
+        $ciclo = $this->cicloConPeriodoAbierto(['modalidad' => ModalidadCicloEnum::ANUAL, 'tipo' => null]);
+        $estudiante = $this->estudianteMatriculado($ciclo);
+
+        $this->expectException(ValidationException::class);
+
+        $this->service()->activar($estudiante, '2026-06-01', null, '2026-05-01');
+    }
+
     public function test_vigentes_y_historial_particionan_por_fecha_fin(): void
     {
         $ciclo = $this->cicloConPeriodoAbierto(['modalidad' => ModalidadCicloEnum::ANUAL, 'tipo' => null]);

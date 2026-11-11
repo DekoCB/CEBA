@@ -12,6 +12,7 @@ use App\Modules\Pagos\Enums\SerieReciboEnum;
 use App\Modules\Pagos\Models\CargoAdicional;
 use App\Modules\Pagos\Models\ConceptoPago;
 use App\Modules\Pagos\Models\Pago;
+use App\Modules\Pagos\Models\PlanPago;
 use App\Modules\Pagos\Services\PagoService;
 use App\Modules\Pagos\Services\PlanPagoService;
 use App\Modules\Pagos\Services\SolicitudCambioMontoService;
@@ -340,6 +341,36 @@ class PagosFlujoTest extends TestCase
 
         $this->assertDatabaseHas('planes_pago', ['matricula_id' => $matricula->id, 'numero_cuotas' => 6]);
         $this->assertDatabaseCount('cuotas', 6);
+    }
+
+    /**
+     * Pedido del cliente: poder editar las fechas del cronograma generado
+     * automáticamente desde esta pestaña, igual que ya se puede desde el
+     * wizard de matrícula.
+     */
+    public function test_coordinador_edita_las_fechas_del_cronograma_antes_de_crear_el_plan(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+
+        $matricula = Matricula::factory()->create(['fecha_matricula' => '2026-03-01']);
+
+        $this->actingAs($coordinador);
+
+        Volt::test('pagos.index')
+            ->set("numeroCuotasPorMatricula.{$matricula->id}", (string) NumeroCuotasEnum::DOS->value)
+            ->set("montoTotalPorMatricula.{$matricula->id}", '600')
+            ->call('generarCronograma', $matricula->id)
+            ->set("cuotaFechasPorMatricula.{$matricula->id}.1", '2026-05-15')
+            ->call('crearPlan', $matricula->id)
+            ->assertHasNoErrors();
+
+        $plan = PlanPago::query()->where('matricula_id', $matricula->id)->firstOrFail();
+        $cuotas = $plan->cuotas()->orderBy('numero')->get();
+
+        $this->assertSame('2026-05-15', $cuotas[0]->fecha_vencimiento->format('Y-m-d'));
+        // La cuota 2 no se tocó: mantiene la fecha autogenerada (+2 meses).
+        $this->assertSame('2026-05-01', $cuotas[1]->fecha_vencimiento->format('Y-m-d'));
     }
 
     public function test_el_estudiante_sube_un_comprobante_para_su_cuota(): void

@@ -756,6 +756,124 @@ class MatriculaPermisosTest extends TestCase
         $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'ciclo_id' => $cicloAnual->id]);
     }
 
+    /**
+     * Pedido del cliente: poder elegir la fecha de matrícula también en una
+     * rematrícula (antes solo se pedía en el paso 1, que la rematrícula se
+     * salta por completo -- confirmar() siempre terminaba usando hoy).
+     */
+    public function test_rematricula_permite_elegir_una_fecha_de_matricula_distinta_a_hoy(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+        $estudiante = Estudiante::factory()->create(['dni' => '55667891']);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('dni', '55667891')
+            ->call('continuarComoRematricula')
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->set('fechaMatricula', '2026-03-15')
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $matricula = Matricula::query()->where('estudiante_id', $estudiante->id)->where('ciclo_id', $ciclo->id)->firstOrFail();
+        $this->assertSame('2026-03-15', $matricula->fecha_matricula->format('Y-m-d'));
+    }
+
+    /**
+     * Regresión: continuarComoRematricula() asigna $this->modalidadCiclo
+     * directamente en PHP, lo cual NO dispara updatedModalidadCiclo() (ese
+     * hook solo corre ante un cambio vía wire:model). Antes del fix,
+     * cicloId quedaba vacío para una rematrícula a un ciclo anual y
+     * matricular() reventaba con Ciclo::findOrFail(0) sin manejar.
+     */
+    public function test_rematricula_a_un_ciclo_anual_asigna_el_cicloid_automaticamente(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $cicloAnualViejo = Ciclo::factory()->anual()->create(['anio' => 2026, 'fecha_inicio' => now()->subYear()]);
+        $cicloAnualVigente = Ciclo::factory()->anual()->activo()->create(['anio' => 2027, 'fecha_inicio' => now()]);
+        $grado = Grado::factory()->create();
+        $estudiante = Estudiante::factory()->create(['dni' => '55667892']);
+        Matricula::factory()->create([
+            'estudiante_id' => $estudiante->id,
+            'ciclo_id' => $cicloAnualViejo->id,
+            'fecha_matricula' => now()->subYear(),
+        ]);
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('dni', '55667892')
+            ->call('continuarComoRematricula')
+            ->assertSet('modalidadCiclo', 'anual')
+            ->assertSet('cicloId', (string) $cicloAnualVigente->id)
+            ->set('gradoId', (string) $grado->id)
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $this->assertDatabaseCount('matriculas', 2);
+        $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'ciclo_id' => $cicloAnualVigente->id]);
+    }
+
+    /**
+     * Pedido del cliente: poder elegir manualmente a qué año (ciclo anual)
+     * matricular, en vez de que el sistema asuma siempre el más reciente
+     * -- puede haber más de un ciclo anual a la vez (ej. 2026 y 2027
+     * coexistiendo mientras se habilita el siguiente año).
+     */
+    public function test_el_wizard_deja_elegir_un_ciclo_anual_distinto_del_vigente(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $cicloViejo = Ciclo::factory()->anual()->create(['anio' => 2026, 'fecha_inicio' => now()->subYear()]);
+        $cicloVigente = Ciclo::factory()->anual()->activo()->create(['anio' => 2027, 'fecha_inicio' => now()]);
+        $grado = Grado::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Elena')
+            ->set('apellidos', 'Torres Vega')
+            ->set('dni', '55667893')
+            ->set('fechaNacimiento', now()->subYears(28)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertSet('paso', 3)
+            ->set('dniEstudianteCaraArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->call('avanzar')
+            ->assertSet('paso', 4)
+            ->call('avanzar')
+            ->assertSet('paso', 5)
+            ->set('modalidadCiclo', 'anual')
+            ->assertSet('cicloId', (string) $cicloVigente->id)
+            ->set('cicloId', (string) $cicloViejo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $estudiante = Estudiante::query()->where('dni', '55667893')->firstOrFail();
+        $this->assertDatabaseHas('matriculas', ['estudiante_id' => $estudiante->id, 'ciclo_id' => $cicloViejo->id]);
+    }
+
     public function test_el_wizard_detecta_un_dni_existente_y_permite_rematricular_sin_repetir_los_datos(): void
     {
         $usuario = User::factory()->create();

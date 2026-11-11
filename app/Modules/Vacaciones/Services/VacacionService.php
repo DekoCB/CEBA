@@ -21,7 +21,13 @@ class VacacionService
      */
     private const MESES_DE_VACACIONES = 2;
 
-    public function activar(Estudiante $estudiante, string $fechaInicio, ?int $registradoPor): Vacacion
+    /**
+     * $fechaFin es opcional: si no se indica, se calcula como siempre
+     * (fecha de inicio + 2 meses). Si se indica (el coordinador la
+     * personaliza desde la UI), se usa tal cual -- debe ser posterior a la
+     * fecha de inicio.
+     */
+    public function activar(Estudiante $estudiante, string $fechaInicio, ?int $registradoPor, ?string $fechaFin = null): Vacacion
     {
         $matricula = $this->matriculaVigente($estudiante);
 
@@ -31,11 +37,19 @@ class VacacionService
             ]);
         }
 
+        $fechaFinResuelta = $fechaFin !== null ? Carbon::parse($fechaFin) : Carbon::parse($fechaInicio)->addMonths(self::MESES_DE_VACACIONES);
+
+        if ($fechaFinResuelta->lessThanOrEqualTo(Carbon::parse($fechaInicio))) {
+            throw ValidationException::withMessages([
+                'fechaFin' => 'La fecha fin debe ser posterior a la fecha de inicio.',
+            ]);
+        }
+
         return Vacacion::query()->create([
             'estudiante_id' => $estudiante->id,
             'matricula_id' => $matricula->id,
             'fecha_inicio' => $fechaInicio,
-            'fecha_fin' => Carbon::parse($fechaInicio)->addMonths(self::MESES_DE_VACACIONES),
+            'fecha_fin' => $fechaFinResuelta,
             'registrado_por' => $registradoPor,
         ]);
     }

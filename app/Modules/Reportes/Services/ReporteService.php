@@ -11,6 +11,7 @@ use App\Modules\Asistencia\Models\Asistencia;
 use App\Modules\Certificados\Models\Certificado;
 use App\Modules\Evaluaciones\Models\Calificacion;
 use App\Modules\Evaluaciones\Models\Evaluacion;
+use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Enums\EstadoCuotaEnum;
 use App\Modules\Pagos\Models\Cuota;
@@ -111,7 +112,7 @@ class ReporteService
             ->get();
 
         return [
-            'columnas' => ['Estudiante', 'Concepto', 'Monto', 'Método', 'Estado', 'Fecha de pago'],
+            'columnas' => ['Estudiante', 'Concepto', 'Monto', 'Método', 'Estado', 'Fecha de pago', 'N.° de operación'],
             'filas' => $pagos->map(fn (Pago $pago) => [
                 $pago->estudiante?->nombreCompleto() ?? '—',
                 $pago->nombreConcepto(),
@@ -119,6 +120,7 @@ class ReporteService
                 $pago->metodo->label(),
                 $pago->estado->label(),
                 $pago->fecha_pago->format('d/m/Y'),
+                $pago->numero_operacion ?? '—',
             ])->all(),
         ];
     }
@@ -196,6 +198,14 @@ class ReporteService
      *
      * @return array{columnas: list<string>, filas: list<array<int, string|int|float>>}
      */
+    /**
+     * Una fila POR CUOTA vencida (no una fila resumen por estudiante): el
+     * cliente necesita ver el detalle -- cuál cuota, su monto y su propia
+     * fecha de vencida/compromiso -- para gestionar la cobranza cuota por
+     * cuota, no solo un total. Las cuotas se agrupan por estudiante
+     * únicamente para ordenarlas (todas las de un mismo estudiante juntas,
+     * por número de cuota), sin colapsarlas en una sola fila.
+     */
     public function morosos(?int $cicloId, ?int $gradoId, ?int $cursoId, ?string $franja = null, ?int $siagieId = null): array
     {
         $sinFiltros = $this->sinFiltros($cicloId, $gradoId, $cursoId, $franja, $siagieId);
@@ -207,35 +217,59 @@ class ReporteService
                 'planPago.matricula',
                 fn ($sub) => $this->filtrarMatriculasPorFiltros($sub, $cicloId, $gradoId, $cursoId, $franja, $siagieId),
             ))
-            ->with('planPago.matricula.estudiante', 'planPago.matricula.grado')
+            ->with([
+                'planPago.matricula.estudiante.telefonos',
+                'planPago.matricula.estudiante.apoderado.telefonos',
+                'planPago.matricula.grado',
+                'planPago.matricula.ciclo',
+            ])
             ->get()
-            ->filter(fn (Cuota $cuota) => $cuota->planPago->matricula?->estudiante !== null)
-            ->groupBy(fn (Cuota $cuota) => $cuota->planPago->matricula->estudiante_id);
+            ->filter(fn (Cuota $cuota) => $cuota->planPago->matricula?->estudiante !== null);
 
         $filas = $cuotasVencidas
-            ->map(function ($cuotas) {
-                $matricula = $cuotas->first()->planPago->matricula;
+            ->groupBy(fn (Cuota $cuota) => $cuota->planPago->matricula->estudiante_id)
+            ->flatMap(fn (Collection $cuotasDelEstudiante) => $cuotasDelEstudiante->sortBy('numero'))
+            ->map(function (Cuota $cuota) {
+                $matricula = $cuota->planPago->matricula;
                 $estudiante = $matricula->estudiante;
-                $ultimoCompromiso = $cuotas->pluck('fecha_compromiso')->filter()->max();
 
                 return [
                     $estudiante->nombreCompleto(),
                     $estudiante->dni,
+                    $matricula->ciclo->nombre,
                     $matricula->grado->nombre,
-                    $cuotas->count(),
-                    number_format((float) $cuotas->sum('monto'), 2),
-                    $cuotas->min('fecha_vencimiento')->format('d/m/Y'),
-                    $ultimoCompromiso?->format('d/m/Y') ?? '—',
+                    $this->celularesDe($estudiante),
+                    $cuota->numero,
+                    number_format((float) $cuota->monto, 2),
+                    $cuota->fecha_vencimiento->format('d/m/Y'),
+                    $cuota->fecha_compromiso?->format('d/m/Y') ?? '—',
                 ];
             })
-            ->sortByDesc(fn (array $fila) => $fila[3])
             ->values()
             ->all();
 
         return [
-            'columnas' => ['Estudiante', 'DNI', 'Grado', 'Cuotas vencidas', 'Monto adeudado', 'Vencida desde', 'Último compromiso'],
+            'columnas' => ['Estudiante', 'DNI', 'Grupo', 'Grado', 'Celulares', 'Cuota N°', 'Monto cuota', 'Vencida desde', 'Compromiso de pago'],
             'filas' => $filas,
         ];
+    }
+
+    /**
+     * Todos los celulares de contacto de un estudiante: el principal y los
+     * adicionales (con parentesco), más los del apoderado si es menor de
+     * edad -- separados por coma, para un solo campo de texto en el Excel.
+     */
+    private function celularesDe(Estudiante $estudiante): string
+    {
+        $numeros = collect([$estudiante->celular])
+            ->merge($estudiante->telefonos->pluck('numero'))
+            ->merge($estudiante->apoderado ? [$estudiante->apoderado->celular] : [])
+            ->merge($estudiante->apoderado?->telefonos->pluck('numero') ?? collect())
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $numeros->isNotEmpty() ? $numeros->implode(', ') : '—';
     }
 
     /**

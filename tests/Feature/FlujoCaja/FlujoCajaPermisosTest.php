@@ -5,6 +5,7 @@ namespace Tests\Feature\FlujoCaja;
 use App\Models\User;
 use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Pagos\Models\Pago;
+use App\Modules\Pagos\Models\Recibo;
 use App\Shared\Enums\RolEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -84,7 +85,8 @@ class FlujoCajaPermisosTest extends TestCase
     {
         $tesoreria = User::factory()->create();
         $tesoreria->assignRole(RolEnum::TESORERIA->value);
-        Pago::factory()->aprobado()->create(['monto' => 200, 'fecha_aprobacion' => now()]);
+        $pago = Pago::factory()->aprobado()->create(['monto' => 200, 'fecha_aprobacion' => now()]);
+        Recibo::factory()->create(['pago_id' => $pago->id]);
 
         $this->actingAs($tesoreria);
 
@@ -98,7 +100,8 @@ class FlujoCajaPermisosTest extends TestCase
     {
         $tesoreria = User::factory()->create();
         $tesoreria->assignRole(RolEnum::TESORERIA->value);
-        Pago::factory()->aprobado()->create(['monto' => 200, 'fecha_aprobacion' => now()]);
+        $pago = Pago::factory()->aprobado()->create(['monto' => 200, 'fecha_aprobacion' => now()]);
+        Recibo::factory()->create(['pago_id' => $pago->id]);
 
         $this->actingAs($tesoreria);
 

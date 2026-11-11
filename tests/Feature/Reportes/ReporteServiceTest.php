@@ -159,8 +159,17 @@ class ReporteServiceTest extends TestCase
 
         $reporte = app(ReporteService::class)->financiero(null, null, null);
 
-        $this->assertSame(['Estudiante', 'Concepto', 'Monto', 'Método', 'Estado', 'Fecha de pago'], $reporte['columnas']);
+        $this->assertSame(['Estudiante', 'Concepto', 'Monto', 'Método', 'Estado', 'Fecha de pago', 'N.° de operación'], $reporte['columnas']);
         $this->assertCount(1, $reporte['filas']);
+    }
+
+    public function test_reporte_financiero_muestra_el_numero_de_operacion(): void
+    {
+        Pago::factory()->aprobado()->create(['fecha_pago' => now(), 'numero_operacion' => 'OP-12345']);
+
+        $reporte = app(ReporteService::class)->financiero(null, null, null);
+
+        $this->assertSame('OP-12345', $reporte['filas'][0][6]);
     }
 
     public function test_reporte_de_matricula_filtra_por_franja(): void
@@ -221,9 +230,13 @@ class ReporteServiceTest extends TestCase
         $this->assertCount(1, $reporte['filas']);
     }
 
-    public function test_reporte_de_morosos_agrupa_cuotas_vencidas_por_estudiante(): void
+    /**
+     * Pedido del cliente: una fila POR CUOTA vencida (no un resumen por
+     * estudiante) -- para gestionar la cobranza cuota por cuota.
+     */
+    public function test_reporte_de_morosos_tiene_una_fila_por_cuota_vencida(): void
     {
-        $estudiante = Estudiante::factory()->create(['nombres' => 'Rosa', 'apellidos' => 'Delgado']);
+        $estudiante = Estudiante::factory()->create(['nombres' => 'Rosa', 'apellidos' => 'Delgado', 'celular' => '987654321']);
         $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
         $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
 
@@ -250,21 +263,23 @@ class ReporteServiceTest extends TestCase
 
         $reporte = app(ReporteService::class)->morosos(null, null, null);
 
-        $this->assertSame(['Estudiante', 'DNI', 'Grado', 'Cuotas vencidas', 'Monto adeudado', 'Vencida desde', 'Último compromiso'], $reporte['columnas']);
-        $this->assertCount(1, $reporte['filas']);
+        $this->assertSame(['Estudiante', 'DNI', 'Grupo', 'Grado', 'Celulares', 'Cuota N°', 'Monto cuota', 'Vencida desde', 'Compromiso de pago'], $reporte['columnas']);
+        $this->assertCount(2, $reporte['filas']);
         $this->assertStringContainsString('Rosa', $reporte['filas'][0][0]);
-        $this->assertSame(2, $reporte['filas'][0][3]);
-        $this->assertSame('250.00', $reporte['filas'][0][4]);
-        $this->assertSame(now()->subMonths(2)->format('d/m/Y'), $reporte['filas'][0][5]);
-        $this->assertSame('—', $reporte['filas'][0][6]);
+        $this->assertStringContainsString('987654321', $reporte['filas'][0][4]);
+        $this->assertSame(1, $reporte['filas'][0][5]);
+        $this->assertSame('100.00', $reporte['filas'][0][6]);
+        $this->assertSame(now()->subMonths(2)->format('d/m/Y'), $reporte['filas'][0][7]);
+        $this->assertSame('—', $reporte['filas'][0][8]);
+        $this->assertSame(2, $reporte['filas'][1][5]);
+        $this->assertSame('150.00', $reporte['filas'][1][6]);
     }
 
     /**
      * Pedido del cliente: ver de un vistazo, en el reporte de deudores,
-     * hasta cuándo se comprometió a pagar cada estudiante -- la más
-     * reciente entre sus cuotas vencidas.
+     * hasta cuándo se comprometió a pagar cada cuota.
      */
-    public function test_reporte_de_morosos_muestra_el_ultimo_compromiso_de_pago(): void
+    public function test_reporte_de_morosos_muestra_el_compromiso_de_pago_de_cada_cuota(): void
     {
         $estudiante = Estudiante::factory()->create();
         $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
@@ -285,7 +300,8 @@ class ReporteServiceTest extends TestCase
 
         $reporte = app(ReporteService::class)->morosos(null, null, null);
 
-        $this->assertSame(now()->subDays(3)->format('d/m/Y'), $reporte['filas'][0][6]);
+        $this->assertSame(now()->subDays(10)->format('d/m/Y'), $reporte['filas'][0][8]);
+        $this->assertSame(now()->subDays(3)->format('d/m/Y'), $reporte['filas'][1][8]);
     }
 
     public function test_reporte_de_morosos_no_incluye_estudiantes_al_dia(): void

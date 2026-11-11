@@ -4,11 +4,14 @@ namespace Tests\Feature\FlujoCaja;
 
 use App\Models\User;
 use App\Modules\FlujoCaja\Enums\CategoriaEgresoEnum;
+use App\Modules\FlujoCaja\Enums\SedeEnum;
 use App\Modules\FlujoCaja\Models\Egreso;
 use App\Modules\FlujoCaja\Services\FlujoCajaService;
 use App\Modules\Pagos\Enums\EstadoPagoEnum;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
+use App\Modules\Pagos\Enums\SerieReciboEnum;
 use App\Modules\Pagos\Models\Pago;
+use App\Modules\Pagos\Models\Recibo;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -61,35 +64,72 @@ class FlujoCajaServiceTest extends TestCase
         $this->assertNull($egreso->getFirstMedia('comprobante'));
     }
 
-    public function test_ingresos_del_periodo_suma_solo_pagos_aprobados_en_el_rango(): void
+    private function pagoAprobadoConRecibo(float $monto, string $fechaAprobacion, SerieReciboEnum $serie = SerieReciboEnum::ORIGINAL): Pago
     {
-        Pago::factory()->aprobado()->create(['monto' => 100, 'fecha_aprobacion' => '2026-09-10']);
-        Pago::factory()->aprobado()->create(['monto' => 50, 'fecha_aprobacion' => '2026-08-15']);
+        $pago = Pago::factory()->aprobado()->create(['monto' => $monto, 'fecha_aprobacion' => $fechaAprobacion]);
+        Recibo::factory()->create(['pago_id' => $pago->id, 'serie' => $serie]);
+
+        return $pago;
+    }
+
+    public function test_ingresos_del_periodo_suma_solo_pagos_aprobados_en_el_rango_y_la_sede(): void
+    {
+        $this->pagoAprobadoConRecibo(100, '2026-09-10', SerieReciboEnum::ORIGINAL);
+        $this->pagoAprobadoConRecibo(50, '2026-08-15', SerieReciboEnum::ORIGINAL);
         // No debería contar: sigue pendiente.
         Pago::factory()->create(['estado' => EstadoPagoEnum::PENDIENTE, 'monto' => 999]);
+        // No debería contar: es de la otra sede (serie CA).
+        $this->pagoAprobadoConRecibo(999, '2026-09-12', SerieReciboEnum::COPIA);
 
-        $total = $this->service()->ingresosDelPeriodo(Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+        $total = $this->service()->ingresosDelPeriodo(Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'), SedeEnum::PB);
 
         $this->assertSame(100.0, $total);
     }
 
-    public function test_egresos_del_periodo_suma_los_egresos_del_rango(): void
+    public function test_ingresos_del_periodo_de_la_sede_ca_no_se_mezcla_con_pb(): void
     {
-        Egreso::factory()->create(['monto' => 40, 'fecha_egreso' => '2026-09-05']);
-        Egreso::factory()->create(['monto' => 60, 'fecha_egreso' => '2026-09-20']);
-        Egreso::factory()->create(['monto' => 999, 'fecha_egreso' => '2026-08-01']);
+        $this->pagoAprobadoConRecibo(100, '2026-09-10', SerieReciboEnum::ORIGINAL);
+        $this->pagoAprobadoConRecibo(70, '2026-09-11', SerieReciboEnum::COPIA);
 
-        $total = $this->service()->egresosDelPeriodo(Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+        $totalCa = $this->service()->ingresosDelPeriodo(Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'), SedeEnum::CA);
+
+        $this->assertSame(70.0, $totalCa);
+    }
+
+    public function test_egresos_del_periodo_suma_los_egresos_del_rango_y_la_sede(): void
+    {
+        Egreso::factory()->create(['monto' => 40, 'fecha_egreso' => '2026-09-05', 'sede' => SedeEnum::PB]);
+        Egreso::factory()->create(['monto' => 60, 'fecha_egreso' => '2026-09-20', 'sede' => SedeEnum::PB]);
+        Egreso::factory()->create(['monto' => 999, 'fecha_egreso' => '2026-08-01', 'sede' => SedeEnum::PB]);
+        // No debería contar: es de la otra sede.
+        Egreso::factory()->create(['monto' => 999, 'fecha_egreso' => '2026-09-10', 'sede' => SedeEnum::CA]);
+
+        $total = $this->service()->egresosDelPeriodo(Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'), SedeEnum::PB);
 
         $this->assertSame(100.0, $total);
+    }
+
+    public function test_un_egreso_sin_sede_explicita_queda_pb_por_defecto(): void
+    {
+        $this->service()->registrarEgreso([
+            'categoria' => CategoriaEgresoEnum::OTRO,
+            'descripcion' => null,
+            'monto' => 25,
+            'metodo' => MetodoPagoEnum::EFECTIVO,
+            'fecha_egreso' => '2026-09-05',
+        ], null, null);
+
+        $total = $this->service()->egresosDelPeriodo(Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'), SedeEnum::PB);
+
+        $this->assertSame(25.0, $total);
     }
 
     public function test_movimientos_del_periodo_mezcla_ingresos_y_egresos_ordenados_por_fecha(): void
     {
-        Pago::factory()->aprobado()->create(['monto' => 100, 'fecha_aprobacion' => '2026-09-10']);
-        Egreso::factory()->create(['monto' => 40, 'fecha_egreso' => '2026-09-20']);
+        $this->pagoAprobadoConRecibo(100, '2026-09-10');
+        Egreso::factory()->create(['monto' => 40, 'fecha_egreso' => '2026-09-20', 'sede' => SedeEnum::PB]);
 
-        $movimientos = $this->service()->movimientosDelPeriodo(Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+        $movimientos = $this->service()->movimientosDelPeriodo(Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'), SedeEnum::PB);
 
         $this->assertCount(2, $movimientos);
         $this->assertSame('egreso', $movimientos->first()['tipo']);

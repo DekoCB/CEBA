@@ -7,6 +7,7 @@ namespace App\Modules\FlujoCaja\Models;
 use App\Models\User;
 use App\Modules\FlujoCaja\Database\Factories\EgresoFactory;
 use App\Modules\FlujoCaja\Enums\CategoriaEgresoEnum;
+use App\Modules\FlujoCaja\Enums\SedeEnum;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -22,6 +23,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  *
  * @property int $id
  * @property CategoriaEgresoEnum $categoria
+ * @property SedeEnum $sede
  * @property string|null $descripcion
  * @property float $monto
  * @property MetodoPagoEnum $metodo
@@ -37,6 +39,7 @@ class Egreso extends Model implements HasMedia
 
     protected $fillable = [
         'categoria',
+        'sede',
         'descripcion',
         'monto',
         'metodo',
@@ -48,6 +51,7 @@ class Egreso extends Model implements HasMedia
     {
         return [
             'categoria' => CategoriaEgresoEnum::class,
+            'sede' => SedeEnum::class,
             'metodo' => MetodoPagoEnum::class,
             'fecha_egreso' => 'date',
             'monto' => 'decimal:2',

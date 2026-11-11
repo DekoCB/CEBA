@@ -445,6 +445,78 @@ class PagoServiceTest extends TestCase
         $this->assertSame(now()->format('Y-m-d'), $pago->fecha_pago->format('Y-m-d'));
     }
 
+    public function test_registrar_con_numero_de_operacion_lo_guarda(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+
+        $pago = $this->service()->registrar(
+            $estudiante,
+            [$this->destino($concepto, 100.0)],
+            [['monto' => 100.0, 'metodo' => 'transferencia']],
+            null,
+            null,
+            null,
+            null,
+            'OP-998877',
+        );
+
+        $this->assertSame('OP-998877', $pago->numero_operacion);
+    }
+
+    public function test_registrar_sin_numero_de_operacion_lo_deja_nulo(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+
+        $pago = $this->service()->registrar($estudiante, [$this->destino($concepto, 100.0)], [['monto' => 100.0, 'metodo' => 'efectivo']], null, null);
+
+        $this->assertNull($pago->numero_operacion);
+    }
+
+    /**
+     * Pedido del cliente: el Historial debe mostrar primero el recibo
+     * emitido más reciente -- antes se ordenaba por fecha_pago, que puede
+     * quedar editada a mano (un registro atrasado) y no reflejar cuándo se
+     * aprobó/emitió realmente el recibo.
+     */
+    public function test_todos_ordena_por_recibo_emitido_mas_reciente_no_por_fecha_de_pago(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        $concepto = ConceptoPago::factory()->create();
+
+        // Registrado con una fecha de pago atrasada (más antigua), pero su
+        // recibo se emite AHORA -- debe quedar primero en el historial.
+        $pagoAtrasado = $this->service()->registrar(
+            $estudiante,
+            [$this->destino($concepto, 50.0)],
+            [['monto' => 50.0, 'metodo' => 'efectivo']],
+            null,
+            null,
+            null,
+            '2026-01-01',
+        );
+        $this->service()->aprobar($pagoAtrasado, $this->aprobador(), SerieReciboEnum::ORIGINAL);
+
+        // Registrado y aprobado antes, con fecha de pago más reciente.
+        $pagoReciente = $this->service()->registrar(
+            $estudiante,
+            [$this->destino($concepto, 80.0)],
+            [['monto' => 80.0, 'metodo' => 'efectivo']],
+            null,
+            null,
+            null,
+            '2026-09-01',
+        );
+        $this->service()->aprobar($pagoReciente, $this->aprobador(), SerieReciboEnum::ORIGINAL);
+        $pagoReciente->recibo->update(['emitido_en' => now()->subMonth()]);
+        $pagoAtrasado->recibo->update(['emitido_en' => now()]);
+
+        $todos = $this->service()->todos();
+
+        $this->assertSame($pagoAtrasado->id, $todos->first()->id);
+    }
+
     public function test_aprobar_respeta_la_serie_elegida_a_mano(): void
     {
         $estudiante = Estudiante::factory()->create();

@@ -22,6 +22,10 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $fechaInicio = '';
 
+    public bool $personalizarFechaFin = false;
+
+    public string $fechaFin = '';
+
     public function mount(): void
     {
         Gate::authorize('vacaciones.ver');
@@ -32,7 +36,7 @@ new #[Layout('layouts.app')] class extends Component
         Gate::authorize('vacaciones.gestionar');
 
         $this->resetValidation();
-        $this->reset(['terminoBusqueda', 'estudianteId', 'estudianteNombre', 'fechaInicio']);
+        $this->reset(['terminoBusqueda', 'estudianteId', 'estudianteNombre', 'fechaInicio', 'personalizarFechaFin', 'fechaFin']);
         $this->mostrarModal = true;
     }
 
@@ -50,10 +54,16 @@ new #[Layout('layouts.app')] class extends Component
         $this->validate([
             'estudianteId' => 'required|integer|exists:estudiantes,id',
             'fechaInicio' => 'required|date',
+            'fechaFin' => $this->personalizarFechaFin ? 'required|date|after:fechaInicio' : 'nullable',
         ]);
 
         $estudiante = Estudiante::query()->findOrFail($this->estudianteId);
-        $service->activar($estudiante, $this->fechaInicio, Auth::id());
+        $service->activar(
+            $estudiante,
+            $this->fechaInicio,
+            Auth::id(),
+            $this->personalizarFechaFin ? $this->fechaFin : null,
+        );
 
         $this->mostrarModal = false;
         session()->flash('status', 'Vacaciones registradas correctamente.');
@@ -203,10 +213,21 @@ new #[Layout('layouts.app')] class extends Component
                 <div>
                     <x-input-label for="fechaInicio" value="Fecha de inicio" />
                     <x-date-input wire:model.live="fechaInicio" id="fechaInicio" class="mt-1 block w-full" />
-                    @if ($fechaFinCalculada)
+                    <x-input-error :messages="$errors->get('fechaInicio')" class="mt-1" />
+                </div>
+
+                <div>
+                    <label class="flex items-center gap-2 text-sm text-ink-dim">
+                        <input type="checkbox" wire:model.live="personalizarFechaFin" class="rounded border-border text-accent focus:ring-accent">
+                        Personalizar fecha fin
+                    </label>
+
+                    @if ($personalizarFechaFin)
+                        <x-date-input wire:model="fechaFin" id="fechaFin" class="mt-2 block w-full" />
+                        <x-input-error :messages="$errors->get('fechaFin')" class="mt-1" />
+                    @elseif ($fechaFinCalculada)
                         <p class="mt-1 text-xs text-ink-faint">Termina el {{ $fechaFinCalculada }} (2 meses después).</p>
                     @endif
-                    <x-input-error :messages="$errors->get('fechaInicio')" class="mt-1" />
                 </div>
             </div>
 

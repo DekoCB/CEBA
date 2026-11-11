@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\FlujoCaja\Enums\CategoriaEgresoEnum;
+use App\Modules\FlujoCaja\Enums\SedeEnum;
 use App\Modules\FlujoCaja\Services\FlujoCajaService;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -18,9 +19,13 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $mes = '';
 
+    public string $sede = 'PB';
+
     public bool $mostrarModal = false;
 
     public string $categoria = '';
+
+    public string $sedeEgreso = 'PB';
 
     public string $descripcion = '';
 
@@ -54,6 +59,7 @@ new #[Layout('layouts.app')] class extends Component
 
         $this->resetValidation();
         $this->reset(['categoria', 'descripcion', 'monto', 'metodo', 'fechaEgreso', 'comprobante']);
+        $this->sedeEgreso = $this->sede;
         $this->fechaEgreso = now()->format('Y-m-d');
         $this->mostrarModal = true;
     }
@@ -64,6 +70,7 @@ new #[Layout('layouts.app')] class extends Component
 
         $this->validate([
             'categoria' => 'required|string|in:'.implode(',', array_column(CategoriaEgresoEnum::cases(), 'value')),
+            'sedeEgreso' => ['required', 'string', 'in:'.implode(',', array_column(SedeEnum::cases(), 'value'))],
             'descripcion' => 'nullable|string|max:500',
             'monto' => 'required|numeric|min:0.01',
             'metodo' => 'required|string|in:'.implode(',', array_column(MetodoPagoEnum::seleccionables(), 'value')),
@@ -73,6 +80,7 @@ new #[Layout('layouts.app')] class extends Component
 
         $service->registrarEgreso([
             'categoria' => CategoriaEgresoEnum::from($this->categoria),
+            'sede' => SedeEnum::from($this->sedeEgreso),
             'descripcion' => $this->descripcion !== '' ? $this->descripcion : null,
             'monto' => (float) $this->monto,
             'metodo' => MetodoPagoEnum::from($this->metodo),
@@ -90,9 +98,10 @@ new #[Layout('layouts.app')] class extends Component
     {
         $inicio = Carbon::parse("{$this->mes}-01")->startOfMonth();
         $fin = $inicio->copy()->endOfMonth();
+        $sede = SedeEnum::from($this->sede);
 
-        $ingresos = $service->ingresosDelPeriodo($inicio, $fin);
-        $egresos = $service->egresosDelPeriodo($inicio, $fin);
+        $ingresos = $service->ingresosDelPeriodo($inicio, $fin, $sede);
+        $egresos = $service->egresosDelPeriodo($inicio, $fin, $sede);
 
         return [
             'inicio' => $inicio,
@@ -101,7 +110,7 @@ new #[Layout('layouts.app')] class extends Component
             'ingresos' => $ingresos,
             'egresos' => $egresos,
             'saldoNeto' => $ingresos - $egresos,
-            'movimientos' => $service->movimientosDelPeriodo($inicio, $fin),
+            'movimientos' => $service->movimientosDelPeriodo($inicio, $fin, $sede),
         ];
     }
 
@@ -109,8 +118,8 @@ new #[Layout('layouts.app')] class extends Component
     {
         abort_unless(Auth::user()->hasPermissionTo('flujo_caja.ver'), 403);
 
-        $datos = $this->datosDelPeriodo($service);
-        $nombreArchivo = 'flujo-caja-'.$datos['inicio']->format('Y-m').'.pdf';
+        $datos = [...$this->datosDelPeriodo($service), 'sedeLabel' => SedeEnum::from($this->sede)->label()];
+        $nombreArchivo = 'flujo-caja-'.$this->sede.'-'.$datos['inicio']->format('Y-m').'.pdf';
 
         // Ver reportes/index.blade.php: Pdf::loadView(...)->download() no lo
         // reconoce Livewire como descarga (devuelve un Response plano, no un
@@ -125,13 +134,15 @@ new #[Layout('layouts.app')] class extends Component
     public function with(FlujoCajaService $service): array
     {
         $datos = $this->datosDelPeriodo($service);
+        $sede = SedeEnum::from($this->sede);
 
-        [$labelsIngresos, $datosIngresos] = $service->ingresosPorMes(6);
-        [$labelsEgresos, $datosEgresos] = $service->egresosPorMes(6);
+        [$labelsIngresos, $datosIngresos] = $service->ingresosPorMes($sede, 6);
+        [$labelsEgresos, $datosEgresos] = $service->egresosPorMes($sede, 6);
 
         return [
             ...$datos,
             'categorias' => CategoriaEgresoEnum::cases(),
+            'sedes' => SedeEnum::cases(),
             'metodos' => MetodoPagoEnum::seleccionables(),
             'labelsIngresos' => $labelsIngresos,
             'datosIngresos' => $datosIngresos,
@@ -151,6 +162,22 @@ new #[Layout('layouts.app')] class extends Component
     @if (session('status'))
         <x-alert class="mb-4">{{ session('status') }}</x-alert>
     @endif
+
+    <div class="mb-4 flex gap-1 border-b border-border">
+        @foreach ($sedes as $sedeOpcion)
+            <button
+                type="button"
+                wire:click="$set('sede', '{{ $sedeOpcion->value }}')"
+                @class([
+                    'border-b-2 px-4 py-2 text-sm font-medium transition',
+                    'border-accent text-accent' => $sede === $sedeOpcion->value,
+                    'border-transparent text-ink-faint hover:text-ink' => $sede !== $sedeOpcion->value,
+                ])
+            >
+                {{ $sedeOpcion->label() }}
+            </button>
+        @endforeach
+    </div>
 
     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div class="flex items-center gap-3">
@@ -263,6 +290,17 @@ new #[Layout('layouts.app')] class extends Component
             <h2 class="font-display text-lg text-ink">Registrar egreso</h2>
 
             <div class="mt-4 space-y-4">
+                <div>
+                    <x-input-label for="sedeEgreso" value="Sede" />
+                    <x-select-input
+                        wire:model="sedeEgreso"
+                        id="sedeEgreso"
+                        class="mt-1 block w-full"
+                        :options="collect($sedes)->mapWithKeys(fn ($sedeOpcion) => [$sedeOpcion->value => $sedeOpcion->label()])"
+                    />
+                    <x-input-error :messages="$errors->get('sedeEgreso')" class="mt-1" />
+                </div>
+
                 <div>
                     <x-input-label for="categoria" value="Categoría" />
                     <x-select-input

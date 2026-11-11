@@ -22,8 +22,8 @@
     </style>
 </head>
 <body>
-    <h1>Flujo de caja</h1>
-    <p class="subtitulo">CEBA Peruano Británico · {{ $mesLabel }} · generado el {{ now()->format('d/m/Y H:i') }}</p>
+    <h1>Flujo de caja — {{ $sedeLabel }}</h1>
+    <p class="subtitulo">CEBA · {{ $mesLabel }} · generado el {{ now()->format('d/m/Y H:i') }}</p>
 
     <table class="resumen">
         <tr>

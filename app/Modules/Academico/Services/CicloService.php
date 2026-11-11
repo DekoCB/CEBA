@@ -12,6 +12,7 @@ use App\Modules\Academico\Models\PeriodoMatricula;
 use App\Modules\Academico\Repositories\Contracts\CicloRepositoryInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -278,5 +279,21 @@ class CicloService
                 ->where('modalidad', ModalidadCicloEnum::ANUAL)
                 ->orderByDesc('fecha_inicio')
                 ->first();
+    }
+
+    /**
+     * Todos los ciclos SIAGIE anual (puede haber más de uno -- ej. 2026 y
+     * 2027 coexistiendo mientras se habilita el siguiente año), para que el
+     * wizard de matrícula deje elegir a cuál pertenece la matrícula en vez
+     * de asumir siempre el más reciente (ver cicloAnualVigente()).
+     *
+     * @return Collection<int, Ciclo>
+     */
+    public function ciclosAnuales(): Collection
+    {
+        return Ciclo::query()
+            ->where('modalidad', ModalidadCicloEnum::ANUAL)
+            ->orderByDesc('anio')
+            ->get();
     }
 }
