@@ -60,6 +60,10 @@ new class extends Component
 
     public string $fechaFinEstudioNueva = '';
 
+    public ?int $editandoVendedorMatriculaId = null;
+
+    public string $vendedorNuevo = '';
+
     public ?int $editandoHorarioMatriculaId = null;
 
     public ?int $editandoHorarioCursoId = null;
@@ -89,6 +93,8 @@ new class extends Component
         $this->observacionesTexto = Estudiante::query()->find($estudianteId)?->observaciones ?? '';
         $this->editandoFechaFinMatriculaId = null;
         $this->fechaFinEstudioNueva = '';
+        $this->editandoVendedorMatriculaId = null;
+        $this->vendedorNuevo = '';
         $this->editandoHorarioMatriculaId = null;
         $this->editandoHorarioCursoId = null;
         $this->horarioSeleccionado = '';
@@ -311,6 +317,40 @@ new class extends Component
 
         $this->editandoFechaFinMatriculaId = null;
         $this->fechaFinEstudioNueva = '';
+    }
+
+    public function editarVendedor(int $matriculaId): void
+    {
+        Gate::authorize('matricula.editar');
+
+        $matricula = Matricula::query()->findOrFail($matriculaId);
+
+        $this->editandoVendedorMatriculaId = $matriculaId;
+        $this->vendedorNuevo = $matricula->vendedor ?? '';
+    }
+
+    public function cancelarEdicionVendedor(): void
+    {
+        $this->editandoVendedorMatriculaId = null;
+        $this->vendedorNuevo = '';
+    }
+
+    public function guardarVendedor(MatriculaService $service): void
+    {
+        Gate::authorize('matricula.editar');
+
+        if ($this->editandoVendedorMatriculaId === null) {
+            return;
+        }
+
+        $this->validate(['vendedorNuevo' => 'nullable|string|max:100']);
+
+        $matricula = Matricula::query()->findOrFail($this->editandoVendedorMatriculaId);
+
+        $service->reasignarVendedor($matricula, $this->vendedorNuevo ?: null);
+
+        $this->editandoVendedorMatriculaId = null;
+        $this->vendedorNuevo = '';
     }
 
     public function editarHorario(int $matriculaId, int $cursoId): void
@@ -587,6 +627,8 @@ new class extends Component
                     :horario-seleccionado="$horarioSeleccionado"
                     :editando-fecha-fin-matricula-id="$editandoFechaFinMatriculaId"
                     :fecha-fin-estudio-nueva="$fechaFinEstudioNueva"
+                    :editando-vendedor-matricula-id="$editandoVendedorMatriculaId"
+                    :vendedor-nuevo="$vendedorNuevo"
                     :planes-por-matricula="$planesPorMatricula"
                     :editando-monto-plan-id="$editandoMontoPlanId"
                     :monto-total-nuevo="$montoTotalNuevo"

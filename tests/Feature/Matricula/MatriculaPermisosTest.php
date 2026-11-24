@@ -291,6 +291,55 @@ class MatriculaPermisosTest extends TestCase
         $this->assertSame($fechaElegida, $matricula->fecha_matricula->format('Y-m-d'));
     }
 
+    /**
+     * Pedido del cliente: identificar quién gestionó cada matrícula, para
+     * que aparezca luego en el reporte de deudores.
+     */
+    public function test_el_wizard_guarda_el_vendedor_indicado(): void
+    {
+        Storage::fake('public');
+
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $ciclo = Ciclo::factory()->activo()->create([
+            'fecha_inicio' => now()->subDays(20),
+            'fecha_fin' => now()->addMonths(5),
+        ]);
+        $ciclo->periodosMatricula()->create([
+            'fecha_inicio' => now()->subDays(10),
+            'fecha_fin' => now()->addDays(10),
+        ]);
+        $grado = Grado::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.wizard')
+            ->set('nombres', 'Milagros')
+            ->set('apellidos', 'Castro Vidal')
+            ->set('dni', '55667734')
+            ->set('fechaNacimiento', now()->subYears(27)->format('Y-m-d'))
+            ->call('avanzar')
+            ->assertHasNoErrors()
+            ->assertSet('paso', 3)
+            ->set('dniEstudianteCaraArchivo', UploadedFile::fake()->create('dni.pdf', 100, 'application/pdf'))
+            ->call('avanzar')
+            ->assertSet('paso', 4)
+            ->call('avanzar')
+            ->assertSet('paso', 5)
+            ->set('cicloId', (string) $ciclo->id)
+            ->set('gradoId', (string) $grado->id)
+            ->set('vendedor', 'Pedro Salazar')
+            ->call('confirmar')
+            ->assertHasNoErrors()
+            ->assertDispatched('matricula-registrada');
+
+        $estudiante = Estudiante::query()->where('dni', '55667734')->firstOrFail();
+        $matricula = Matricula::query()->where('estudiante_id', $estudiante->id)->firstOrFail();
+
+        $this->assertSame('Pedro Salazar', $matricula->vendedor);
+    }
+
     public function test_guardar_celulares_adicionales_para_un_estudiante_mayor_de_edad(): void
     {
         Storage::fake('public');

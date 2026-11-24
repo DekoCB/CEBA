@@ -239,6 +239,7 @@ class ReporteService
                     $matricula->ciclo->nombre,
                     $matricula->grado->nombre,
                     $this->celularesDe($estudiante),
+                    $matricula->vendedor ?? '—',
                     $cuota->numero,
                     number_format((float) $cuota->monto, 2),
                     $cuota->fecha_vencimiento->format('d/m/Y'),
@@ -249,7 +250,7 @@ class ReporteService
             ->all();
 
         return [
-            'columnas' => ['Estudiante', 'DNI', 'Grupo', 'Grado', 'Celulares', 'Cuota N°', 'Monto cuota', 'Vencida desde', 'Compromiso de pago'],
+            'columnas' => ['Estudiante', 'DNI', 'Grupo', 'Grado', 'Celulares', 'Vendedor', 'Cuota N°', 'Monto cuota', 'Vencida desde', 'Compromiso de pago'],
             'filas' => $filas,
         ];
     }

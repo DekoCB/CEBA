@@ -31,6 +31,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property Carbon $fecha_matricula
  * @property Carbon|null $fecha_fin_estudio
  * @property EstadoMatriculaEnum $estado
+ * @property string|null $vendedor
  * @property-read Estudiante|null $estudiante
  * @property-read Ciclo $ciclo
  * @property-read Grado $grado
@@ -51,6 +52,7 @@ class Matricula extends Model implements HasMedia
         'estado',
         'observaciones',
         'registrado_por',
+        'vendedor',
     ];
 
     protected function casts(): array

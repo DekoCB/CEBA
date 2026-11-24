@@ -54,6 +54,10 @@ new #[Layout('layouts.app')] class extends Component
 
     public string $fechaFinEstudioNueva = '';
 
+    public ?int $editandoVendedorMatriculaId = null;
+
+    public string $vendedorNuevo = '';
+
     public ?int $editandoHorarioMatriculaId = null;
 
     public ?int $editandoHorarioCursoId = null;
@@ -284,6 +288,42 @@ new #[Layout('layouts.app')] class extends Component
         $this->fechaFinEstudioNueva = '';
 
         session()->flash('status', 'Fin de estudios actualizado.');
+    }
+
+    public function editarVendedor(int $matriculaId): void
+    {
+        Gate::authorize('matricula.editar');
+
+        $matricula = Matricula::query()->findOrFail($matriculaId);
+
+        $this->editandoVendedorMatriculaId = $matriculaId;
+        $this->vendedorNuevo = $matricula->vendedor ?? '';
+    }
+
+    public function cancelarEdicionVendedor(): void
+    {
+        $this->editandoVendedorMatriculaId = null;
+        $this->vendedorNuevo = '';
+    }
+
+    public function guardarVendedor(MatriculaService $service): void
+    {
+        Gate::authorize('matricula.editar');
+
+        if ($this->editandoVendedorMatriculaId === null) {
+            return;
+        }
+
+        $this->validate(['vendedorNuevo' => 'nullable|string|max:100']);
+
+        $matricula = Matricula::query()->findOrFail($this->editandoVendedorMatriculaId);
+
+        $service->reasignarVendedor($matricula, $this->vendedorNuevo ?: null);
+
+        $this->editandoVendedorMatriculaId = null;
+        $this->vendedorNuevo = '';
+
+        session()->flash('status', 'Vendedor actualizado.');
     }
 
     public function editarHorario(int $matriculaId, int $cursoId): void
@@ -559,6 +599,8 @@ new #[Layout('layouts.app')] class extends Component
         :horario-seleccionado="$horarioSeleccionado"
         :editando-fecha-fin-matricula-id="$editandoFechaFinMatriculaId"
         :fecha-fin-estudio-nueva="$fechaFinEstudioNueva"
+        :editando-vendedor-matricula-id="$editandoVendedorMatriculaId"
+        :vendedor-nuevo="$vendedorNuevo"
         :planes-por-matricula="$planesPorMatricula"
         :editando-monto-plan-id="$editandoMontoPlanId"
         :monto-total-nuevo="$montoTotalNuevo"

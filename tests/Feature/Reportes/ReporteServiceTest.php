@@ -237,7 +237,7 @@ class ReporteServiceTest extends TestCase
     public function test_reporte_de_morosos_tiene_una_fila_por_cuota_vencida(): void
     {
         $estudiante = Estudiante::factory()->create(['nombres' => 'Rosa', 'apellidos' => 'Delgado', 'celular' => '987654321']);
-        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'vendedor' => 'Juan Pérez']);
         $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
 
         Cuota::factory()->vencida()->create([
@@ -263,16 +263,28 @@ class ReporteServiceTest extends TestCase
 
         $reporte = app(ReporteService::class)->morosos(null, null, null);
 
-        $this->assertSame(['Estudiante', 'DNI', 'Grupo', 'Grado', 'Celulares', 'Cuota N°', 'Monto cuota', 'Vencida desde', 'Compromiso de pago'], $reporte['columnas']);
+        $this->assertSame(['Estudiante', 'DNI', 'Grupo', 'Grado', 'Celulares', 'Vendedor', 'Cuota N°', 'Monto cuota', 'Vencida desde', 'Compromiso de pago'], $reporte['columnas']);
         $this->assertCount(2, $reporte['filas']);
         $this->assertStringContainsString('Rosa', $reporte['filas'][0][0]);
         $this->assertStringContainsString('987654321', $reporte['filas'][0][4]);
-        $this->assertSame(1, $reporte['filas'][0][5]);
-        $this->assertSame('100.00', $reporte['filas'][0][6]);
-        $this->assertSame(now()->subMonths(2)->format('d/m/Y'), $reporte['filas'][0][7]);
-        $this->assertSame('—', $reporte['filas'][0][8]);
-        $this->assertSame(2, $reporte['filas'][1][5]);
-        $this->assertSame('150.00', $reporte['filas'][1][6]);
+        $this->assertSame('Juan Pérez', $reporte['filas'][0][5]);
+        $this->assertSame(1, $reporte['filas'][0][6]);
+        $this->assertSame('100.00', $reporte['filas'][0][7]);
+        $this->assertSame(now()->subMonths(2)->format('d/m/Y'), $reporte['filas'][0][8]);
+        $this->assertSame('—', $reporte['filas'][0][9]);
+        $this->assertSame(2, $reporte['filas'][1][6]);
+        $this->assertSame('150.00', $reporte['filas'][1][7]);
+    }
+
+    public function test_reporte_de_morosos_muestra_guion_si_la_matricula_no_tiene_vendedor(): void
+    {
+        $matricula = Matricula::factory()->create(['vendedor' => null]);
+        $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
+        Cuota::factory()->vencida()->create(['plan_pago_id' => $plan->id, 'numero' => 1]);
+
+        $reporte = app(ReporteService::class)->morosos(null, null, null);
+
+        $this->assertSame('—', $reporte['filas'][0][5]);
     }
 
     /**
@@ -300,8 +312,8 @@ class ReporteServiceTest extends TestCase
 
         $reporte = app(ReporteService::class)->morosos(null, null, null);
 
-        $this->assertSame(now()->subDays(10)->format('d/m/Y'), $reporte['filas'][0][8]);
-        $this->assertSame(now()->subDays(3)->format('d/m/Y'), $reporte['filas'][1][8]);
+        $this->assertSame(now()->subDays(10)->format('d/m/Y'), $reporte['filas'][0][9]);
+        $this->assertSame(now()->subDays(3)->format('d/m/Y'), $reporte['filas'][1][9]);
     }
 
     public function test_reporte_de_morosos_no_incluye_estudiantes_al_dia(): void

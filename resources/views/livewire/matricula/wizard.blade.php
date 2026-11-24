@@ -144,6 +144,8 @@ new class extends Component
 
     public string $observacionesMatricula = '';
 
+    public string $vendedor = '';
+
     // Paso 6 — cronograma de pagos (opcional)
     public bool $configurarCronograma = false;
 
@@ -363,6 +365,7 @@ new class extends Component
                 'cicloId' => 'required|integer|exists:ciclos,id',
                 'gradoId' => 'required|integer|exists:grados,id',
                 'siagieId' => 'nullable|integer|exists:siagies,id',
+                'vendedor' => 'nullable|string|max:100',
             ]);
 
             $this->paso = 6;
@@ -478,7 +481,7 @@ new class extends Component
         // cronograma opcional), reutilizando matricular() tal cual la usa
         // matricularDesdeFilas() para la carga masiva.
         if ($this->esRematricula) {
-            $this->validate(['fechaMatricula' => 'required|date']);
+            $this->validate(['fechaMatricula' => 'required|date', 'vendedor' => 'nullable|string|max:100']);
 
             $estudiante = DB::transaction(function () use ($matriculaService, $planPagoService) {
                 $estudiante = Estudiante::query()->findOrFail($this->estudianteEncontradoId);
@@ -490,6 +493,7 @@ new class extends Component
                     registradoPor: auth()->id(),
                     siagieId: $this->siagieId !== '' ? (int) $this->siagieId : null,
                     fechaMatricula: $this->fechaMatricula !== '' ? $this->fechaMatricula : null,
+                    vendedor: $this->vendedor ?: null,
                 ));
 
                 $this->crearCronogramaSiCorresponde($matricula, $planPagoService);
@@ -614,6 +618,7 @@ new class extends Component
                 registradoPor: auth()->id(),
                 siagieId: $this->siagieId !== '' ? (int) $this->siagieId : null,
                 fechaMatricula: $this->fechaMatricula !== '' ? $this->fechaMatricula : null,
+                vendedor: $this->vendedor ?: null,
             ));
 
             $this->crearCronogramaSiCorresponde($matricula, $planPagoService);
@@ -1084,6 +1089,11 @@ new class extends Component
                         <x-input-error :messages="$errors->get('fechaMatricula')" class="mt-1" />
                     </div>
                 @endif
+                <div>
+                    <x-input-label for="vendedor" value="Vendedor (opcional)" />
+                    <x-text-input wire:model="vendedor" id="vendedor" class="mt-1 block w-full" placeholder="Nombre de quien gestionó la matrícula" />
+                    <x-input-error :messages="$errors->get('vendedor')" class="mt-1" />
+                </div>
                 <div class="sm:col-span-2">
                     <x-input-label for="observacionesMatricula" value="Observaciones (opcional)" />
                     <textarea wire:model="observacionesMatricula" id="observacionesMatricula" rows="2" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent"></textarea>

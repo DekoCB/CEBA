@@ -209,6 +209,7 @@ class MatriculaService
             'estado' => EstadoMatriculaEnum::APROBADA,
             'observaciones' => $data->observaciones,
             'registrado_por' => $data->registradoPor,
+            'vendedor' => $data->vendedor,
         ];
 
         return DB::transaction(function () use ($estudiante, $grado, $atributos) {
@@ -261,6 +262,18 @@ class MatriculaService
     public function reasignarFechaFinEstudio(Matricula $matricula, string $fecha): Matricula
     {
         $matricula->update(['fecha_fin_estudio' => $fecha]);
+
+        return $matricula;
+    }
+
+    /**
+     * Quién vendió esta matrícula (nombre libre, sin catálogo de
+     * vendedores) -- se puede dejar en blanco al matricular y completarse o
+     * corregirse después desde la ficha.
+     */
+    public function reasignarVendedor(Matricula $matricula, ?string $vendedor): Matricula
+    {
+        $matricula->update(['vendedor' => $vendedor]);
 
         return $matricula;
     }

@@ -9,6 +9,8 @@
     'horarioSeleccionado' => '',
     'editandoFechaFinMatriculaId' => null,
     'fechaFinEstudioNueva' => '',
+    'editandoVendedorMatriculaId' => null,
+    'vendedorNuevo' => '',
     'planesPorMatricula' => [],
     'editandoMontoPlanId' => null,
     'montoTotalNuevo' => '',
@@ -316,6 +318,27 @@
                             </form>
                             <x-input-error :messages="$errors->get('fechaFinEstudioNueva')" class="mt-1" />
                             <x-input-error :messages="$errors->get('fecha')" class="mt-1" />
+                        @endif
+                    @endcan
+
+                    <div class="mt-2 flex items-center gap-2">
+                        <p class="text-ink-faint">Vendedor: {{ $matricula->vendedor ?? '—' }}</p>
+
+                        @can('matricula.editar')
+                            @if ($editandoVendedorMatriculaId !== $matricula->id)
+                                <button type="button" wire:click="editarVendedor({{ $matricula->id }})" class="text-xs font-medium text-accent hover:underline">Editar</button>
+                            @endif
+                        @endcan
+                    </div>
+
+                    @can('matricula.editar')
+                        @if ($editandoVendedorMatriculaId === $matricula->id)
+                            <form wire:submit="guardarVendedor" class="mt-2 flex flex-wrap items-center gap-2">
+                                <x-text-input wire:model="vendedorNuevo" class="w-48 text-xs" placeholder="Nombre del vendedor" />
+                                <x-secondary-button type="submit">Guardar</x-secondary-button>
+                                <button type="button" wire:click="cancelarEdicionVendedor" class="text-xs text-ink-faint hover:text-ink">Cancelar</button>
+                            </form>
+                            <x-input-error :messages="$errors->get('vendedorNuevo')" class="mt-1" />
                         @endif
                     @endcan
 

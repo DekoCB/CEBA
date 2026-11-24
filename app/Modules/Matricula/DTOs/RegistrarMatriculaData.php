@@ -13,5 +13,6 @@ final readonly class RegistrarMatriculaData
         public ?int $registradoPor,
         public ?int $siagieId = null,
         public ?string $fechaMatricula = null,
+        public ?string $vendedor = null,
     ) {}
 }

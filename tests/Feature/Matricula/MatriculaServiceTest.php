@@ -291,6 +291,61 @@ class MatriculaServiceTest extends TestCase
         $this->assertTrue($ciclo->fecha_fin->isSameDay($matricula->fecha_fin_estudio));
     }
 
+    public function test_matricular_guarda_el_vendedor_indicado(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $ciclo = $this->cicloConPeriodoAbierto();
+        $grado = Grado::factory()->create();
+
+        $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData(
+            $ciclo->id,
+            $grado->id,
+            null,
+            null,
+            vendedor: 'María Quispe',
+        ));
+
+        $this->assertSame('María Quispe', $matricula->vendedor);
+    }
+
+    public function test_matricular_sin_vendedor_lo_deja_nulo(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $ciclo = $this->cicloConPeriodoAbierto();
+        $grado = Grado::factory()->create();
+
+        $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
+
+        $this->assertNull($matricula->vendedor);
+    }
+
+    public function test_reasignar_vendedor_lo_actualiza(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $ciclo = $this->cicloConPeriodoAbierto();
+        $grado = Grado::factory()->create();
+
+        $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null));
+
+        $matricula = $this->service()->reasignarVendedor($matricula, 'Carlos Ruiz');
+
+        $this->assertSame('Carlos Ruiz', $matricula->vendedor);
+        $this->assertSame('Carlos Ruiz', $matricula->fresh()->vendedor);
+    }
+
+    public function test_reasignar_vendedor_a_nulo_lo_borra(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $ciclo = $this->cicloConPeriodoAbierto();
+        $grado = Grado::factory()->create();
+
+        $matricula = $this->service()->matricular($estudiante, new RegistrarMatriculaData($ciclo->id, $grado->id, null, null, vendedor: 'María Quispe'));
+
+        $matricula = $this->service()->reasignarVendedor($matricula, null);
+
+        $this->assertNull($matricula->fresh()->vendedor);
+    }
+
     public function test_reasignar_fecha_fin_estudio_la_actualiza(): void
     {
         $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
