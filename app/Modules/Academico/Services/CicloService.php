@@ -25,11 +25,6 @@ use Illuminate\Validation\ValidationException;
  */
 class CicloService
 {
-    /**
-     * Cuántos días antes del inicio del ciclo se permite abrir matrícula.
-     */
-    private const DIAS_MATRICULA_ANTICIPADA = 30;
-
     public function __construct(
         private readonly CicloRepositoryInterface $ciclos,
     ) {}
@@ -200,9 +195,11 @@ class CicloService
 
     /**
      * Segunda validación (la "doble validación" del roadmap): el periodo de
-     * matrícula debe caer dentro de una ventana razonable respecto al
-     * ciclo — puede abrir hasta 30 días antes de que el ciclo inicie, pero
-     * debe cerrar a más tardar cuando el ciclo termina.
+     * matrícula debe cerrar a más tardar cuando el ciclo termina. Ya no
+     * exige una anticipación máxima para la apertura -- antes no se podía
+     * abrir con más de 30 días de anticipación al inicio del ciclo, pero
+     * el cliente necesita poder ir matriculando con más margen (ej. desde
+     * noviembre para un ciclo que empieza en enero).
      */
     public function crearPeriodoMatricula(Ciclo $ciclo, string $fechaInicio, string $fechaFin): PeriodoMatricula
     {
@@ -222,14 +219,6 @@ class CicloService
         if ($fin->lessThan($inicio)) {
             throw ValidationException::withMessages([
                 'fechaFin' => 'La fecha de fin de matrícula debe ser posterior o igual a la de inicio.',
-            ]);
-        }
-
-        $ventanaInicio = $ciclo->fecha_inicio->copy()->subDays(self::DIAS_MATRICULA_ANTICIPADA);
-
-        if ($inicio->lessThan($ventanaInicio)) {
-            throw ValidationException::withMessages([
-                'fechaInicio' => 'La matrícula no puede abrir con más de '.self::DIAS_MATRICULA_ANTICIPADA." días de anticipación al inicio del ciclo ({$ciclo->fecha_inicio->format('d/m/Y')}).",
             ]);
         }
 

@@ -134,16 +134,23 @@ class CicloValidacionTest extends TestCase
         $this->assertDatabaseHas('ciclos', ['id' => $ciclo->id]);
     }
 
-    public function test_periodo_de_matricula_no_puede_abrir_con_mas_de_30_dias_de_anticipacion(): void
+    /**
+     * Pedido del cliente: antes no se podía abrir un periodo de matrícula
+     * con más de 30 días de anticipación al inicio del ciclo -- eso
+     * impedía ir matriculando con tiempo a los estudiantes de enero. Ya no
+     * hay límite de anticipación, solo que el cierre no pase la fecha de
+     * fin del ciclo (ver test_periodo_de_matricula_no_puede_cerrar_despues_de_que_termina_el_ciclo).
+     */
+    public function test_periodo_de_matricula_puede_abrir_con_mucha_anticipacion(): void
     {
         $ciclo = Ciclo::factory()->create([
-            'fecha_inicio' => '2026-07-01',
-            'fecha_fin' => '2026-12-31',
+            'fecha_inicio' => '2027-01-01',
+            'fecha_fin' => '2027-06-30',
         ]);
 
-        $this->expectException(ValidationException::class);
+        $periodo = $this->service()->crearPeriodoMatricula($ciclo, '2026-11-24', '2027-01-10');
 
-        $this->service()->crearPeriodoMatricula($ciclo, '2026-05-01', '2026-07-10');
+        $this->assertSame('2026-11-24', $periodo->fecha_inicio->format('Y-m-d'));
     }
 
     public function test_periodo_de_matricula_no_puede_cerrar_despues_de_que_termina_el_ciclo(): void
