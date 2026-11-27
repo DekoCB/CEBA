@@ -12,6 +12,8 @@ use App\Modules\Asistencia\Models\Asistencia;
 use App\Modules\Certificados\Models\Certificado;
 use App\Modules\Evaluaciones\Models\Calificacion;
 use App\Modules\Evaluaciones\Models\Evaluacion;
+use App\Modules\Matricula\Enums\TipoDocumentoEnum;
+use App\Modules\Matricula\Models\DocumentoEstudiante;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Models\Cuota;
@@ -155,12 +157,13 @@ class ReporteServiceTest extends TestCase
 
     public function test_reporte_financiero_lista_pagos(): void
     {
-        Pago::factory()->aprobado()->create(['fecha_pago' => now()]);
+        $pago = Pago::factory()->aprobado()->create(['fecha_pago' => now()]);
 
         $reporte = app(ReporteService::class)->financiero(null, null, null);
 
-        $this->assertSame(['Estudiante', 'Concepto', 'Monto', 'Método', 'Estado', 'Fecha de pago', 'N.° de operación'], $reporte['columnas']);
+        $this->assertSame(['Estudiante', 'DNI', 'Concepto', 'Monto', 'Método', 'Estado', 'Fecha de pago', 'N.° de operación'], $reporte['columnas']);
         $this->assertCount(1, $reporte['filas']);
+        $this->assertSame($pago->estudiante->dni, $reporte['filas'][0][1]);
     }
 
     public function test_reporte_financiero_muestra_el_numero_de_operacion(): void
@@ -169,7 +172,23 @@ class ReporteServiceTest extends TestCase
 
         $reporte = app(ReporteService::class)->financiero(null, null, null);
 
-        $this->assertSame('OP-12345', $reporte['filas'][0][6]);
+        $this->assertSame('OP-12345', $reporte['filas'][0][7]);
+    }
+
+    /**
+     * Pedido del cliente: el reporte financiero debe mostrar el medio de
+     * pago igual que sale impreso en el recibo (con la nota, que es donde
+     * se escribe de quién es la cuenta -- ej. "Yape Walter"), no solo el
+     * método genérico.
+     */
+    public function test_reporte_financiero_muestra_el_medio_de_pago_con_la_nota_de_la_cuenta(): void
+    {
+        $pago = Pago::factory()->aprobado()->create(['fecha_pago' => now(), 'metodo' => 'yape']);
+        $pago->partes()->create(['monto' => $pago->monto, 'metodo' => 'yape', 'nota' => 'Walter']);
+
+        $reporte = app(ReporteService::class)->financiero(null, null, null);
+
+        $this->assertSame('Yape Walter', $reporte['filas'][0][4]);
     }
 
     public function test_reporte_de_matricula_filtra_por_franja(): void
@@ -237,7 +256,7 @@ class ReporteServiceTest extends TestCase
     public function test_reporte_de_morosos_tiene_una_fila_por_cuota_vencida(): void
     {
         $estudiante = Estudiante::factory()->create(['nombres' => 'Rosa', 'apellidos' => 'Delgado', 'celular' => '987654321']);
-        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'vendedor' => 'Juan Pérez']);
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'vendedor' => 'Juan Pérez', 'fecha_fin_estudio' => '2026-12-15']);
         $plan = PlanPago::factory()->create(['matricula_id' => $matricula->id]);
 
         Cuota::factory()->vencida()->create([
@@ -263,7 +282,7 @@ class ReporteServiceTest extends TestCase
 
         $reporte = app(ReporteService::class)->morosos(null, null, null);
 
-        $this->assertSame(['Estudiante', 'DNI', 'Grupo', 'Grado', 'Celulares', 'Vendedor', 'Cuota N°', 'Monto cuota', 'Vencida desde', 'Compromiso de pago'], $reporte['columnas']);
+        $this->assertSame(['Estudiante', 'DNI', 'Grupo', 'Grado', 'Celulares', 'Vendedor', 'Cuota N°', 'Monto cuota', 'Vencida desde', 'Compromiso de pago', 'Fin de clase'], $reporte['columnas']);
         $this->assertCount(2, $reporte['filas']);
         $this->assertStringContainsString('Rosa', $reporte['filas'][0][0]);
         $this->assertStringContainsString('987654321', $reporte['filas'][0][4]);
@@ -272,6 +291,7 @@ class ReporteServiceTest extends TestCase
         $this->assertSame('100.00', $reporte['filas'][0][7]);
         $this->assertSame(now()->subMonths(2)->format('d/m/Y'), $reporte['filas'][0][8]);
         $this->assertSame('—', $reporte['filas'][0][9]);
+        $this->assertSame('15/12/2026', $reporte['filas'][0][10]);
         $this->assertSame(2, $reporte['filas'][1][6]);
         $this->assertSame('150.00', $reporte['filas'][1][7]);
     }
@@ -325,6 +345,46 @@ class ReporteServiceTest extends TestCase
         $reporte = app(ReporteService::class)->morosos(null, null, null);
 
         $this->assertSame([], $reporte['filas']);
+    }
+
+    /**
+     * Pedido del cliente: un reporte para ver de un vistazo si el
+     * Certificado de estudios, las fotos de DNI (estudiante y apoderado)
+     * y los demás documentos ya fueron verificados, están pendientes o
+     * todavía no se subieron -- mismo vocabulario que ya usa
+     * ficha-estudiante.blade.php.
+     */
+    public function test_reporte_de_documentos_muestra_el_estado_de_cada_tipo(): void
+    {
+        $estudiante = Estudiante::factory()->create(['nombres' => 'Luz', 'apellidos' => 'Fernández', 'es_menor_edad' => false]);
+        $matricula = Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
+
+        DocumentoEstudiante::factory()->create(['estudiante_id' => $estudiante->id, 'tipo' => TipoDocumentoEnum::CERTIFICADO_ESTUDIOS, 'verificado' => true]);
+        DocumentoEstudiante::factory()->create(['estudiante_id' => $estudiante->id, 'tipo' => TipoDocumentoEnum::CONSTANCIA, 'verificado' => false]);
+        // DNI_ESTUDIANTE y OTRO quedan sin ninguna fila -- "Falta subir".
+
+        $reporte = app(ReporteService::class)->documentos(null, null, null);
+
+        $this->assertSame(['Estudiante', 'DNI', 'Grado', 'DNI estudiante', 'DNI apoderado', 'Certificado de estudios', 'Constancia', 'Otro documento'], $reporte['columnas']);
+        $this->assertCount(1, $reporte['filas']);
+        $this->assertStringContainsString('Luz', $reporte['filas'][0][0]);
+        $this->assertSame($matricula->grado->nombre, $reporte['filas'][0][2]);
+        $this->assertSame('Falta subir', $reporte['filas'][0][3]);
+        $this->assertSame('No aplica', $reporte['filas'][0][4]);
+        $this->assertSame('Verificado', $reporte['filas'][0][5]);
+        $this->assertSame('Pendiente', $reporte['filas'][0][6]);
+        $this->assertSame('Falta subir', $reporte['filas'][0][7]);
+    }
+
+    public function test_reporte_de_documentos_exige_dni_del_apoderado_solo_si_es_menor_de_edad(): void
+    {
+        $estudiante = Estudiante::factory()->create(['es_menor_edad' => true]);
+        Matricula::factory()->create(['estudiante_id' => $estudiante->id]);
+        DocumentoEstudiante::factory()->create(['estudiante_id' => $estudiante->id, 'tipo' => TipoDocumentoEnum::DNI_APODERADO, 'verificado' => true]);
+
+        $reporte = app(ReporteService::class)->documentos(null, null, null);
+
+        $this->assertSame('Verificado', $reporte['filas'][0][4]);
     }
 
     public function test_reporte_de_certificados_esta_vacio_sin_datos(): void

@@ -73,6 +73,40 @@ class PagosFlujoTest extends TestCase
         $this->assertDatabaseHas('recibos', ['pago_id' => $pago->id]);
     }
 
+    /**
+     * Pedido del cliente: ver quién vendió la matrícula del estudiante
+     * elegido, directamente en la pestaña Registrar pago (solo lectura).
+     */
+    public function test_seleccionar_un_estudiante_muestra_el_vendedor_de_su_matricula_vigente(): void
+    {
+        $administrativo = User::factory()->create();
+        $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+        Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => 'aprobada', 'vendedor' => 'Pedro Salazar']);
+
+        $this->actingAs($administrativo);
+
+        Volt::test('pagos.index')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->assertSee('Pedro Salazar');
+    }
+
+    public function test_seleccionar_un_estudiante_sin_vendedor_muestra_un_guion(): void
+    {
+        $administrativo = User::factory()->create();
+        $administrativo->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+        Matricula::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => 'aprobada', 'vendedor' => null]);
+
+        $this->actingAs($administrativo);
+
+        Volt::test('pagos.index')
+            ->call('seleccionarEstudiante', $estudiante->id, $estudiante->nombreCompleto())
+            ->assertSee('Vendedor: —');
+    }
+
     public function test_registrar_un_pago_con_concepto_otro_exige_y_guarda_el_detalle_libre(): void
     {
         $administrativo = User::factory()->create();
@@ -688,6 +722,115 @@ class PagosFlujoTest extends TestCase
             ->set('fechaPago', now()->addDay()->format('Y-m-d'))
             ->call('registrarPago')
             ->assertHasErrors('fechaPago');
+
+        $this->assertDatabaseMissing('pagos', ['estudiante_id' => $estudiante->id]);
+    }
+
+    /**
+     * Pedido del cliente: un cobro de ventanilla para alguien sin
+     * matrícula activa (ej. un ex alumno que vuelve por un trámite) --
+     * se aprueba y el recibo se emite de inmediato, sin pasar por la cola
+     * de Tesorería.
+     */
+    public function test_tesoreria_registra_un_ingreso_adicional_para_un_dni_existente_y_el_recibo_queda_emitido_de_inmediato(): void
+    {
+        $tesoreria = User::factory()->create();
+        $tesoreria->assignRole(RolEnum::TESORERIA->value);
+
+        $estudiante = Estudiante::factory()->create(['dni' => '70112233', 'celular' => '987000111']);
+        $concepto = ConceptoPago::factory()->create(['tipo' => 'certificado']);
+
+        $this->actingAs($tesoreria);
+
+        Volt::test('pagos.index')
+            ->set('tab', 'ingresos')
+            ->set('ingresoDni', '70112233')
+            ->call('buscarIngresoPorDni')
+            ->assertSee($estudiante->nombres)
+            ->assertSee('987000111')
+            ->set('ingresoConceptoId', (string) $concepto->id)
+            ->set('ingresoMonto', '60')
+            ->set('ingresoMetodo', 'efectivo')
+            ->set('ingresoSerie', SerieReciboEnum::ORIGINAL->value)
+            ->call('registrarIngresoAdicional')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('pagos', [
+            'estudiante_id' => $estudiante->id,
+            'concepto_id' => $concepto->id,
+            'estado' => 'aprobado',
+        ]);
+        $this->assertDatabaseCount('estudiantes', 1);
+
+        $pago = Pago::query()->where('estudiante_id', $estudiante->id)->firstOrFail();
+        $this->assertDatabaseHas('recibos', ['pago_id' => $pago->id]);
+    }
+
+    public function test_tesoreria_registra_un_ingreso_adicional_para_un_dni_nuevo_crea_una_ficha_minima_sin_cuenta_de_acceso(): void
+    {
+        $tesoreria = User::factory()->create();
+        $tesoreria->assignRole(RolEnum::TESORERIA->value);
+        $concepto = ConceptoPago::factory()->create(['tipo' => 'constancia']);
+
+        $this->actingAs($tesoreria);
+
+        Volt::test('pagos.index')
+            ->set('ingresoDni', '70998877')
+            ->call('buscarIngresoPorDni')
+            ->set('ingresoNombres', 'Walter')
+            ->set('ingresoApellidos', 'Mendoza Ríos')
+            ->set('ingresoFechaNacimiento', now()->subYears(30)->format('Y-m-d'))
+            ->set('ingresoCelular', '987111222')
+            ->set('ingresoConceptoId', (string) $concepto->id)
+            ->set('ingresoMonto', '20')
+            ->set('ingresoMetodo', 'efectivo')
+            ->call('registrarIngresoAdicional')
+            ->assertHasNoErrors();
+
+        $estudiante = Estudiante::query()->where('dni', '70998877')->firstOrFail();
+        $this->assertNull($estudiante->user_id);
+        $this->assertSame('Walter', $estudiante->nombres);
+
+        $this->assertDatabaseHas('pagos', ['estudiante_id' => $estudiante->id, 'estado' => 'aprobado']);
+    }
+
+    public function test_un_coordinador_no_puede_registrar_un_ingreso_adicional(): void
+    {
+        $coordinador = User::factory()->create();
+        $coordinador->assignRole(RolEnum::COORDINADOR->value);
+        $concepto = ConceptoPago::factory()->create(['tipo' => 'certificado']);
+        $estudiante = Estudiante::factory()->create(['dni' => '70112234']);
+
+        $this->actingAs($coordinador);
+
+        rescue(fn () => Volt::test('pagos.index')
+            ->set('ingresoDni', '70112234')
+            ->set('ingresoEstudianteId', $estudiante->id)
+            ->set('ingresoConceptoId', (string) $concepto->id)
+            ->set('ingresoMonto', '50')
+            ->set('ingresoMetodo', 'efectivo')
+            ->call('registrarIngresoAdicional'), report: false);
+
+        $this->assertDatabaseMissing('pagos', ['estudiante_id' => $estudiante->id]);
+    }
+
+    public function test_ingreso_adicional_rechaza_concepto_mensualidad(): void
+    {
+        $tesoreria = User::factory()->create();
+        $tesoreria->assignRole(RolEnum::TESORERIA->value);
+        $estudiante = Estudiante::factory()->create(['dni' => '70112235']);
+        $concepto = ConceptoPago::factory()->create(['tipo' => 'mensualidad']);
+
+        $this->actingAs($tesoreria);
+
+        Volt::test('pagos.index')
+            ->set('ingresoDni', '70112235')
+            ->call('buscarIngresoPorDni')
+            ->set('ingresoConceptoId', (string) $concepto->id)
+            ->set('ingresoMonto', '80')
+            ->set('ingresoMetodo', 'efectivo')
+            ->call('registrarIngresoAdicional')
+            ->assertHasErrors('ingresoConceptoId');
 
         $this->assertDatabaseMissing('pagos', ['estudiante_id' => $estudiante->id]);
     }

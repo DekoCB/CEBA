@@ -11,6 +11,7 @@ use App\Modules\Asistencia\Models\Asistencia;
 use App\Modules\Certificados\Models\Certificado;
 use App\Modules\Evaluaciones\Models\Calificacion;
 use App\Modules\Evaluaciones\Models\Evaluacion;
+use App\Modules\Matricula\Enums\TipoDocumentoEnum;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
 use App\Modules\Pagos\Enums\EstadoCuotaEnum;
@@ -65,6 +66,61 @@ class ReporteService
     }
 
     /**
+     * Estado de cada documento por estudiante -- mismo vocabulario que ya
+     * usa ficha-estudiante.blade.php: "Verificado" (subido y verificado),
+     * "Pendiente" (subido, sin verificar todavía) o "Falta subir" (no hay
+     * ningún registro de ese tipo para el estudiante). DNI del apoderado
+     * se marca "No aplica" si el estudiante no es menor de edad, igual
+     * que esa misma ficha no lo exige en ese caso.
+     *
+     * @return array{columnas: list<string>, filas: list<array<int, string|int|float>>}
+     */
+    public function documentos(?int $cicloId, ?int $gradoId, ?int $cursoId, ?string $franja = null, ?int $siagieId = null): array
+    {
+        $matriculas = $this->filtrarMatriculasPorFiltros(
+            Matricula::query()->with(['estudiante.documentos', 'grado']),
+            $cicloId,
+            $gradoId,
+            $cursoId,
+            $franja,
+            $siagieId,
+        )->latest('fecha_matricula')->get();
+
+        return [
+            'columnas' => ['Estudiante', 'DNI', 'Grado', 'DNI estudiante', 'DNI apoderado', 'Certificado de estudios', 'Constancia', 'Otro documento'],
+            'filas' => $matriculas
+                ->filter(fn (Matricula $matricula) => $matricula->estudiante !== null)
+                ->map(function (Matricula $matricula) {
+                    $estudiante = $matricula->estudiante;
+
+                    return [
+                        $estudiante->nombreCompleto(),
+                        $estudiante->dni,
+                        $matricula->grado->nombre,
+                        $this->estadoDocumento($estudiante, TipoDocumentoEnum::DNI_ESTUDIANTE),
+                        $estudiante->es_menor_edad ? $this->estadoDocumento($estudiante, TipoDocumentoEnum::DNI_APODERADO) : 'No aplica',
+                        $this->estadoDocumento($estudiante, TipoDocumentoEnum::CERTIFICADO_ESTUDIOS),
+                        $this->estadoDocumento($estudiante, TipoDocumentoEnum::CONSTANCIA),
+                        $this->estadoDocumento($estudiante, TipoDocumentoEnum::OTRO),
+                    ];
+                })
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function estadoDocumento(Estudiante $estudiante, TipoDocumentoEnum $tipo): string
+    {
+        $documento = $estudiante->documentos->firstWhere('tipo', $tipo);
+
+        if ($documento === null) {
+            return 'Falta subir';
+        }
+
+        return $documento->verificado ? 'Verificado' : 'Pendiente';
+    }
+
+    /**
      * @return array{columnas: list<string>, filas: list<array<int, string|int|float>>}
      */
     public function academico(?int $cicloId, ?int $gradoId, ?int $cursoId, ?string $franja = null, ?int $siagieId = null): array
@@ -103,7 +159,7 @@ class ReporteService
         $sinFiltros = $this->sinFiltros($cicloId, $gradoId, $cursoId, $franja, $siagieId);
 
         $pagos = Pago::query()
-            ->with(['estudiante', 'concepto', 'cargoAdicional'])
+            ->with(['estudiante', 'concepto', 'cargoAdicional', 'partes'])
             ->when(! $sinFiltros, fn ($query) => $query->whereHas(
                 'estudiante.matriculas',
                 fn ($sub) => $this->filtrarMatriculasPorFiltros($sub, $cicloId, $gradoId, $cursoId, $franja, $siagieId),
@@ -112,12 +168,17 @@ class ReporteService
             ->get();
 
         return [
-            'columnas' => ['Estudiante', 'Concepto', 'Monto', 'Método', 'Estado', 'Fecha de pago', 'N.° de operación'],
+            'columnas' => ['Estudiante', 'DNI', 'Concepto', 'Monto', 'Método', 'Estado', 'Fecha de pago', 'N.° de operación'],
+            // "Método" usa medioPagoResumen() -- el mismo texto que ya se
+            // imprime en el recibo bajo "Medio de pago" (incluye la nota
+            // con el titular/cuenta cuando el pago tiene una sola parte,
+            // ej. "Yape Walter"), en vez del método genérico sin esa nota.
             'filas' => $pagos->map(fn (Pago $pago) => [
                 $pago->estudiante?->nombreCompleto() ?? '—',
+                $pago->estudiante->dni ?? '—',
                 $pago->nombreConcepto(),
                 number_format((float) $pago->monto, 2),
-                $pago->metodo->label(),
+                $pago->medioPagoResumen(),
                 $pago->estado->label(),
                 $pago->fecha_pago->format('d/m/Y'),
                 $pago->numero_operacion ?? '—',
@@ -244,13 +305,14 @@ class ReporteService
                     number_format((float) $cuota->monto, 2),
                     $cuota->fecha_vencimiento->format('d/m/Y'),
                     $cuota->fecha_compromiso?->format('d/m/Y') ?? '—',
+                    $matricula->fecha_fin_estudio?->format('d/m/Y') ?? '—',
                 ];
             })
             ->values()
             ->all();
 
         return [
-            'columnas' => ['Estudiante', 'DNI', 'Grupo', 'Grado', 'Celulares', 'Vendedor', 'Cuota N°', 'Monto cuota', 'Vencida desde', 'Compromiso de pago'],
+            'columnas' => ['Estudiante', 'DNI', 'Grupo', 'Grado', 'Celulares', 'Vendedor', 'Cuota N°', 'Monto cuota', 'Vencida desde', 'Compromiso de pago', 'Fin de clase'],
             'filas' => $filas,
         ];
     }

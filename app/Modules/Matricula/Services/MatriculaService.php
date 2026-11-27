@@ -279,6 +279,75 @@ class MatriculaService
     }
 
     /**
+     * Cambia el estado del estudiante a mano (Retirado/Pausa temporal/
+     * Activo/Egresado). Es un snapshot del estado actual, no un
+     * historial: pasar a Retirado exige fecha y motivo; pasar a Pausa
+     * exige el inicio y el motivo (el fin es opcional, se puede completar
+     * después). Cualquier otro estado limpia ambos grupos de campos, para
+     * no dejar datos de un estado anterior colgando.
+     *
+     * @param  array{fechaRetiro?: ?string, motivoRetiro?: ?string, pausaInicio?: ?string, pausaFin?: ?string, motivoPausa?: ?string}  $datos
+     */
+    public function cambiarEstado(Estudiante $estudiante, EstadoEstudianteEnum $estado, array $datos = []): Estudiante
+    {
+        $atributos = [
+            'estado' => $estado,
+            'fecha_retiro' => null,
+            'motivo_retiro' => null,
+            'pausa_inicio' => null,
+            'pausa_fin' => null,
+            'motivo_pausa' => null,
+        ];
+
+        if ($estado === EstadoEstudianteEnum::RETIRADO) {
+            if (empty($datos['fechaRetiro']) || empty($datos['motivoRetiro'])) {
+                throw ValidationException::withMessages([
+                    'motivoRetiro' => 'Indica la fecha y el motivo del retiro.',
+                ]);
+            }
+
+            $atributos['fecha_retiro'] = $datos['fechaRetiro'];
+            $atributos['motivo_retiro'] = $datos['motivoRetiro'];
+        }
+
+        if ($estado === EstadoEstudianteEnum::PAUSA) {
+            if (empty($datos['pausaInicio']) || empty($datos['motivoPausa'])) {
+                throw ValidationException::withMessages([
+                    'motivoPausa' => 'Indica la fecha de inicio y el motivo de la pausa.',
+                ]);
+            }
+
+            $atributos['pausa_inicio'] = $datos['pausaInicio'];
+            $atributos['pausa_fin'] = $datos['pausaFin'] ?? null;
+            $atributos['motivo_pausa'] = $datos['motivoPausa'];
+        }
+
+        $estudiante->update($atributos);
+
+        return $estudiante;
+    }
+
+    /**
+     * Ficha mínima para alguien que nunca se matriculó (ej. un ex alumno
+     * de años anteriores que vuelve solo por un trámite y su DNI no
+     * aparece en el sistema) -- a diferencia de registrarEstudiante(), NO
+     * crea ninguna cuenta de acceso (user_id queda null): esta persona no
+     * va a usar el sistema, solo se le va a emitir un recibo.
+     */
+    public function crearFichaMinima(string $dni, string $nombres, string $apellidos, string $fechaNacimiento, ?string $celular): Estudiante
+    {
+        return $this->estudiantes->create([
+            'dni' => $dni,
+            'nombres' => $nombres,
+            'apellidos' => $apellidos,
+            'fecha_nacimiento' => $fechaNacimiento,
+            'es_menor_edad' => self::esMenorDeEdad($fechaNacimiento),
+            'celular' => $celular,
+            'estado' => EstadoEstudianteEnum::ACTIVO,
+        ]);
+    }
+
+    /**
      * Asigna a la matrícula el horario específico de UN curso -- por
      * ejemplo cuando ese curso tiene varias secciones/paralelos y hace
      * falta decidir a cuál pertenece el estudiante (ver

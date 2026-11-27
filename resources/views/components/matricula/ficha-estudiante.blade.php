@@ -11,6 +11,14 @@
     'fechaFinEstudioNueva' => '',
     'editandoVendedorMatriculaId' => null,
     'vendedorNuevo' => '',
+    'cambiandoEstado' => false,
+    'estadoNuevo' => '',
+    'fechaRetiroNueva' => '',
+    'motivoRetiroNuevo' => '',
+    'pausaInicioNueva' => '',
+    'pausaFinNueva' => '',
+    'motivoPausaNuevo' => '',
+    'estadosEstudiante' => [],
     'planesPorMatricula' => [],
     'editandoMontoPlanId' => null,
     'montoTotalNuevo' => '',
@@ -118,6 +126,71 @@
                 <dd class="text-ink">{{ $estudiante->ciclos_completados }}{{ $matriculas->last()?->ciclo?->modalidad?->value !== 'anual' ? ' / 4' : '' }}</dd>
             </div>
         </dl>
+    </div>
+
+    <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">
+        <h2 class="text-sm font-semibold text-ink">Estado</h2>
+        <div class="mt-4 flex items-center gap-2">
+            <span @class([
+                'rounded-full px-2 py-0.5 text-xs font-medium',
+                'bg-ok/10 text-ok' => $estudiante->estado->value === 'activo',
+                'bg-danger/10 text-danger' => $estudiante->estado->value === 'retirado',
+                'bg-ink-faint/10 text-ink-faint' => $estudiante->estado->value === 'egresado',
+                'bg-warn/10 text-warn' => $estudiante->estado->value === 'pausa',
+            ])>
+                {{ $estudiante->estado->label() }}
+            </span>
+            @can('matricula.editar')
+                @if (! $cambiandoEstado)
+                    <button type="button" wire:click="editarEstado" class="text-xs font-medium text-accent hover:underline">Cambiar estado</button>
+                @endif
+            @endcan
+        </div>
+
+        @if ($estudiante->estado->value === 'retirado')
+            <p class="mt-2 text-xs text-ink-faint">Retirado el {{ $estudiante->fecha_retiro?->format('d/m/Y') ?? '—' }} — {{ $estudiante->motivo_retiro ?? '—' }}</p>
+        @elseif ($estudiante->estado->value === 'pausa')
+            <p class="mt-2 text-xs text-ink-faint">
+                En pausa desde {{ $estudiante->pausa_inicio?->format('d/m/Y') ?? '—' }}
+                {{ $estudiante->pausa_fin ? 'hasta '.$estudiante->pausa_fin->format('d/m/Y') : '(sin fecha de fin todavía)' }}
+                — {{ $estudiante->motivo_pausa ?? '—' }}
+            </p>
+        @endif
+
+        @can('matricula.editar')
+            @if ($cambiandoEstado)
+                <form wire:submit="guardarEstado" class="mt-4 space-y-3">
+                    <x-select-input
+                        wire:model.live="estadoNuevo"
+                        class="w-full text-xs sm:w-56"
+                        :options="collect($estadosEstudiante)->mapWithKeys(fn ($opcion) => [$opcion->value => $opcion->label()])"
+                    />
+
+                    @if ($estadoNuevo === 'retirado')
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <x-date-input wire:model="fechaRetiroNueva" class="text-xs" />
+                            <x-text-input wire:model="motivoRetiroNuevo" placeholder="Motivo del retiro" class="text-xs" />
+                        </div>
+                        <x-input-error :messages="$errors->get('fechaRetiroNueva')" class="mt-1" />
+                        <x-input-error :messages="$errors->get('motivoRetiroNuevo')" class="mt-1" />
+                    @elseif ($estadoNuevo === 'pausa')
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                            <x-date-input wire:model="pausaInicioNueva" class="text-xs" />
+                            <x-date-input wire:model="pausaFinNueva" class="text-xs" />
+                            <x-text-input wire:model="motivoPausaNuevo" placeholder="Motivo de la pausa" class="text-xs" />
+                        </div>
+                        <p class="text-xs text-ink-faint">La fecha de fin es opcional: se puede dejar en blanco y completar después.</p>
+                        <x-input-error :messages="$errors->get('pausaInicioNueva')" class="mt-1" />
+                        <x-input-error :messages="$errors->get('motivoPausaNuevo')" class="mt-1" />
+                    @endif
+
+                    <div class="flex items-center gap-2">
+                        <x-secondary-button type="submit">Guardar</x-secondary-button>
+                        <button type="button" wire:click="cancelarEdicionEstado" class="text-xs text-ink-faint hover:text-ink">Cancelar</button>
+                    </div>
+                </form>
+            @endif
+        @endcan
     </div>
 
     <div class="rounded-2xl border border-border bg-surface shadow-sm p-6">

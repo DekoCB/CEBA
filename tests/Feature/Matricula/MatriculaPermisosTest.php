@@ -1441,6 +1441,89 @@ class MatriculaPermisosTest extends TestCase
             ->assertForbidden();
     }
 
+    /**
+     * Pedido del cliente: poder retirar a un estudiante (con fecha y
+     * motivo) o ponerlo en pausa temporal, de forma manual desde su
+     * ficha -- igual que ya se podía editar Vendedor o Fin de estudios.
+     */
+    public function test_cambiar_estado_a_retirado_desde_la_pagina_completa_de_la_ficha(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('editarEstado')
+            ->set('estadoNuevo', 'retirado')
+            ->set('fechaRetiroNueva', '2026-11-20')
+            ->set('motivoRetiroNuevo', 'Cambio de ciudad')
+            ->call('guardarEstado')
+            ->assertHasNoErrors();
+
+        $estudiante->refresh();
+        $this->assertSame('retirado', $estudiante->estado->value);
+        $this->assertSame('2026-11-20', $estudiante->fecha_retiro->format('Y-m-d'));
+        $this->assertSame('Cambio de ciudad', $estudiante->motivo_retiro);
+    }
+
+    public function test_cambiar_estado_a_pausa_desde_el_modal_de_ficha(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.ficha-modal')
+            ->call('abrir', $estudiante->id)
+            ->call('editarEstado')
+            ->set('estadoNuevo', 'pausa')
+            ->set('pausaInicioNueva', '2026-11-20')
+            ->set('motivoPausaNuevo', 'Viaje familiar')
+            ->call('guardarEstado')
+            ->assertHasNoErrors();
+
+        $estudiante->refresh();
+        $this->assertSame('pausa', $estudiante->estado->value);
+        $this->assertSame('2026-11-20', $estudiante->pausa_inicio->format('Y-m-d'));
+    }
+
+    public function test_cambiar_estado_a_retirado_sin_motivo_queda_como_error_de_formulario(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::COORDINADOR->value);
+
+        $estudiante = Estudiante::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('editarEstado')
+            ->set('estadoNuevo', 'retirado')
+            ->call('guardarEstado')
+            ->assertHasErrors(['fechaRetiroNueva', 'motivoRetiroNuevo']);
+
+        $this->assertSame('activo', $estudiante->fresh()->estado->value);
+    }
+
+    public function test_no_se_puede_cambiar_estado_sin_el_permiso_de_editar_matricula(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole(RolEnum::ADMINISTRATIVO->value);
+
+        $estudiante = Estudiante::factory()->create();
+
+        $this->actingAs($usuario);
+
+        Volt::test('matricula.show', ['estudiante' => $estudiante])
+            ->call('editarEstado')
+            ->assertForbidden();
+    }
+
     public function test_editar_horario_desde_la_ficha_asigna_el_horario_de_ese_curso(): void
     {
         $usuario = User::factory()->create();

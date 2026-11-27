@@ -6,6 +6,7 @@ use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Grado;
 use App\Modules\Matricula\Models\Estudiante;
 use App\Modules\Matricula\Models\Matricula;
+use App\Modules\Matricula\Services\MatriculaService;
 use App\Modules\Pagos\Enums\MetodoPagoEnum;
 use App\Modules\Pagos\Enums\NumeroCuotasEnum;
 use App\Modules\Pagos\Enums\SerieReciboEnum;
@@ -19,6 +20,7 @@ use App\Modules\Pagos\Services\CobranzaService;
 use App\Modules\Pagos\Services\ConceptoPagoService;
 use App\Modules\Pagos\Services\PagoService;
 use App\Modules\Pagos\Services\PlanPagoService;
+use App\Shared\Rules\DniValido;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -157,6 +159,36 @@ new #[Layout('layouts.app')] class extends Component
     /** @var array<int, string> */
     public array $montoCompromisoPorCargo = [];
 
+    // Ingresos adicionales -- cobros sueltos para personas sin matrícula
+    // activa (ej. ex alumnos que vuelven solo por un trámite). Se busca
+    // por DNI; si no existe ningún Estudiante con ese DNI, se completan
+    // los datos para crearle una ficha mínima (sin cuenta de acceso).
+    public string $ingresoDni = '';
+
+    public ?int $ingresoEstudianteId = null;
+
+    public bool $ingresoBuscado = false;
+
+    public string $ingresoNombres = '';
+
+    public string $ingresoApellidos = '';
+
+    public string $ingresoFechaNacimiento = '';
+
+    public string $ingresoCelular = '';
+
+    public string $ingresoConceptoId = '';
+
+    public string $ingresoMonto = '';
+
+    public string $ingresoDetalle = '';
+
+    public string $ingresoMetodo = '';
+
+    public string $ingresoNota = '';
+
+    public string $ingresoSerie = '';
+
     public function mount(): void
     {
         $user = Auth::user();
@@ -173,6 +205,7 @@ new #[Layout('layouts.app')] class extends Component
         };
 
         $this->fechaPago = now()->format('Y-m-d');
+        $this->ingresoSerie = SerieReciboEnum::ORIGINAL->value;
     }
 
     public function seleccionarEstudiante(int $estudianteId, string $nombre): void
@@ -388,6 +421,105 @@ new #[Layout('layouts.app')] class extends Component
     }
 
     /**
+     * Busca por DNI para un ingreso adicional (ver registrarIngresoAdicional())
+     * -- sin filtrar por estado, a diferencia del buscador de "Registrar
+     * pago": un ex alumno retirado o egresado debe encontrarse igual. Si
+     * no existe ningún Estudiante con ese DNI, deja los campos vacíos
+     * para completar una ficha mínima.
+     */
+    public function buscarIngresoPorDni(): void
+    {
+        Gate::authorize('pagos.aprobar');
+
+        $this->validate(['ingresoDni' => ['required', 'string', 'min:8', 'max:12', new DniValido]]);
+
+        $estudiante = Estudiante::query()->where('dni', $this->ingresoDni)->first();
+
+        $this->ingresoBuscado = true;
+        $this->ingresoEstudianteId = $estudiante?->id;
+        $this->ingresoNombres = $estudiante?->nombres ?? '';
+        $this->ingresoApellidos = $estudiante?->apellidos ?? '';
+        $this->ingresoCelular = $estudiante?->celular ?? '';
+        $this->ingresoFechaNacimiento = '';
+    }
+
+    public function cambiarIngresoDni(): void
+    {
+        $this->reset(['ingresoDni', 'ingresoEstudianteId', 'ingresoBuscado', 'ingresoNombres', 'ingresoApellidos', 'ingresoCelular', 'ingresoFechaNacimiento']);
+    }
+
+    /**
+     * Registra y aprueba en un solo paso (sin pasar por la cola de
+     * Tesorería): es un cobro de ventanilla para alguien sin matrícula
+     * activa (ej. un ex alumno que vuelve solo por un trámite), no un
+     * pago a crédito. Reutiliza PagoService::registrar()+aprobar() tal
+     * cual, así que el recibo sale igual que cualquier otro.
+     */
+    public function registrarIngresoAdicional(PagoService $pagos, MatriculaService $matriculas): void
+    {
+        Gate::authorize('pagos.aprobar');
+
+        $reglas = [
+            'ingresoDni' => ['required', 'string', 'min:8', 'max:12', new DniValido],
+            'ingresoConceptoId' => 'required|integer|exists:conceptos_pago,id',
+            'ingresoMonto' => 'required|numeric|min:0.01',
+            'ingresoMetodo' => ['required', 'string', 'in:'.implode(',', array_column(MetodoPagoEnum::seleccionables(), 'value'))],
+            'ingresoSerie' => ['required', 'string', 'in:'.implode(',', array_column(SerieReciboEnum::cases(), 'value'))],
+        ];
+
+        if ($this->ingresoEstudianteId === null) {
+            $reglas['ingresoNombres'] = 'required|string|max:100';
+            $reglas['ingresoApellidos'] = 'required|string|max:100';
+            $reglas['ingresoFechaNacimiento'] = 'required|date|before:today';
+        }
+
+        $this->validate($reglas);
+
+        $concepto = ConceptoPago::query()->findOrFail($this->ingresoConceptoId);
+
+        if ($concepto->tipo === TipoConceptoEnum::MENSUALIDAD) {
+            $this->addError('ingresoConceptoId', 'Este módulo no acepta mensualidades -- usa Registrar pago con una matrícula activa.');
+
+            return;
+        }
+
+        if ($concepto->tipo === TipoConceptoEnum::OTRO && trim($this->ingresoDetalle) === '') {
+            $this->addError('ingresoDetalle', 'Escribe el concepto específico de este cobro.');
+
+            return;
+        }
+
+        $estudiante = $this->ingresoEstudianteId !== null
+            ? Estudiante::query()->findOrFail($this->ingresoEstudianteId)
+            : $matriculas->crearFichaMinima($this->ingresoDni, $this->ingresoNombres, $this->ingresoApellidos, $this->ingresoFechaNacimiento, $this->ingresoCelular ?: null);
+
+        $pago = $pagos->registrar(
+            $estudiante,
+            [[
+                'concepto_id' => $concepto->id,
+                'cuota_id' => null,
+                'cargo_adicional_id' => null,
+                'monto' => (float) $this->ingresoMonto,
+                'detalle' => $this->ingresoDetalle ?: null,
+            ]],
+            [[
+                'monto' => (float) $this->ingresoMonto,
+                'metodo' => $this->ingresoMetodo,
+                'nota' => $this->ingresoNota ?: null,
+            ]],
+            null,
+            Auth::id(),
+        );
+
+        $pagos->aprobar($pago, Auth::id(), SerieReciboEnum::from($this->ingresoSerie));
+
+        $this->reset(['ingresoDni', 'ingresoEstudianteId', 'ingresoBuscado', 'ingresoNombres', 'ingresoApellidos', 'ingresoFechaNacimiento', 'ingresoCelular', 'ingresoConceptoId', 'ingresoMonto', 'ingresoDetalle', 'ingresoMetodo', 'ingresoNota']);
+        $this->ingresoSerie = SerieReciboEnum::ORIGINAL->value;
+
+        session()->flash('status', 'Ingreso registrado: el recibo ya quedó emitido.');
+    }
+
+    /**
      * Calcula el reparto inicial (partes iguales + vencimientos mensuales
      * desde la fecha de matrícula) y lo deja editable en una tabla por
      * cuota -- mismo patrón que el wizard de matrícula (ver
@@ -553,12 +685,22 @@ new #[Layout('layouts.app')] class extends Component
         // consulta que ya usa la pestaña Cobros individual.
         $cuotasPendientesParaRegistrar = collect();
         $cargosAdicionalesPendientes = collect();
+        $vendedorDeLaMatricula = null;
         if ($puedeRegistrar && $this->estudianteSeleccionadoId) {
             $estudianteParaRegistrar = Estudiante::query()->find($this->estudianteSeleccionadoId);
             if ($estudianteParaRegistrar) {
                 $deudaParaRegistrar = $cobranza->deudaDeEstudiante($estudianteParaRegistrar);
                 $cuotasPendientesParaRegistrar = $deudaParaRegistrar['cuotasPendientes'] ?? collect();
                 $cargosAdicionalesPendientes = $deudaParaRegistrar['cargosAdicionalesPendientes'] ?? collect();
+
+                // Mismo criterio de "matrícula vigente" ya usado en
+                // VacacionService::matriculaVigente() y en
+                // cuerpo-recibo.blade.php: la más reciente aprobada.
+                $vendedorDeLaMatricula = Matricula::query()
+                    ->where('estudiante_id', $estudianteParaRegistrar->id)
+                    ->where('estado', 'aprobada')
+                    ->latest('fecha_matricula')
+                    ->value('vendedor');
             }
         }
 
@@ -624,6 +766,7 @@ new #[Layout('layouts.app')] class extends Component
             'mostrarDetalleLibre' => $conceptosActivos->firstWhere('id', (int) $this->conceptoSueltoId)?->tipo === TipoConceptoEnum::OTRO,
             'cuotasPendientesParaRegistrar' => $cuotasPendientesParaRegistrar,
             'cargosAdicionalesPendientes' => $cargosAdicionalesPendientes,
+            'vendedorDeLaMatricula' => $vendedorDeLaMatricula,
             'series' => SerieReciboEnum::cases(),
             'numerosCuotas' => NumeroCuotasEnum::cases(),
             'metodosPago' => MetodoPagoEnum::seleccionables(),
@@ -682,6 +825,11 @@ new #[Layout('layouts.app')] class extends Component
         @if ($puedeVerHistorial)
             <button wire:click="$set('tab', 'historial')" @class(['border-b-2 px-4 py-2 font-display text-sm font-medium transition', 'border-accent text-accent' => $tab === 'historial', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'historial'])>
                 Historial
+            </button>
+        @endif
+        @if ($puedeAprobar)
+            <button wire:click="$set('tab', 'ingresos')" @class(['border-b-2 px-4 py-2 font-display text-sm font-medium transition', 'border-accent text-accent' => $tab === 'ingresos', 'border-transparent text-ink-faint hover:text-ink' => $tab !== 'ingresos'])>
+                Ingresos adicionales
             </button>
         @endif
     </div>
@@ -752,6 +900,7 @@ new #[Layout('layouts.app')] class extends Component
                         {{ $estudianteSeleccionadoNombre }}
                         <button type="button" wire:click="$set('estudianteSeleccionadoId', null)" class="text-xs underline">Cambiar</button>
                     </div>
+                    <p class="mt-1 text-xs text-ink-faint">Vendedor: {{ $vendedorDeLaMatricula ?? '—' }}</p>
                 @else
                     <x-text-input wire:model.live.debounce.300ms="terminoBusqueda" class="mt-1 block w-full" placeholder="Buscar por nombre, apellido o DNI…" />
                     @if ($resultadosBusqueda->isNotEmpty())
@@ -1392,6 +1541,122 @@ new #[Layout('layouts.app')] class extends Component
                             @endforelse
                         </tbody>
                     </table>
+                </div>
+            @endif
+        </div>
+    @endif
+
+    {{-- Ingresos adicionales --}}
+    @if ($tab === 'ingresos' && $puedeAprobar)
+        <div class="max-w-xl space-y-4 rounded-2xl border border-border bg-surface shadow-sm p-6">
+            <p class="text-sm text-ink-dim">Cobro de ventanilla para alguien sin matrícula activa (ej. un ex alumno que vuelve solo por un trámite). Se aprueba y el recibo se emite de inmediato, sin pasar por la cola de Tesorería.</p>
+
+            <div>
+                <x-input-label value="DNI" />
+                @if ($ingresoBuscado)
+                    <div class="mt-1 flex items-center justify-between rounded-md bg-accent-soft px-3 py-2 text-sm text-accent">
+                        {{ $ingresoDni }}
+                        <button type="button" wire:click="cambiarIngresoDni" class="text-xs underline">Cambiar</button>
+                    </div>
+                @else
+                    <div class="mt-1 flex gap-2">
+                        <x-text-input wire:model="ingresoDni" class="block w-full" placeholder="DNI o carné de extranjería…" />
+                        <x-secondary-button type="button" wire:click="buscarIngresoPorDni">Buscar</x-secondary-button>
+                    </div>
+                @endif
+                <x-input-error :messages="$errors->get('ingresoDni')" class="mt-1" />
+            </div>
+
+            @if ($ingresoBuscado)
+                @if ($ingresoEstudianteId)
+                    <div class="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-ink">
+                        <p>{{ $ingresoNombres }} {{ $ingresoApellidos }}</p>
+                        <p class="text-xs text-ink-faint">Celular: {{ $ingresoCelular ?: '—' }}</p>
+                    </div>
+                @else
+                    <p class="text-xs text-warn">No existe ningún registro con este DNI. Completa estos datos para crearle una ficha básica (sin cuenta de acceso al sistema).</p>
+
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                            <x-input-label for="ingresoNombres" value="Nombres" />
+                            <x-text-input wire:model="ingresoNombres" id="ingresoNombres" class="mt-1 block w-full" />
+                            <x-input-error :messages="$errors->get('ingresoNombres')" class="mt-1" />
+                        </div>
+                        <div>
+                            <x-input-label for="ingresoApellidos" value="Apellidos" />
+                            <x-text-input wire:model="ingresoApellidos" id="ingresoApellidos" class="mt-1 block w-full" />
+                            <x-input-error :messages="$errors->get('ingresoApellidos')" class="mt-1" />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                            <x-input-label for="ingresoFechaNacimiento" value="Fecha de nacimiento" />
+                            <x-date-input wire:model="ingresoFechaNacimiento" id="ingresoFechaNacimiento" class="mt-1 block w-full" />
+                            <x-input-error :messages="$errors->get('ingresoFechaNacimiento')" class="mt-1" />
+                        </div>
+                        <div>
+                            <x-input-label for="ingresoCelular" value="Celular (opcional)" />
+                            <x-text-input wire:model="ingresoCelular" id="ingresoCelular" class="mt-1 block w-full" />
+                        </div>
+                    </div>
+                @endif
+
+                <div>
+                    <x-input-label for="ingresoConceptoId" value="Concepto de pago" />
+                    <x-select-input
+                        wire:model.live="ingresoConceptoId"
+                        id="ingresoConceptoId"
+                        class="mt-1 block w-full"
+                        :options="collect($conceptosActivos)->reject(fn ($concepto) => $concepto->tipo === TipoConceptoEnum::MENSUALIDAD)->mapWithKeys(fn ($concepto) => [$concepto->id => $concepto->nombre.' (S/ '.number_format((float) $concepto->monto_base, 2).')'])"
+                        placeholder="Selecciona…"
+                    />
+                    <x-input-error :messages="$errors->get('ingresoConceptoId')" class="mt-1" />
+                </div>
+
+                @if ($ingresoConceptoId !== '' && $conceptosActivos->firstWhere('id', (int) $ingresoConceptoId)?->tipo === TipoConceptoEnum::OTRO)
+                    <div>
+                        <x-input-label for="ingresoDetalle" value="Detalle del concepto" />
+                        <x-text-input wire:model="ingresoDetalle" id="ingresoDetalle" class="mt-1 block w-full" placeholder="Ej. duplicado de constancia…" />
+                        <x-input-error :messages="$errors->get('ingresoDetalle')" class="mt-1" />
+                    </div>
+                @endif
+
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <x-input-label for="ingresoMonto" value="Monto (S/)" />
+                        <x-text-input wire:model="ingresoMonto" id="ingresoMonto" type="number" step="0.01" min="0" class="mt-1 block w-full" />
+                        <x-input-error :messages="$errors->get('ingresoMonto')" class="mt-1" />
+                    </div>
+                    <div>
+                        <x-input-label for="ingresoMetodo" value="Método" />
+                        <x-select-input
+                            wire:model="ingresoMetodo"
+                            id="ingresoMetodo"
+                            class="mt-1 block w-full"
+                            :options="collect($metodosPago)->mapWithKeys(fn ($metodoOpcion) => [$metodoOpcion->value => $metodoOpcion->label()])"
+                            placeholder="Selecciona…"
+                        />
+                        <x-input-error :messages="$errors->get('ingresoMetodo')" class="mt-1" />
+                    </div>
+                </div>
+
+                <div>
+                    <x-input-label for="ingresoNota" value="Nota (opcional)" />
+                    <x-text-input wire:model="ingresoNota" id="ingresoNota" class="mt-1 block w-full" placeholder="Nota que se imprime en el recibo…" />
+                </div>
+
+                <div>
+                    <x-input-label for="ingresoSerie" value="Serie del recibo" />
+                    <select wire:model="ingresoSerie" id="ingresoSerie" class="mt-1 block w-full rounded-md border-border bg-surface text-sm text-ink focus:border-accent focus:ring-accent">
+                        @foreach ($series as $serieOpcion)
+                            <option value="{{ $serieOpcion->value }}">Serie {{ $serieOpcion->value }} — {{ $serieOpcion->titulo() }} ({{ $serieOpcion->centroCostoIniciales() }})</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="flex justify-end">
+                    <x-primary-button type="button" wire:click="registrarIngresoAdicional">Registrar y emitir recibo</x-primary-button>
                 </div>
             @endif
         </div>

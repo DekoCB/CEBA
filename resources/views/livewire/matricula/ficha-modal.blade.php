@@ -3,6 +3,7 @@
 use App\Modules\Academico\Models\Curso;
 use App\Modules\Academico\Models\Horario;
 use App\Modules\Identidad\Services\AuditService;
+use App\Modules\Matricula\Enums\EstadoEstudianteEnum;
 use App\Modules\Matricula\Enums\TipoDocumentoEnum;
 use App\Modules\Matricula\Models\DocumentoEstudiante;
 use App\Modules\Matricula\Models\Estudiante;
@@ -64,6 +65,20 @@ new class extends Component
 
     public string $vendedorNuevo = '';
 
+    public bool $cambiandoEstado = false;
+
+    public string $estadoNuevo = '';
+
+    public string $fechaRetiroNueva = '';
+
+    public string $motivoRetiroNuevo = '';
+
+    public string $pausaInicioNueva = '';
+
+    public string $pausaFinNueva = '';
+
+    public string $motivoPausaNuevo = '';
+
     public ?int $editandoHorarioMatriculaId = null;
 
     public ?int $editandoHorarioCursoId = null;
@@ -95,6 +110,7 @@ new class extends Component
         $this->fechaFinEstudioNueva = '';
         $this->editandoVendedorMatriculaId = null;
         $this->vendedorNuevo = '';
+        $this->cambiandoEstado = false;
         $this->editandoHorarioMatriculaId = null;
         $this->editandoHorarioCursoId = null;
         $this->horarioSeleccionado = '';
@@ -353,6 +369,56 @@ new class extends Component
         $this->vendedorNuevo = '';
     }
 
+    public function editarEstado(): void
+    {
+        Gate::authorize('matricula.editar');
+
+        $estudiante = Estudiante::query()->findOrFail($this->estudianteId);
+
+        $this->cambiandoEstado = true;
+        $this->estadoNuevo = $estudiante->estado->value;
+        $this->fechaRetiroNueva = $estudiante->fecha_retiro?->format('Y-m-d') ?? '';
+        $this->motivoRetiroNuevo = $estudiante->motivo_retiro ?? '';
+        $this->pausaInicioNueva = $estudiante->pausa_inicio?->format('Y-m-d') ?? '';
+        $this->pausaFinNueva = $estudiante->pausa_fin?->format('Y-m-d') ?? '';
+        $this->motivoPausaNuevo = $estudiante->motivo_pausa ?? '';
+    }
+
+    public function cancelarEdicionEstado(): void
+    {
+        $this->cambiandoEstado = false;
+    }
+
+    public function guardarEstado(MatriculaService $service): void
+    {
+        Gate::authorize('matricula.editar');
+
+        if (! $this->cambiandoEstado) {
+            return;
+        }
+
+        $this->validate([
+            'estadoNuevo' => ['required', 'string', 'in:'.implode(',', array_column(EstadoEstudianteEnum::cases(), 'value'))],
+            'fechaRetiroNueva' => $this->estadoNuevo === 'retirado' ? 'required|date' : 'nullable',
+            'motivoRetiroNuevo' => $this->estadoNuevo === 'retirado' ? 'required|string|max:255' : 'nullable|string|max:255',
+            'pausaInicioNueva' => $this->estadoNuevo === 'pausa' ? 'required|date' : 'nullable',
+            'pausaFinNueva' => 'nullable|date',
+            'motivoPausaNuevo' => $this->estadoNuevo === 'pausa' ? 'required|string|max:255' : 'nullable|string|max:255',
+        ]);
+
+        $estudiante = Estudiante::query()->findOrFail($this->estudianteId);
+
+        $service->cambiarEstado($estudiante, EstadoEstudianteEnum::from($this->estadoNuevo), [
+            'fechaRetiro' => $this->fechaRetiroNueva ?: null,
+            'motivoRetiro' => $this->motivoRetiroNuevo ?: null,
+            'pausaInicio' => $this->pausaInicioNueva ?: null,
+            'pausaFin' => $this->pausaFinNueva ?: null,
+            'motivoPausa' => $this->motivoPausaNuevo ?: null,
+        ]);
+
+        $this->cambiandoEstado = false;
+    }
+
     public function editarHorario(int $matriculaId, int $cursoId): void
     {
         Gate::authorize('matricula.editar');
@@ -588,6 +654,7 @@ new class extends Component
             'historialCelularApoderado' => $estudiante?->apoderado
                 ? $audit->historialDe($estudiante->apoderado)->filter(fn ($entrada) => array_key_exists('celular', $entrada->new_values ?? []))
                 : collect(),
+            'estadosEstudiante' => EstadoEstudianteEnum::cases(),
         ];
     }
 }; ?>
@@ -629,6 +696,14 @@ new class extends Component
                     :fecha-fin-estudio-nueva="$fechaFinEstudioNueva"
                     :editando-vendedor-matricula-id="$editandoVendedorMatriculaId"
                     :vendedor-nuevo="$vendedorNuevo"
+                    :cambiando-estado="$cambiandoEstado"
+                    :estado-nuevo="$estadoNuevo"
+                    :fecha-retiro-nueva="$fechaRetiroNueva"
+                    :motivo-retiro-nuevo="$motivoRetiroNuevo"
+                    :pausa-inicio-nueva="$pausaInicioNueva"
+                    :pausa-fin-nueva="$pausaFinNueva"
+                    :motivo-pausa-nuevo="$motivoPausaNuevo"
+                    :estados-estudiante="$estadosEstudiante"
                     :planes-por-matricula="$planesPorMatricula"
                     :editando-monto-plan-id="$editandoMontoPlanId"
                     :monto-total-nuevo="$montoTotalNuevo"

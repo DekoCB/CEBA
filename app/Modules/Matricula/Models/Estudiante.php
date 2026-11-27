@@ -30,6 +30,11 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property string|null $celular
  * @property string|null $correo_personal
  * @property EstadoEstudianteEnum $estado
+ * @property Carbon|null $fecha_retiro
+ * @property string|null $motivo_retiro
+ * @property Carbon|null $pausa_inicio
+ * @property Carbon|null $pausa_fin
+ * @property string|null $motivo_pausa
  * @property-read Apoderado|null $apoderado
  * @property-read InstitucionProcedencia|null $institucionProcedencia
  * @property-read User|null $user
@@ -52,6 +57,11 @@ class Estudiante extends Model implements HasMedia
         'email',
         'correo_personal',
         'estado',
+        'fecha_retiro',
+        'motivo_retiro',
+        'pausa_inicio',
+        'pausa_fin',
+        'motivo_pausa',
         'grado_actual_id',
         'ciclos_completados',
         'observaciones',
@@ -64,6 +74,9 @@ class Estudiante extends Model implements HasMedia
             'es_menor_edad' => 'boolean',
             'estado_civil' => EstadoCivilEnum::class,
             'estado' => EstadoEstudianteEnum::class,
+            'fecha_retiro' => 'date',
+            'pausa_inicio' => 'date',
+            'pausa_fin' => 'date',
         ];
     }
 

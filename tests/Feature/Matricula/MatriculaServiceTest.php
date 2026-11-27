@@ -13,6 +13,7 @@ use App\Modules\Identidad\Database\Seeders\RolesAndPermissionsSeeder;
 use App\Modules\Matricula\DTOs\RegistrarApoderadoData;
 use App\Modules\Matricula\DTOs\RegistrarEstudianteData;
 use App\Modules\Matricula\DTOs\RegistrarMatriculaData;
+use App\Modules\Matricula\Enums\EstadoEstudianteEnum;
 use App\Modules\Matricula\Events\EstudianteMatriculado;
 use App\Modules\Matricula\Services\MatriculaService;
 use App\Modules\Pagos\Models\CargoAdicional;
@@ -344,6 +345,82 @@ class MatriculaServiceTest extends TestCase
         $matricula = $this->service()->reasignarVendedor($matricula, null);
 
         $this->assertNull($matricula->fresh()->vendedor);
+    }
+
+    public function test_cambiar_estado_a_retirado_exige_fecha_y_motivo(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+
+        $this->expectException(ValidationException::class);
+
+        $this->service()->cambiarEstado($estudiante, EstadoEstudianteEnum::RETIRADO, []);
+    }
+
+    public function test_cambiar_estado_a_retirado_guarda_fecha_y_motivo(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+
+        $estudiante = $this->service()->cambiarEstado($estudiante, EstadoEstudianteEnum::RETIRADO, [
+            'fechaRetiro' => '2026-11-20',
+            'motivoRetiro' => 'Cambio de ciudad',
+        ]);
+
+        $this->assertSame(EstadoEstudianteEnum::RETIRADO, $estudiante->fresh()->estado);
+        $this->assertSame('2026-11-20', $estudiante->fresh()->fecha_retiro->format('Y-m-d'));
+        $this->assertSame('Cambio de ciudad', $estudiante->fresh()->motivo_retiro);
+    }
+
+    public function test_cambiar_estado_a_pausa_exige_inicio_y_motivo(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+
+        $this->expectException(ValidationException::class);
+
+        $this->service()->cambiarEstado($estudiante, EstadoEstudianteEnum::PAUSA, []);
+    }
+
+    public function test_cambiar_estado_a_pausa_permite_fecha_fin_vacia(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+
+        $estudiante = $this->service()->cambiarEstado($estudiante, EstadoEstudianteEnum::PAUSA, [
+            'pausaInicio' => '2026-11-20',
+            'motivoPausa' => 'Viaje familiar',
+        ]);
+
+        $this->assertNull($estudiante->fresh()->pausa_fin);
+        $this->assertSame('2026-11-20', $estudiante->fresh()->pausa_inicio->format('Y-m-d'));
+        $this->assertSame('Viaje familiar', $estudiante->fresh()->motivo_pausa);
+    }
+
+    public function test_cambiar_estado_a_activo_limpia_los_campos_de_retiro_y_pausa(): void
+    {
+        $estudiante = $this->service()->registrarEstudiante($this->datosEstudianteMayor());
+        $this->service()->cambiarEstado($estudiante, EstadoEstudianteEnum::RETIRADO, [
+            'fechaRetiro' => '2026-11-20',
+            'motivoRetiro' => 'Cambio de ciudad',
+        ]);
+
+        $estudiante = $this->service()->cambiarEstado($estudiante, EstadoEstudianteEnum::ACTIVO, []);
+
+        $this->assertNull($estudiante->fresh()->fecha_retiro);
+        $this->assertNull($estudiante->fresh()->motivo_retiro);
+    }
+
+    public function test_crear_ficha_minima_calcula_menor_de_edad_y_no_crea_cuenta_de_acceso(): void
+    {
+        $estudiante = $this->service()->crearFichaMinima(
+            '72998811',
+            'Diego',
+            'Paredes Luna',
+            now()->subYears(16)->format('Y-m-d'),
+            '987333444',
+        );
+
+        $this->assertTrue($estudiante->es_menor_edad);
+        $this->assertNull($estudiante->user_id);
+        $this->assertSame(EstadoEstudianteEnum::ACTIVO, $estudiante->estado);
+        $this->assertDatabaseCount('users', 0);
     }
 
     public function test_reasignar_fecha_fin_estudio_la_actualiza(): void

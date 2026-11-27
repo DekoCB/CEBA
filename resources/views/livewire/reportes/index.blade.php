@@ -30,6 +30,7 @@ new #[Layout('layouts.app')] class extends Component
         'certificados' => ['permiso' => 'reportes.certificados', 'label' => 'Certificados'],
         'operativo' => ['permiso' => 'reportes.operativos', 'label' => 'Operativo (asistencia)'],
         'propio' => ['permiso' => 'reportes.propios', 'label' => 'Mis evaluaciones'],
+        'documentos' => ['permiso' => 'reportes.documentos', 'label' => 'Documentos'],
     ];
 
     /**
@@ -39,7 +40,7 @@ new #[Layout('layouts.app')] class extends Component
      *
      * @var list<string>
      */
-    private const TIPOS_CON_HORARIO = ['matricula', 'academico', 'financiero', 'morosos', 'certificados', 'operativo', 'propio'];
+    private const TIPOS_CON_HORARIO = ['matricula', 'academico', 'financiero', 'morosos', 'certificados', 'operativo', 'propio', 'documentos'];
 
     public string $tipo = '';
 
@@ -174,6 +175,7 @@ new #[Layout('layouts.app')] class extends Component
             'certificados' => $reportes->certificados($cicloId, $gradoId, $cursoId, $franja, $siagieId),
             'operativo' => $reportes->operativo($cicloId, $gradoId, $cursoId, $franja, $siagieId),
             'propio' => $reportes->propio(Auth::user(), $cicloId, $gradoId, $cursoId, $franja, $siagieId),
+            'documentos' => $reportes->documentos($cicloId, $gradoId, $cursoId, $franja, $siagieId),
             default => ['columnas' => [], 'filas' => []],
         };
     }
